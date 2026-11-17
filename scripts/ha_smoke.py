@@ -4,9 +4,11 @@ from datetime import datetime
 from pathlib import Path
 import shutil
 import tempfile
+import logging
 
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
+from homeassistant import bootstrap, loader
 
 
 async def main():
@@ -14,8 +16,11 @@ async def main():
         target=Path(directory)/'custom_components'/'weather_analysis'
         shutil.copytree(Path(__file__).resolve().parents[1]/'custom_components'/'weather_analysis',target)
         hass=HomeAssistant(directory)
+        loader.async_setup(hass)
         try:
-            assert await async_setup_component(hass,'weather_analysis',{'http':{'server_port':0},'recorder':{}})
+            config={'homeassistant':{'latitude':0,'longitude':0,'elevation':0,'time_zone':'UTC','unit_system':'metric'},'http':{'server_port':8123},'recorder':{}}
+            assert await bootstrap.async_from_config_dict(config,hass) is hass
+            assert await async_setup_component(hass,'weather_analysis',config)
             await hass.async_start()
             hass.states.async_set('sensor.outdoor_test','12.3',{'device_class':'temperature','state_class':'measurement','unit_of_measurement':'°C','friendly_name':'Outdoor smoke test'})
             result=await hass.config_entries.flow.async_init('weather_analysis',context={'source':'user'})
@@ -36,4 +41,5 @@ async def main():
             await hass.async_stop()
 
 
+logging.basicConfig(level=logging.WARNING)
 asyncio.run(main())
