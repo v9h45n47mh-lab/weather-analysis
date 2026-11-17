@@ -1,7 +1,7 @@
 type: custom:weather-analysis-card
-card_id: wetter-garten
-title: Wetteranalyse
-period: today
+card_id: temperatur-garten
+title: Temperaturanalyse
+period: day
 grid_options:
   columns: 12
   rows: auto

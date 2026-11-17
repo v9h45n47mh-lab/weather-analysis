@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from types import SimpleNamespace
 
 path = Path(__file__).parents[1] / "custom_components/weather_analysis/analytics.py"
 spec = importlib.util.spec_from_file_location("analytics", path)
@@ -102,12 +103,12 @@ class AnalyticsTests(unittest.TestCase):
             self.assertEqual(s["seconds"], hours*3600)
             self.assertEqual(len(s["days"]),1)
             self.assertTrue(s["days"][0]["complete"])
-            self.assertEqual(s["heating_degree_days"],10)
+            self.assertEqual(s["complete_days"],1)
 
-    def test_incomplete_day_has_no_heating_degree_days(self):
+    def test_incomplete_day_is_marked_incomplete(self):
         a=Archive();a.start(0,10);a.advance(3600)
         s=summarize(merge([],a.hours,0,3600),0,3600,"UTC")
-        self.assertEqual(s["heating_degree_days"],0)
+        self.assertEqual(s["complete_days"],0)
 
     def test_empty_data_does_not_become_zero_degrees(self):
         s=summarize([],0,3600,"UTC")
@@ -119,6 +120,57 @@ class AnalyticsTests(unittest.TestCase):
         a=Archive();a.start(0,10);a.change(3600,None);a.change(7200,20);a.advance(10800)
         chart=analytics.chart_rows(merge([],a.hours,0,10800),False,"UTC")
         self.assertEqual([p["start"] for p in chart],[0,7200])
+
+
+class HistoryTests(unittest.TestCase):
+    def snapshots(self, rows):
+        return [SimpleNamespace(state=value, last_updated=datetime.fromtimestamp(at, ZoneInfo("UTC")),
+                attributes={"unit_of_measurement":unit}) for at,value,unit in rows]
+
+    def test_initial_raw_history_provides_weighted_stats_thresholds_and_extreme_times(self):
+        rows=self.snapshots([(0,"-2","°C"),(900,"10","°C"),(1800,"unavailable","°C"),(2700,"5","°C")])
+        a=analytics.history_archive(rows,0,3600,[(0,3600)],"temperature")
+        s=summarize(merge([],a.hours,0,3600),0,3600,"UTC")
+        self.assertEqual(s["seconds"],2700)
+        self.assertEqual(s["mean"],13/3)
+        self.assertEqual(s["frost_hours"],.25)
+        self.assertEqual(s["max_at"],900)
+
+    def test_recorder_downtime_is_not_bridged(self):
+        rows=self.snapshots([(0,"10","°C"),(2700,"20","°C")])
+        a=analytics.history_archive(rows,0,3600,[(0,1800),(2400,3600)],"temperature")
+        s=summarize(merge([],a.hours,0,3600),0,3600,"UTC")
+        self.assertEqual(s["seconds"],2700)
+        self.assertAlmostEqual(s["mean"],40/3)
+        self.assertIsNone(a.value_at(2100))
+        self.assertIsNone(a.value_at(2500))
+
+    def test_disjoint_history_and_live_partial_hour_are_counted_once(self):
+        h=Archive();h.start(0,-2);h.advance(1800)
+        live=Archive();live.start(1800,10);live.advance(3600)
+        hours=analytics.combine_hours(h.hours,live.hours)
+        s=summarize(merge([],hours,0,3600),0,3600,"UTC")
+        self.assertEqual(s["seconds"],3600)
+        self.assertEqual(s["mean"],4)
+        self.assertEqual(s["frost_hours"],.5)
+
+    def test_historical_units_are_converted_per_state(self):
+        rows=self.snapshots([(0,"32","°F"),(1800,"10","°C")])
+        a=analytics.history_archive(rows,0,3600,[(0,3600)],"temperature")
+        self.assertEqual(summarize(merge([],a.hours,0,3600),0,3600,"UTC")["mean"],5)
+
+    def test_wind_speed_units_and_invalid_values(self):
+        for value,unit,expected in [(1,"m/s",3.6),(1,"km/h",1),(1,"mph",1.609344),(1,"kn",1.852),(1,"ft/s",1.09728)]:
+            self.assertAlmostEqual(analytics.sensor_value(value,unit,"wind"),expected)
+        for value in ("unknown","unavailable",-1,"nan","inf"):
+            self.assertIsNone(analytics.sensor_value(value,"m/s","wind"))
+        self.assertIsNone(analytics.sensor_kind("sensor.direction",{"unit_of_measurement":"°"}))
+        self.assertIsNone(analytics.sensor_kind("sensor.other",{"unit_of_measurement":"km/h","device_class":"distance"}))
+
+    def test_missing_start_is_not_filled_backwards(self):
+        rows=self.snapshots([(1800,"10","°C")])
+        a=analytics.history_archive(rows,0,3600,[(0,3600)],"temperature")
+        self.assertEqual(summarize(merge([],a.hours,0,3600),0,3600,"UTC")["seconds"],1800)
 
 
 if __name__ == "__main__":
