@@ -177,7 +177,7 @@ def summarize(rows, start, end, tz_name="Europe/Berlin", heating_base=20., heati
         for kind, cmp in (("min", min), ("max", max)):
             if row.get(kind) is not None:
                 day[kind] = row[kind] if day[kind] is None else cmp(day[kind], row[kind])
-    result.update(frost_days=0, warm_days=0, hot_days=0, heating_degree_days=0., heating_days=0)
+    result.update(frost_days=0, warm_days=0, hot_days=0, heating_degree_days=0., heating_days=0, complete_days=0)
     for day in days.values():
         day["mean"] = day.pop("weighted") / day["seconds"]
         date = datetime.fromisoformat(day["date"])
@@ -185,6 +185,7 @@ def summarize(rows, start, end, tz_name="Europe/Berlin", heating_base=20., heati
         local_end = (date + timedelta(days=1)).replace(tzinfo=tz)
         expected = local_end.timestamp() - local_start.timestamp()
         day["complete"] = day["seconds"] >= .95 * expected and local_end.timestamp() <= end
+        result["complete_days"] += int(day["complete"])
         # These are observed days, never a claim that missing days were frost-free.
         result["frost_days"] += int(day["min"] is not None and day["min"] < 0)
         result["warm_days"] += int(day["max"] is not None and day["max"] >= 25)

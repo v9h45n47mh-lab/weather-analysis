@@ -66,8 +66,8 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await page.evaluate(()=>{demo.second.remove();demo.admin=false;demo.card.setConfig({card_id:'viewer',entity:'sensor.garden'});});
   await card().locator('#wa-current').waitFor();await card().locator('[data-page="settings"]').click();
   assert.equal(await action('save-settings').count(),0);assert(await card().locator('#wa-sensor').isDisabled());
-  await page.evaluate(()=>{demo.empty=true;demo.card.setConfig({card_id:'empty'});});
-  await page.waitForFunction(()=>demo.card._ready);assert.match(await card().innerText(),/Integration Weather Analysis hinzufügen/);
+  await page.evaluate(()=>{demo.empty=true;demo.card.page='overview';demo.card.setConfig({card_id:'empty'});});
+  await page.waitForFunction(()=>demo.card._ready);assert.match(await card().locator('main').innerText(),/Integration Weather Analysis hinzufügen/);
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:18,errors},null,2));
   console.log('Browser checks passed: periods, charts, settings, stale responses, permissions, independent cards, 3 widths × 2 themes.');
