@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0
+
+- Helligkeitswerte überall ohne Nachkommastellen, einschließlich Trends, Rekorden, Tabellen und Chartdetails. Berechnungen bleiben ungerundet.
+- Aktualisieren als gemeinsames Symbol in der Kopfleiste aller Reiter; schmalere Temperatur-Dropdowns.
+- Kartentitel und Feld Anzeigename entfernt. Eigene Sensornamen bleiben in den Dropdowns erhalten.
+- Zwei kombinierte Kacheln oberhalb des Charts: Aktuell mit Änderung in 1 Std. sowie Minimum/Maximum.
+- Durchschnitt als beschriftete horizontale Linie im Verlauf; eigene Durchschnitts- und Spannenkacheln entfallen.
+- HA UI Kit 1.8.0 mit optionalen Kopfaktionen und kombinierten Messkacheln eingebunden.
+
 ## 1.2.0
 
 - Anzeigename wieder Weather Analysis. Bestehende YAMLs, Karteneinstellungen und Archive bleiben kompatibel; eigene Kartentitel bleiben erhalten.

@@ -1,16 +1,19 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **Thermometer, einen separaten Windsensor und einen Helligkeitssensor**. Version **1.2.0**, HA UI Kit **1.7.1** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **Thermometer, einen separaten Windsensor und einen Helligkeitssensor**. Version **1.3.0**, HA UI Kit **1.8.0** lokal eingebunden.
 
 ## Funktionen
 
 - Oben nur **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigenem Sensor aus den Karteneinstellungen.
 - Relevante Thermometer in den Einstellungen vorauswählen und je Karte eigene Namen vergeben. Die ursprünglichen HA-Entitätsnamen bleiben erhalten.
-- Dropdown oben rechts statt Aktualisieren, auch bei nur einem Thermometer.
+- Schmale Temperatur-Dropdowns und ein Aktualisieren-Symbol in der Kopfleiste aller Reiter. Kein Kartentitel und kein Feld Anzeigename.
+- Zwei Kacheln über dem Chart: Aktuell mit Veränderung in 1 Std. sowie Minimum/Maximum.
+- Durchschnittslinie mit Wert direkt im Chart; keine Durchschnitts- oder Spannenkachel.
+- Helligkeit ohne Nachkommastellen in allen Messwerten, Trends und Tabellen; Berechnungen bleiben unverändert präzise.
 - Mit **+** einen zweiten vorausgewählten Sensor vergleichen: zwei farbige Kurven mit gemeinsamer Temperaturskala, Namenslegende und Vergleichstabelle. **×** beendet den Vergleich. Der zweite Verlauf ist zusätzlich gestrichelt.
 - Geöffnete und geschlossene Bereiche bleiben bei Tag-/Wochen-/Monatswechsel, Sensorwechsel und Nachladen erhalten; jede Karte und Ansicht merkt ihre eigenen Zustände.
 - Eine Integration für alle Sensoren. Auswahl ausschließlich in den Einstellungen der Karte, keine einzelne Integration je Thermometer.
-- Aktueller Messwert, zeitlich gewichteter Durchschnitt, Minimum, Maximum und Spanne.
+- Aktueller Messwert, zeitlich gewichteter Durchschnitt sowie Minimum und Maximum.
 - Verlauf mit Durchschnittslinie und Min-/Max-Band, Trends und Vortagesvergleich.
 - Weitere Kennzahlen, Vergleiche, Rekorde, Monatsübersicht und Tageswerte sind aufklappbar.
 - Temperatur: Froststunden, Stunden ab 25/30 °C sowie nachgewiesene Frost-/Warm-/Heißtage.
@@ -36,7 +39,6 @@ Bestehende Integrationen und ihre Archive funktionieren nach dem Update weiter. 
 ```yaml
 type: custom:weather-analysis-card
 card_id: temperatur-garten
-title: Weather Analysis
 period: day
 grid_options:
   columns: 12
@@ -45,7 +47,7 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Thermometern und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.2.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.3.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
 
 ## Historie und Genauigkeit
 
@@ -65,7 +67,7 @@ Karteneinstellungen und Stundenarchive liegen im HA-Konfigurationsspeicher und w
 
 ## Berechtigungen und UI
 
-Die WebSocket-Endpunkte prüfen das native HA-Leserecht für jeden Sensor. Nur zugängliche Sensoren werden angeboten. Karteneinstellungen dürfen HA-Administratoren speichern. Sensorauswahl, Mehrfachauswahl, Navigation, Buttons, Listen und Klappbereiche verwenden das unveränderte gemeinsame **HA UI Kit 1.7.1**. Die Datumsnavigation unterstützt ab 1.7.1 einzeln deaktivierbare Pfeile; Darstellung und bisherige Aufrufe bleiben unverändert.
+Die WebSocket-Endpunkte prüfen das native HA-Leserecht für jeden Sensor. Nur zugängliche Sensoren werden angeboten. Karteneinstellungen dürfen HA-Administratoren speichern. Sensorauswahl, Mehrfachauswahl, Navigation, Buttons, Listen und Klappbereiche verwenden das unveränderte gemeinsame **HA UI Kit 1.8.0**. Die Datumsnavigation unterstützt ab 1.7.1 einzeln deaktivierbare Pfeile; Darstellung und bisherige Aufrufe bleiben unverändert.
 
 Brand-Icons werden lokal in `brand/` mitgeliefert. Die Anzeige im HACS-Marktplatz hängt von der lokalen Brand-Unterstützung der installierten HACS-Version ab.
 

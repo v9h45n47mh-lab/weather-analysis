@@ -34,7 +34,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, chart_rows)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 _LOGGER = logging.getLogger(__name__)
 
 

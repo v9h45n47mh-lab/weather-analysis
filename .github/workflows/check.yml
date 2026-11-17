@@ -59,4 +59,4 @@ jobs:
           Path('/tmp/temperature-release-notes.md').write_text(section+'\n')
           PY
           version="$(python3 -c "import json; print(json.load(open('package.json'))['version'])")"
-          gh release create "v${version}" dist/*.zip --target "$RELEASE_COMMIT" --title "Temperaturanalyse ${version}" --notes-file /tmp/temperature-release-notes.md
+          gh release create "v${version}" dist/*.zip --target "$RELEASE_COMMIT" --title "Weather Analysis ${version}" --notes-file /tmp/temperature-release-notes.md
