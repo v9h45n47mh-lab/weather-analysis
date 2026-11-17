@@ -8,11 +8,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.14'
-      - run: pip install homeassistant==2026.10.0
-      - run: python scripts/ha_smoke.py
+      - name: Run in official Home Assistant image
+        run: docker run --rm --entrypoint python -v "$PWD:/work" -w /work ghcr.io/home-assistant/home-assistant:2026.10.0 scripts/ha_smoke.py
   test:
     runs-on: ubuntu-latest
     steps:
