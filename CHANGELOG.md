@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0
+
+- Chartauflösung für alle Messarten und beide Vergleichssensoren: Tag 15 Minuten, Woche 1 Stunde und Monat 6 Stunden. Mittelwerte bleiben zeitlich gewichtet.
+- Viertelstunden werden aus vorhandener Detailhistorie importiert und fortlaufend gespeichert. Bestehende Archive bleiben erhalten; alte Stundenwerte ohne feinere Historie werden als solche gekennzeichnet.
+- Links-/Rechtspfeile auch für Kalenderwochen und Monate, einschließlich Rückkehr zum aktuellen Zeitraum. Vergangene Zeiträume werden vollständig gezeigt, zukünftige gesperrt. Tastaturpfeile werden außerhalb von Eingabefeldern unterstützt.
+- Eigenen Navigationsstand je Zeitraum merken; Klappzustände bleiben erhalten. Kalendergrenzen und 6-Stunden-Intervalle berücksichtigen Sommer-/Winterzeit.
+- Ausgewählte Sensoren in den Einstellungen per gemeinsamem Ziehgriff sortieren, mit Maus, Touch oder Tastatur. Reihenfolge und Namen werden je Karte gespeichert und in den Dropdowns verwendet.
+- Sensorauswahl für Temperatur, Wind und Helligkeit jeweils separat einklappbar und zunächst geschlossen.
+- HA UI Kit 1.8.0 mit vorhandenen Navigations-, Klapp- und Sortierkomponenten unverändert verwendet.
+
 ## 1.4.1
 
 - Maus-/Touchwerte erhalten einen festen Bereich oberhalb des Charts; die Kurven werden nicht verdeckt und verschieben sich beim Ablesen nicht. Farbige Messpunktmarkierungen und Detailwerte bleiben erhalten.

@@ -1,8 +1,8 @@
 import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, selectField,
   field, notice, versionInfo, bindUI, escapeHtml as esc, accountTile, accountTiles,
-  statisticsTable, filterButton, multiSelect, dateNavigation} from './family-ui/1.8.0/family-ui.js';
+  statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle} from './family-ui/1.8.0/family-ui.js';
 
-const VERSION = '1.4.1';
+const VERSION = '1.5.0';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['custom','Zeitraum']];
 const SENSOR_TYPES={temperature:{list:'entities',single:'entity',source:'_sensors',id:'wa-sensors',label:'Thermometer',title:'Temperatur'},wind:{list:'wind_entities',single:'wind_entity',source:'_windSensors',id:'wa-wind-sensors',label:'Windsensoren',title:'Wind'},illuminance:{list:'illuminance_entities',single:'illuminance_entity',source:'_illuminanceSensors',id:'wa-illuminance-sensors',label:'Helligkeitssensoren',title:'Helligkeit'}};
 const num = (value, digits=1) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('de-DE',{minimumFractionDigits:digits, maximumFractionDigits:digits});
@@ -11,19 +11,20 @@ const dateKey = (date, timezone) => {
   return `${p.year}-${p.month}-${p.day}`;
 };
 export function shiftDay(key, days) { const d=new Date(key+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10); }
+export function shiftMonth(key, months) {const d=new Date(key.slice(0,7)+'-01T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+months);return d.toISOString().slice(0,10);}
+export function periodStart(period,key){if(period==='month')return key.slice(0,7)+'-01';if(period==='week'){const dow=new Date(key+'T12:00:00Z').getUTCDay();return shiftDay(key,-((dow+6)%7));}return key;}
+export function calendarDates(period,key,today){const start=periodStart(period,key),next=period==='week'?shiftDay(start,7):shiftMonth(start,1);return [start,[shiftDay(next,-1),today].sort()[0]];}
 export function periodDates(period, timezone, now=new Date()) {
   const today=dateKey(now,timezone);
   if(period==='yesterday')return [shiftDay(today,-1),shiftDay(today,-1)];
-  if(period==='week'){const dow=new Date(today+'T12:00:00Z').getUTCDay();return [shiftDay(today,-((dow+6)%7)),today];}
-  if(period==='month')return [today.slice(0,7)+'-01',today];
-  return [today,today];
+  return ['week','month'].includes(period)?calendarDates(period,today,today):[today,today];
 }
 
 const CSS = `
 .wa-title{display:flex;align-items:center;justify-content:flex-start;gap:8px;padding:8px 0}
 .wa-header-controls{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-width:0;max-width:100%;margin-right:auto}
 .wa-sensor-select{flex:0 1 150px;width:150px;max-width:150px;min-width:80px}.wa-sensor-select .field{margin:0}.wa-sensor-select select{min-width:0;max-width:100%}
-.wa-alias-list{display:grid;gap:8px}.wa-alias-list>*{min-width:0}
+.wa-alias-list{display:grid;gap:8px}.wa-alias-item{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px;align-items:center}.wa-alias-list>*{min-width:0}
 .wa-chart .wa-series-secondary .wa-line{stroke:var(--warning-color,#ff9800);stroke-dasharray:7 3}.wa-chart .wa-series-secondary .wa-band{fill:var(--warning-color,#ff9800);opacity:.08}
 .wa-chart .wa-series-secondary .wa-point{fill:var(--warning-color,#ff9800)}.wa-swatch.secondary{background:var(--warning-color,#ff9800)}
 .wa-periods{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
@@ -52,8 +53,9 @@ class WeatherAnalysisCard extends HTMLElement {
     this.config={title:'Weather Analysis',period:'day',...config};
     this.config.card_id ||= this.config.entity || 'default';
     if(previousId!==this.config.card_id){this._sectionStates.clear();this._renderedScope=null;this._comparisons={};}
-    this._draftNames=null;this._settingsDraft=null;
+    this._draftNames=null;this._draftOrder=null;this._settingsDraft=null;
     this.period=PERIODS.some(([id])=>id===this.config.period)?this.config.period:this.config.period==='year'?'month':'day';
+    this._periodStarts={};
     this._day=this.config.period==='yesterday'?shiftDay(dateKey(new Date(),this._hass?.config?.time_zone||'Europe/Berlin'),-1):null;
     this._ready=false;this._data=null;this._comparisonData=null;this._comparisonError=null;this._settings={};this._active={};this._request++;
     if(this._hass)this._initialize();else this.render();
@@ -94,11 +96,17 @@ class WeatherAnalysisCard extends HTMLElement {
     this._chartLeave||=event=>{if(event.target.matches?.('.wa-chart')&&event.pointerType!=='touch'&&this._chartPointer==null)this._hideChartCursor();};
     this.shadowRoot.addEventListener('pointermove',this._chartMove);this.shadowRoot.addEventListener('pointerdown',this._chartDown);
     this.shadowRoot.addEventListener('pointerup',this._chartEnd);this.shadowRoot.addEventListener('pointercancel',this._chartEnd);this.shadowRoot.addEventListener('pointerleave',this._chartLeave,true);
+    this._periodKey ||= event=>{
+      if(!['ArrowLeft','ArrowRight'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||['settings','help'].includes(this.page)||this.period==='custom'||event.target.closest?.('input,select,textarea,[contenteditable="true"]'))return;
+      event.preventDefault();this._action({action:this.period==='day'?(event.key==='ArrowLeft'?'previous-day':'next-day'):(event.key==='ArrowLeft'?'previous-period':'next-period'),data:{}});
+    };
+    this.shadowRoot.addEventListener('keydown',this._periodKey);
     this._timer ||= setInterval(()=>{if(this.page!=='settings')this._fetch();},60000);
     if(this._ready)this._fetch();else if(this._hass&&this.config)this._initialize();
   }
   disconnectedCallback(){
     this._unbind?.();this._unbind=null;clearInterval(this._timer);this._timer=null;clearTimeout(this._debounce);
+    this.shadowRoot.removeEventListener('keydown',this._periodKey);
     this.shadowRoot.removeEventListener('change',this._change);this.shadowRoot.removeEventListener('pointerover',this._inspect);this.shadowRoot.removeEventListener('focusin',this._inspect);
     this.shadowRoot.removeEventListener('pointermove',this._chartMove);this.shadowRoot.removeEventListener('pointerdown',this._chartDown);this.shadowRoot.removeEventListener('pointerup',this._chartEnd);this.shadowRoot.removeEventListener('pointercancel',this._chartEnd);this.shadowRoot.removeEventListener('pointerleave',this._chartLeave,true);
   }
@@ -115,7 +123,12 @@ class WeatherAnalysisCard extends HTMLElement {
     }catch(error){this._error='Weather Analysis ist noch nicht eingerichtet oder konnte nicht geladen werden. Bitte die Integration einmal unter Geräte & Dienste hinzufügen. '+(error.message||'');this.render();}
     finally{this._initializing=false;}
   }
-  _dates(){if(this.period==='day'){const day=this._day||dateKey(new Date(),this.timezone||'Europe/Berlin');return [day,day];}return this.period==='custom'?(this._custom||periodDates('today',this.timezone||'Europe/Berlin')):periodDates(this.period,this.timezone||'Europe/Berlin');}
+  _dates(){
+    const today=dateKey(new Date(),this.timezone||'Europe/Berlin');
+    if(this.period==='day'){const day=this._day||today;return [day,day];}
+    if(['week','month'].includes(this.period))return calendarDates(this.period,this._periodStarts[this.period]||today,today);
+    return this._custom||[today,today];
+  }
   async _fetch(){
     if(!this._ready||!this.activeEntity||!this._hass)return;
     const request=++this._request,[start_date,end_date]=this._dates();
@@ -123,7 +136,7 @@ class WeatherAnalysisCard extends HTMLElement {
     this._busy=true;
     if(!this._data)this.render();
     try{
-      const query=entity_id=>this._hass.callWS({type:'weather_analysis/analyse',entity_id,start_date,end_date});
+      const query=entity_id=>this._hass.callWS({type:'weather_analysis/analyse',entity_id,start_date,end_date,...({day:900,week:3600,month:21600}[this.period]?{chart_interval:{day:900,week:3600,month:21600}[this.period]}:{})});
       const responses=await Promise.allSettled([query(entity),...(compare?[query(compare)]:[])]);
       if(request!==this._request)return;
       if(responses[0].status==='rejected')throw responses[0].reason;
@@ -134,11 +147,19 @@ class WeatherAnalysisCard extends HTMLElement {
     finally{if(request===this._request){this._busy=false;if(this.page!=='settings')this.render();}}
   }
   async _action({action,data,value}){
+    if(action==='order-sensors'&&this._admin&&SENSOR_TYPES[data.kind]){
+      const kind=data.kind,config=SENSOR_TYPES[kind];this._rememberAliasDraft();
+      const selected=[...this.shadowRoot.querySelectorAll('#'+config.id+' input[type="checkbox"]:checked')].map(input=>input.value);
+      const entities=this._orderedEntities(selected,kind),from=entities.indexOf(data.program),to=Math.max(0,Math.min(entities.length-1,from+Number(data.offset)));
+      if(from<0||!Number.isInteger(to)||from===to)return;
+      const [entity]=entities.splice(from,1);entities.splice(to,0,entity);this._draftOrder||={};this._draftOrder[kind]=entities;
+      this.shadowRoot.getElementById('wa-alias-fields-'+kind).innerHTML=this._aliasFields(entities,kind);return;
+    }
     if(action.startsWith('choose-sensors-')){const kind=action.slice('choose-sensors-'.length);if(SENSOR_TYPES[kind])this._refreshAliasFields(value,kind);return;}
     if(action==='compare-add'){if(this.selectedEntities.length<2)return;this.comparison.enabled=true;this.comparison.entity=this.selectedEntities.find(e=>e!==this.activeEntity);this._comparisonData=null;this._data=null;this.render();await this._fetch();return;}
     if(action==='compare-remove'){this.comparison.enabled=false;this.comparison.entity='';this._comparisonData=null;this._comparisonError=null;this._request++;this._busy=false;this.render();await this._fetch();return;}
     if(action==='navigate'){
-      const oldView=this.view;if(data.page==='settings'&&this.page!=='settings'){this._draftNames={...this.settings.sensor_names};this._settingsDraft=null;}this.page=data.page;this._error=null;
+      const oldView=this.view;if(data.page==='settings'&&this.page!=='settings'){this._draftNames={...this.settings.sensor_names};this._draftOrder=Object.fromEntries(Object.entries(SENSOR_TYPES).map(([kind,config])=>[kind,[...this.settings[config.list]]]));this._settingsDraft=null;}this.page=data.page;this._error=null;
       if(this.view!==oldView||!['settings','help'].includes(this.page)){this._request++;this._data=null;this._busy=false;}
       this.render();if(!['settings','help'].includes(this.page))await this._fetch();return;
     }
@@ -150,6 +171,12 @@ class WeatherAnalysisCard extends HTMLElement {
       }
       this._refreshing=true;this.render();
       try{await this._initialize();}finally{this._refreshing=false;this.render();}return;
+    }
+    if(['previous-period','next-period','current-period'].includes(action)&&['week','month'].includes(this.period)){
+      const today=dateKey(new Date(),this.timezone||'Europe/Berlin'),current=periodStart(this.period,today),start=this._dates()[0];
+      const direction=action==='previous-period'?-1:1;
+      const target=action==='current-period'?current:this.period==='week'?shiftDay(start,direction*7):shiftMonth(start,direction);
+      if(target>current)return;this._periodStarts[this.period]=target;this._request++;this._data=null;this._busy=false;this._error=null;this.render();await this._fetch();return;
     }
     if(['previous-day','next-day','today'].includes(action)){
       const today=dateKey(new Date(),this.timezone||'Europe/Berlin');
@@ -167,13 +194,13 @@ class WeatherAnalysisCard extends HTMLElement {
       if(!start||!end||start>end){this._error='Bitte einen gültigen Zeitraum auswählen.';this.render();return;}
       this._custom=[start,end];this._data=null;this._fetch();return;
     }
-    if(action==='cancel-settings'){this._settingsDraft=null;this.page='temperature';this._request++;this._busy=false;this._data=null;this._error=null;this.render();await this._fetch();return;}
+    if(action==='cancel-settings'){this._settingsDraft=null;this._draftOrder=null;this.page='temperature';this._request++;this._busy=false;this._data=null;this._error=null;this.render();await this._fetch();return;}
     if(action==='save-settings'&&this._admin){
       const settings=this._readSettingsForm();
       try {
         const previous=this._settings;
         let saved;try{saved=await this._persistSettings(settings);}catch(error){this._settings=previous;throw error;}
-        this._settings=saved;this._draftNames=null;this._settingsDraft=null;this._active={};for(const [kind,config] of Object.entries(SENSOR_TYPES)){if(saved[config.list].length<2)this._comparisons[kind]={enabled:false,entity:''};}this._request++;this._data=null;this._error=null;this.page='temperature';await this._fetch();
+        this._settings=saved;this._draftNames=null;this._draftOrder=null;this._settingsDraft=null;this._active={};for(const [kind,config] of Object.entries(SENSOR_TYPES)){if(saved[config.list].length<2)this._comparisons[kind]={enabled:false,entity:''};}this._request++;this._data=null;this._error=null;this.page='temperature';await this._fetch();
       }catch(error){this._error=error.message||String(error);const slot=this.shadowRoot.getElementById('wa-settings-error');if(slot)slot.innerHTML=notice(this._error,{error:true});}
     }
   }
@@ -194,7 +221,7 @@ class WeatherAnalysisCard extends HTMLElement {
   _readSettingsForm(){
     const settings={title:this.settings.title||'Weather Analysis'},selected=new Set();
     for(const [kind,config] of Object.entries(SENSOR_TYPES)){
-      const entities=[...this.shadowRoot.querySelectorAll('#'+config.id+' input[type="checkbox"]:checked')].map(x=>x.value);
+      const entities=this._orderedEntities([...this.shadowRoot.querySelectorAll('#'+config.id+' input[type="checkbox"]:checked')].map(x=>x.value),kind);
       entities.forEach(entity=>selected.add(entity));settings[config.list]=entities;
       const primary=this._active[kind]??this.settings[config.single];settings[config.single]=entities.includes(primary)?primary:entities[0]||'';
     }
@@ -214,19 +241,24 @@ class WeatherAnalysisCard extends HTMLElement {
     this._draftNames||={...this.settings.sensor_names};
     for(const el of this.shadowRoot.querySelectorAll('[data-alias-entity]'))this._draftNames[el.dataset.aliasEntity]=el.querySelector('input').value;
   }
+  _orderedEntities(entities,kind){
+    const order=this._draftOrder?.[kind]||this.settings[SENSOR_TYPES[kind].list];
+    return [...order.filter(entity=>entities.includes(entity)),...entities.filter(entity=>!order.includes(entity))];
+  }
   _aliasFields(entities,kind){
     const names=this._draftNames||this.settings.sensor_names||{},source=this[SENSOR_TYPES[kind].source];
-    return entities.length?entities.map((entity,index)=>`<div data-alias-entity="${esc(entity)}">${field({id:'wa-'+kind+'-alias-'+index,label:source.find(s=>s.entity_id===entity)?.name||entity,value:names[entity]||'',maxLength:100,hint:entity+' · leer = ursprünglicher Name',disabled:!this._admin})}</div>`).join(''):notice('Zuerst relevante Sensoren auswählen.');
+    return entities.length?entities.map((entity,index)=>`<div class="wa-alias-item fui-order-item" data-alias-entity="${esc(entity)}">${field({id:'wa-'+kind+'-alias-'+index,label:source.find(s=>s.entity_id===entity)?.name||entity,value:names[entity]||'',maxLength:100,hint:entity+' · leer = ursprünglicher Name',disabled:!this._admin})}${orderHandle({id:entity,index,count:entities.length,action:'order-sensors',group:kind,label:'Sensor verschieben',disabled:!this._admin,data:{kind}})}</div>`).join(''):notice('Zuerst relevante Sensoren auswählen.');
   }
   _refreshAliasFields(entities,kind){
     this._rememberAliasDraft();
+    entities=this._orderedEntities(entities,kind);this._draftOrder||={};this._draftOrder[kind]=entities;
     const slot=this.shadowRoot.getElementById('wa-alias-fields-'+kind);
     if(slot)slot.innerHTML=this._aliasFields(entities,kind);
   }
   _sensorSettings(kind,s){
-    const config=SENSOR_TYPES[kind],entities=s[config.list]||[];
+    const config=SENSOR_TYPES[kind],entities=this._orderedEntities(s[config.list]||[],kind);
     return section({id:'wa-select-'+kind,title:config.label,content:
-      multiSelect({id:config.id,label:'Relevante '+config.label,action:'choose-sensors-'+kind,values:entities,items:this[config.source].map(sensor=>({value:sensor.entity_id,label:sensor.name,description:config.title+' · '+({temperature:'°C / °F / K',wind:'km/h / m/s',illuminance:'lx / Lux'}[kind])+' · '+sensor.entity_id})),disabled:!this._admin})+
+      section({id:'wa-sensor-selection-'+kind,title:'Sensorauswahl',expanded:false,content:multiSelect({id:config.id,label:'Relevante '+config.label,action:'choose-sensors-'+kind,values:entities,items:this[config.source].map(sensor=>({value:sensor.entity_id,label:sensor.name,description:config.title+' · '+({temperature:'°C / °F / K',wind:'km/h / m/s',illuminance:'lx / Lux'}[kind])+' · '+sensor.entity_id})),disabled:!this._admin})})+
       section({id:'wa-names-'+kind,title:config.title,content:`<div id="wa-alias-fields-${kind}" class="wa-alias-list">${this._aliasFields(entities,kind)}</div>`})});
   }
   _rememberSections(){
@@ -246,10 +278,17 @@ class WeatherAnalysisCard extends HTMLElement {
   _periodControls(){
     const [start,end]=this._dates();
     return `<div class="wa-periods" role="group" aria-label="Auswertungszeitraum">${PERIODS.map(([id,label])=>filterButton({label,action:'period',selected:this.period===id,data:{period:id}})).join('')}</div>
-      ${this.period==='day'?dateNavigation({label:this._dateLabel(start),previousLabel:'Vorheriger Tag',nextLabel:'Nächster Tag',previousAction:'previous-day',nextAction:'next-day',nextDisabled:start>=dateKey(new Date(),this.timezone||'Europe/Berlin')}):''}
+      ${this.period==='day'?dateNavigation({label:this._dateLabel(start),previousLabel:'Vorheriger Tag',nextLabel:'Nächster Tag',previousAction:'previous-day',nextAction:'next-day',nextDisabled:start>=dateKey(new Date(),this.timezone||'Europe/Berlin')}):['week','month'].includes(this.period)?dateNavigation({label:this._periodLabel(start),previousLabel:this.period==='week'?'Vorherige Woche':'Vorheriger Monat',nextLabel:this.period==='week'?'Nächste Woche':'Nächster Monat',todayLabel:'Aktuell',todayAction:'current-period',nextDisabled:start>=periodStart(this.period,dateKey(new Date(),this.timezone||'Europe/Berlin'))}):''}
       ${this.period==='custom'?`<div class="wa-date-fields">${field({id:'wa-from',label:'Von',type:'date',value:start})}${field({id:'wa-to',label:'Bis',type:'date',value:end,min:start})}</div><div class="toolbar">${button({label:'Anzeigen',action:'custom-apply',variant:'primary'})}</div>`:''}
       <p class="hint wa-range">${esc(this._dateLabel(start))}${start!==end?' – '+esc(this._dateLabel(end)):''}${this._data?.partial?' · bisher':''}</p>`;
   }
+  _periodLabel(start){
+    const d=new Date(start+'T12:00:00Z');
+    if(this.period==='month')return d.toLocaleDateString('de-DE',{timeZone:'UTC',month:'long',year:'numeric'});
+    d.setUTCDate(d.getUTCDate()+3);const year=d.getUTCFullYear(),week=Math.ceil(((d-new Date(year+'-01-01T12:00:00Z'))/86400000+1)/7);
+    return `KW ${week} · ${year}`;
+  }
+  _resolutionLabel(interval=this._data?.chart_interval){return {900:'15-Minuten-Mittel',3600:'Stundenmittel',21600:'6-Stunden-Mittel',86400:'Tagesmittel'}[interval]||'Stundenmittel';}
   _dateLabel(key){return new Date(key+'T12:00:00Z').toLocaleDateString('de-DE',{timeZone:'UTC',day:'2-digit',month:'2-digit',year:'numeric'});}
   _chartSeries(){
     const series=[{data:this._data,entity:this.activeEntity}];
@@ -265,8 +304,8 @@ class WeatherAnalysisCard extends HTMLElement {
     const x=t=>L+(t-d.start)/Math.max(1,d.end-d.start)*(W-L-R),y=v=>T+(high-v)/(high-low)*(H-T-B);
     this._chartGeometry={W,H,L,R,T,B,low,high};
     const plotted=series.map((series,seriesIndex)=>{
-      const groups=[];let group=[];const interval=series.data.chart_daily?86400:3600;
-      for(const point of series.data.chart){if(group.length&&point.start-group.at(-1).start>interval*1.6){groups.push(group);group=[];}group.push(point);}if(group.length)groups.push(group);
+      const groups=[];let group=[];const interval=series.data.chart_interval||(series.data.chart_daily?86400:3600);
+      for(const point of series.data.chart){if(group.length&&point.start>(group.at(-1).end??group.at(-1).start+interval)+1){groups.push(group);group=[];}group.push(point);}if(group.length)groups.push(group);
       const paths=groups.map(g=>{
         const line=g.map((p,i)=>`${i?'L':'M'}${x(p.start).toFixed(2)},${y(p.mean).toFixed(2)}`).join(' ');
         const band=[...g.map(p=>[x(p.start),y(p.max??p.mean)]),...g.toReversed().map(p=>[x(p.start),y(p.min??p.mean)])].map(([a,b],i)=>`${i?'L':'M'}${a.toFixed(2)},${b.toFixed(2)}`).join(' ')+' Z';
@@ -287,10 +326,10 @@ class WeatherAnalysisCard extends HTMLElement {
       ${plotted}${averages}
       <rect class="wa-chart-surface" x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}"/>
       <g class="wa-cursor" id="wa-cursor" hidden><path class="wa-crosshair" id="wa-crosshair"/>${series.map((entry,index)=>`<circle class="wa-cursor-point ${index?'secondary':''}" data-cursor-series="${index}" r="4" visibility="hidden"/>`).join('')}</g>
-      ${[0,.5,1].map((fraction,i)=>`<text x="${L+fraction*(W-L-R)}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${esc(new Intl.DateTimeFormat('de-DE',{timeZone:this.timezone,...(d.chart_daily?{day:'2-digit',month:'2-digit'}:{hour:'2-digit',minute:'2-digit'})}).format(new Date((d.start+fraction*(d.end-d.start))*1000)))}</text>`).join('')}</svg></div>
-      <div class="wa-legend hint">${series.length>1?series.map((s,i)=>`<span><i class="wa-swatch ${i?'secondary':''}"></i>${esc(this._sensorName(s.entity))}</span>`).join(''):'<span><i class="wa-swatch"></i>Durchschnitt</span><span><i class="wa-swatch band"></i>Minimum / Maximum</span>'}</div><p class="hint wa-inspector" id="wa-inspector" aria-live="polite">${esc(d.chart_daily?'Tagesmittel · Maus oder Finger für Details bewegen':'Stundenmittel · Maus oder Finger für Details bewegen')}</p>`;
+      ${[0,.5,1].map((fraction,i)=>`<text x="${L+fraction*(W-L-R)}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${esc(new Intl.DateTimeFormat('de-DE',{timeZone:this.timezone,...(this.period!=='day'?{day:'2-digit',month:'2-digit'}:{hour:'2-digit',minute:'2-digit'})}).format(new Date((d.start+fraction*(d.end-d.start))*1000)))}</text>`).join('')}</svg></div>
+      <div class="wa-legend hint">${series.length>1?series.map((s,i)=>`<span><i class="wa-swatch ${i?'secondary':''}"></i>${esc(this._sensorName(s.entity))}</span>`).join(''):'<span><i class="wa-swatch"></i>Durchschnitt</span><span><i class="wa-swatch band"></i>Minimum / Maximum</span>'}</div><p class="hint wa-inspector" id="wa-inspector" aria-live="polite">${esc(this._resolutionLabel()+' · Maus oder Finger für Details bewegen'+(d.chart_fallback?' · ältere Abschnitte nur stündlich':''))}</p>`;
   }
-  _pointText(p,entity=this.activeEntity){return `${this._sensorName(entity)} · ${this._formatTime(p.start,true)} · Ø ${this._num(p.mean)} ${this.unit} · Min ${this._num(p.min)} ${this.unit} · Max ${this._num(p.max)} ${this.unit}`;}
+  _pointText(p,entity=this.activeEntity){return `${this._sensorName(entity)} · ${this._formatTime(p.start,true)} · ${this._resolutionLabel(p.resolution||this._data?.chart_interval)} · Ø ${this._num(p.mean)} ${this.unit} · Min ${this._num(p.min)} ${this.unit} · Max ${this._num(p.max)} ${this.unit}`;}
   _inspectPoint(index,seriesIndex=0){
     const point=this._chartSeries()[seriesIndex]?.data?.chart[index];
     if(point)this._showChartCursor(point.start);
@@ -308,7 +347,7 @@ class WeatherAnalysisCard extends HTMLElement {
     const svg=this.shadowRoot.querySelector('.wa-chart'),tooltip=this.shadowRoot.getElementById('wa-chart-tooltip'),cursor=this.shadowRoot.getElementById('wa-cursor');
     if(!svg||!tooltip||!cursor||!this._data||!this._chartGeometry)return;
     const target=Math.max(this._data.start,Math.min(time,this._data.end-.001)),series=this._chartSeries();
-    const readings=series.map(entry=>({...entry,point:entry.data.chart.find(point=>point.start<=target&&target<(point.end??point.start+(entry.data.chart_daily?86400:3600)))}));
+    const readings=series.map(entry=>({...entry,point:entry.data.chart.find(point=>point.start<=target&&target<(point.end??point.start+(point.resolution||entry.data.chart_interval||(entry.data.chart_daily?86400:3600))))}));
     const at=readings.find(entry=>entry.point)?.point.start??target,g=this._chartGeometry;
     const x=g.L+(at-this._data.start)/Math.max(1,this._data.end-this._data.start)*(g.W-g.L-g.R);
     cursor.removeAttribute('hidden');this.shadowRoot.getElementById('wa-crosshair').setAttribute('d',`M${x},${g.T} V${g.H-g.B}`);
@@ -371,12 +410,12 @@ class WeatherAnalysisCard extends HTMLElement {
       ${versionInfo({frontend:VERSION,backend:this._data?.version||VERSION,ui:UI_VERSION,label:'Weather Analysis'})}`;
   }
   _help(){return section({id:'wa-help',title:'So funktioniert Weather Analysis',content:
-    '<p>Temperatur, Wind und Helligkeit stammen direkt von deinen gewählten HA-Sensoren. Bereits bei der ersten Auswahl werden vorhandene Detailhistorie und Langzeitstatistik ausgewertet. Anschließend werden Stundenwerte und Extremwerte auch bei geschlossener Karte gespeichert.</p>'+
+    '<p>Temperatur, Wind und Helligkeit stammen direkt von deinen gewählten HA-Sensoren. Bereits bei der ersten Auswahl werden vorhandene Detailhistorie und Langzeitstatistik ausgewertet. Anschließend werden 15-Minuten-Werte, Stundenwerte und Extremwerte auch bei geschlossener Karte gespeichert.</p>'+
     row({title:'Sensoren auswählen und vergleichen',description:'Die Integration wird einmal eingerichtet. Sensoren aller drei Messarten wählst du ausschließlich in den Einstellungen der Karte. Ausgewählte Sensoren kannst du im jeweiligen Bereich für diese Karte umbenennen. Das Dropdown oben wechselt den Sensor; + fügt einen zweiten Sensor zum Vergleich hinzu. Mehrere Karten erhalten eigene Einstellungen über ihre Karten-ID.'})+
     row({title:'Datenqualität',description:'≈ kennzeichnet Mittelwerte aus verdichteten HA-Statistiken. Grenzwertdauern und genaue Extremzeiten stammen aus vorhandener Detailhistorie und eigener Aufzeichnung. Fehlende Detaildaten werden nicht erfunden.'})+
     row({title:'Messlücken',description:'Unavailable/unknown und bekannte HA-Ausfallzeiten bleiben Lücken. Vergleiche sind nur bei ähnlicher Datenabdeckung aussagekräftig.'})+
     row({title:'Wind',description:'Windgeschwindigkeit wird einheitlich in km/h angezeigt. Unterstützt werden auch m/s, mph, Knoten und ft/s. Der höchste Sensorwert ist keine separat gemessene Windböe.'})+
-    row({title:'Zeitraum und Zeitzone',description:'Tag, Woche und Monat reichen jeweils bis jetzt. Tagesgrenzen und Uhrzeiten folgen der HA-Zeitzone. Freie Zeiträume dürfen höchstens ein Jahr umfassen.'})});}
+    row({title:'Zeitraum und Zeitzone',description:'Tag zeigt 15-Minuten-Mittel, Woche Stundenmittel und Monat 6-Stunden-Mittel. Die Pfeile wechseln Tag, Kalenderwoche oder Kalendermonat. Aktuelle Zeiträume reichen bis jetzt. Tagesgrenzen und Uhrzeiten folgen der HA-Zeitzone. Freie Zeiträume dürfen höchstens ein Jahr umfassen.'})});}
   render(){
     if(!this.config)return;
     this._rememberSections();

@@ -10,7 +10,9 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto('http://127.0.0.1:'+server.address().port);
   const card=()=>page.locator('weather-analysis-card').first(),action=name=>card().locator('[data-action="'+name+'"]');
+  const openSelections=async()=>{for(const kind of ['temperature','wind','illuminance']){const control=card().locator('[aria-controls="wa-sensor-selection-'+kind+'-content"]');if(await control.getAttribute('aria-expanded')==='false')await control.click();}};
   await card().locator('#wa-current').waitFor();
+  assert.equal(await page.evaluate(()=>demo.card._data.chart_interval),900);
   assert.match(await card().locator('#wa-current').innerText(),/11,4/);
   assert.equal(await card().locator('.wa-current .fui-account-tile').count(),2);
   assert.match(await card().locator('#wa-current').innerText(),/Veränderung in 1 Std./);
@@ -45,8 +47,25 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await action('next-day').click();await page.waitForFunction(day=>demo.card._data&&demo.card._dates()[0]===day,originalDay);
   assert(await action('next-day').isDisabled());await checkFolds();
   await action('period').filter({hasText:'Woche'}).click();await page.waitForFunction(()=>demo.card._data&&!demo.card._busy);await checkFolds();
-  await action('period').filter({hasText:'Monat'}).click();
-  await page.waitForFunction(()=>demo.card._data?.chart_daily);await checkFolds();
+  for(const [period,label,interval] of [['week','Woche',3600],['month','Monat',21600]]){
+    await action('period').filter({hasText:label,exact:true}).click();await page.waitForFunction(i=>demo.card._data?.chart_interval===i&&!demo.card._busy,interval);await checkFolds();
+    assert(await action('next-period').isDisabled());
+    const current=await page.evaluate(()=>demo.card._dates());
+    await action('previous-period').click();await page.waitForFunction(start=>demo.card._data&&demo.card._dates()[0]!==start&&!demo.card._busy,current[0]);
+    const previous=await page.evaluate(()=>demo.card._dates());
+    assert.equal(new Date(previous[1]+'T12:00:00Z').getTime()+86400000,new Date(current[0]+'T12:00:00Z').getTime());
+    assert(!(await action('next-period').isDisabled()));await checkFolds();
+    await action('previous-period').focus();await page.keyboard.press('ArrowLeft');await page.waitForFunction(start=>demo.card._data&&demo.card._dates()[0]<start&&!demo.card._busy,previous[0]);
+    await action('next-period').focus();await page.keyboard.press('ArrowRight');await page.waitForFunction(start=>demo.card._data&&demo.card._dates()[0]===start&&!demo.card._busy,previous[0]);
+    // A selected calendar window survives switching to another period.
+    await action('period').filter({hasText:'Tag',exact:true}).click();await page.waitForFunction(()=>demo.card._data&&!demo.card._busy);
+    await action('period').filter({hasText:label,exact:true}).click();await page.waitForFunction(()=>demo.card._data&&!demo.card._busy);assert.deepEqual(await page.evaluate(()=>demo.card._dates()),previous);
+    await action('current-period').click();await page.waitForFunction(start=>demo.card._data&&demo.card._dates()[0]===start&&!demo.card._busy,current[0]);
+    assert(await action('next-period').isDisabled());
+    await action('previous-period').focus();const requests=await page.evaluate(()=>demo.calls.length);await page.keyboard.press('ArrowRight');assert.equal(await page.evaluate(()=>demo.calls.length),requests);
+  }
+  const calendars=await page.evaluate(async()=>{const {calendarDates,shiftMonth,periodDates}=await import('/custom_components/weather_analysis/frontend/weather-analysis-card.js');return [calendarDates('month','2024-02-15','2026-11-17'),calendarDates('week','2027-01-01','2027-02-01'),shiftMonth('2026-01-01',-1),periodDates('week','Europe/Berlin',new Date('2027-01-01T12:00:00Z')),demo.card._periodLabel.call({period:'week'},'2026-12-28')];});
+  assert.deepEqual(calendars,[['2024-02-01','2024-02-29'],['2026-12-28','2027-01-03'],'2025-12-01',['2026-12-28','2027-01-01'],'KW 53 · 2026']);
   await action('period').filter({hasText:'Zeitraum'}).click();
   const before=await page.evaluate(()=>demo.calls.filter(x=>x.type==='weather_analysis/analyse').length);
   await card().locator('#wa-from').fill('2026-10-01');await card().locator('#wa-to').fill('2026-10-31');
@@ -56,6 +75,8 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.equal(await card().locator('#wa-base,#wa-limit,#wa-heating-settings').count(),0);
   for(const [kind,title] of [['temperature','Temperatur'],['wind','Wind'],['illuminance','Helligkeit']])assert.equal(await card().locator('[aria-controls="wa-names-'+kind+'-content"]').innerText(),title);
   assert.equal(await card().getByText('Namen in dieser Karte',{exact:true}).count(),0);
+  for(const kind of ['temperature','wind','illuminance'])assert.equal(await card().locator('[aria-controls="wa-sensor-selection-'+kind+'-content"]').getAttribute('aria-expanded'),'false');
+  await openSelections();
   // Search the German measurement kind even when a provider uses English names.
   await card().locator('#wa-wind-sensors-search').fill('Wind');
   assert.equal(await card().locator('#wa-wind-sensors [data-selection-row]:visible').count(),2);
@@ -89,6 +110,25 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.deepEqual(await page.evaluate(()=>demo.saved.get('test-garden').illuminance_entities),['sensor.lux','sensor.lux2']);
   assert.equal(await card().locator('.card-top [data-action="reload"]').count(),1);assert.equal(await action('reload').innerText(),'');
   assert.deepEqual(await card().locator('#wa-active-sensor option').allTextContents(),['Terrasse','Nordseite kurz']);
+  await card().locator('[data-page="settings"]').click();
+  const selectedKinds=[['temperature','entities',['sensor.garden','sensor.north']],['wind','wind_entities',['sensor.wind','sensor.wind2']],['illuminance','illuminance_entities',['sensor.lux','sensor.lux2']]];
+  for(const [kind,,entities] of selectedKinds){
+    const handles=card().locator('#wa-alias-fields-'+kind+' [data-ui="order"]');
+    await handles.first().evaluate(el=>el.scrollIntoView({block:'center'}));
+    const source=await handles.nth(1).boundingBox(),target=await handles.first().boundingBox();
+    await page.mouse.move(source.x+source.width/2,source.y+source.height/2);await page.mouse.down();await page.waitForTimeout(220);await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:8});await page.mouse.up();
+    assert.deepEqual(await handles.evaluateAll(nodes=>nodes.map(node=>node.dataset.program)),[...entities].reverse());
+    await card().locator('[aria-controls="wa-sensor-selection-'+kind+'-content"]').click();
+  }
+  await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing);
+  for(const [kind,,entities] of selectedKinds){assert.deepEqual(await card().locator('#wa-alias-fields-'+kind+' [data-ui="order"]').evaluateAll(nodes=>nodes.map(node=>node.dataset.program)),[...entities].reverse());assert.equal(await card().locator('[aria-controls="wa-sensor-selection-'+kind+'-content"]').getAttribute('aria-expanded'),'false');}
+  await action('save-settings').click();await card().locator('#wa-current').waitFor();
+  for(const [,field,entities] of selectedKinds)assert.deepEqual(await page.evaluate(field=>demo.saved.get('test-garden')[field],field),[...entities].reverse());
+  assert.deepEqual(await card().locator('#wa-active-sensor option').allTextContents(),['Nordseite kurz','Terrasse']);
+  await card().locator('[data-page="settings"]').click();
+  for(const [kind] of selectedKinds){const handle=card().locator('#wa-alias-fields-'+kind+' [data-ui="order"]').first();await handle.focus();await handle.press('ArrowDown');}
+  await action('save-settings').click();await card().locator('#wa-current').waitFor();
+  for(const [,field,entities] of selectedKinds)assert.deepEqual(await page.evaluate(field=>demo.saved.get('test-garden')[field],field),entities);
   await action('compare-add').click();await page.waitForFunction(()=>demo.card._comparisonData?.entity_id==='sensor.north');
   assert.equal(await card().locator('.wa-chart .wa-series').count(),2);assert.equal(await card().locator('.wa-chart .wa-average-label').count(),2);
   assert.notEqual(await card().locator('.wa-series-primary .wa-line').getAttribute('d'),await card().locator('.wa-series-secondary .wa-line').getAttribute('d'));
@@ -124,6 +164,10 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
     assert.equal(await card().locator('.wa-chart .wa-series').count(),2);
     assert.equal(await card().locator('.wa-average-label').count(),2);
     assert.match(await card().locator('.wa-legend').innerText(),new RegExp(names.join('.*'),'s'));
+    for(const [label,interval] of [['Tag',900],['Woche',3600],['Monat',21600]]){
+      await action('period').filter({hasText:label,exact:true}).click();await page.waitForFunction(interval=>demo.card._data?.chart_interval===interval&&demo.card._comparisonData?.chart_interval===interval&&!demo.card._busy,interval);
+      assert((await card().locator('#wa-inspector').innerText()).includes({900:'15-Minuten',3600:'Stundenmittel',21600:'6-Stunden'}[interval]));
+    }
     await action('period').filter({hasText:'Tag',exact:true}).click();await page.waitForFunction(()=>demo.card._data&&demo.card._comparisonData&&!demo.card._busy);
     const box=await card().locator('.wa-chart').boundingBox();
     await page.mouse.move(box.x+box.width*.25,box.y+box.height*.55);
@@ -206,7 +250,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.equal(await card().locator('#wa-current').count(),0);
   assert(await card().locator('#wa-active-sensor').isDisabled());
   assert(await action('compare-add').isDisabled());
-  await action('navigate').filter({hasText:'Sensoren auswählen'}).click();
+  await action('navigate').filter({hasText:'Sensoren auswählen'}).click();await openSelections();
   await card().locator('#wa-sensors input[value="sensor.garden"]').check();
   await card().locator('#wa-wind-sensors input[value="sensor.wind"]').check();
   await card().locator('#wa-illuminance-sensors input[value="sensor.lux"]').check();
@@ -247,6 +291,16 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert(touchTooltip.y+touchTooltip.height<touchChartAfter.y);
   assert.equal(touchChartAfter.y,touchBox.y);
   await touchPage.screenshot({path:path.join(screens,'touch-scrub.png'),fullPage:true});
+  await touchCard.locator('[data-page="settings"]').click();
+  const touchHandles=touchCard.locator('#wa-alias-fields-temperature [data-ui="order"]');
+  await touchHandles.first().evaluate(el=>el.scrollIntoView({block:'center'}));
+  const source=await touchHandles.nth(1).boundingBox(),target=await touchHandles.first().boundingBox();
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:source.x+source.width/2,y:source.y+source.height/2,id:0}]});await touchPage.waitForTimeout(220);
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:target.x+target.width/2,y:target.y+target.height/2,id:0}]});
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  assert.deepEqual(await touchHandles.evaluateAll(nodes=>nodes.map(node=>node.dataset.program)),['sensor.north','sensor.garden']);
+  await touchCard.locator('[data-action="save-settings"]').click();await touchCard.locator('#wa-current').waitFor();
+  assert.deepEqual(await touchPage.evaluate(()=>demo.saved.get('touch').entities),['sensor.north','sensor.garden']);
   await touchContext.close();
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:25,errors},null,2));

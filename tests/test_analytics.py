@@ -122,6 +122,51 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual([p["start"] for p in chart],[0,7200])
 
 
+class ResolutionTests(unittest.TestCase):
+    def chart(self, archive, interval, start, end, tz="UTC"):
+        return analytics.resolution_chart(merge([],archive.hours,start,end),merge([],archive.quarters,start,end),interval,tz)
+
+    def test_quarter_means_use_actual_transitions_and_survive_reload(self):
+        archive=Archive();archive.start(0,0);archive.change(450,20);archive.advance(1800)
+        chart=self.chart(archive,900,0,1800)
+        self.assertEqual([(p["start"],p["end"],p["mean"]) for p in chart],[(0,900,10),(900,1800,20)])
+        self.assertEqual(self.chart(archive,3600,0,1800)[0]["mean"],15)
+        restored=Archive(archive.dump());restored.start(1800,20);restored.advance(2700)
+        self.assertEqual([p["mean"] for p in self.chart(restored,900,0,2700)],[10,20,20])
+        self.assertEqual(sum(p["seconds"] for p in restored.quarters.values()),2700)
+
+    def test_quarter_gaps_are_not_replaced_by_hourly_means(self):
+        archive=Archive();archive.start(0,10);archive.change(900,None);archive.change(1800,30);archive.advance(3600)
+        chart=self.chart(archive,900,0,3600)
+        self.assertEqual([p["start"] for p in chart],[0,1800,2700])
+        self.assertTrue(all(p["resolution"]==900 for p in chart))
+
+    def test_legacy_hours_are_preserved_without_invented_quarters(self):
+        archive=Archive();archive.start(0,10);archive.advance(3600);archive.quarters.clear()
+        chart=self.chart(archive,900,0,3600)
+        self.assertEqual(len(chart),1)
+        self.assertEqual(chart[0]["resolution"],3600)
+        self.assertEqual(chart[0]["mean"],10)
+
+    def test_six_hour_bins_use_time_weighted_hours(self):
+        archive=Archive();archive.start(0,10);archive.change(3600,20);archive.advance(5400)
+        point=self.chart(archive,21600,0,5400)[0]
+        self.assertEqual((point["start"],point["end"],point["min"],point["max"]),(0,5400,10,20))
+        self.assertAlmostEqual(point["mean"],40/3)
+
+    def test_dst_keeps_quarters_and_local_six_hour_boundaries(self):
+        tz=ZoneInfo("Europe/Berlin")
+        for day,hours in [("2026-03-29",23),("2026-10-25",25)]:
+            first=datetime.fromisoformat(day).replace(tzinfo=tz);start=first.timestamp();end=(first+timedelta(days=1)).timestamp()
+            archive=Archive();archive.start(start,7);archive.advance(end)
+            self.assertEqual(len(self.chart(archive,900,start,end,str(tz))),hours*4)
+            self.assertEqual(len(self.chart(archive,3600,start,end,str(tz))),hours)
+            chart=self.chart(archive,21600,start,end,str(tz))
+            self.assertEqual([datetime.fromtimestamp(p["start"],tz).hour for p in chart],[0,6,12,18])
+            self.assertEqual(sum(p["end"]-p["start"] for p in chart),hours*3600)
+            self.assertEqual([p["mean"] for p in chart],[7]*4)
+
+
 class SensorDiscoveryTests(unittest.TestCase):
     def test_equivalent_weather_units_and_legacy_classes(self):
         for unit,device_class in [("Lux", ""), (" lux ", "brightness"), ("LX", "illuminance"), ("lx", None)]:

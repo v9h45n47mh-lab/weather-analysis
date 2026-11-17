@@ -309,6 +309,50 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.history_read.call_count, 1)
         self.assertEqual(data["summary"]["exact_seconds"], 7200)
 
+    async def test_requested_chart_resolutions_keep_summary_and_exact_detail(self):
+        raw=backend.Archive();first=now.timestamp()-7200;raw.start(first,0);raw.change(first+450,20);raw.advance(now.timestamp())
+        self.history_read.return_value=raw
+        await self.manager.load()
+        expected=None
+        for interval in (900,3600,21600):
+            data=await self.manager.analyse({"start_date":"2026-11-17","end_date":"2026-11-17","chart_interval":interval})
+            self.assertEqual(data["chart_interval"],interval)
+            self.assertTrue(all(point["resolution"]==interval for point in data["chart"]))
+            if expected is None:expected=data["summary"]
+            self.assertEqual(data["summary"],expected)
+        self.assertEqual(self.manager.dump()["history_resolution"],900)
+        self.assertTrue(self.manager.dump()["history"]["quarters"])
+        with self.assertRaises(ValueError):
+            await self.manager.analyse({"start_date":"2026-11-17","end_date":"2026-11-17","chart_interval":1200})
+
+    async def test_upgrade_backfills_quarters_without_overlapping_old_live_hours(self):
+        old=backend.Archive();old.start(now.timestamp()-86400,5);old.advance(now.timestamp())
+        stored=old.dump();stored.pop("quarters");stored["history"]={"hours":{}};stored["history_imported"]=True
+        self.manager.store.value=stored
+        detail=backend.Archive();detail.start(now.timestamp()-3600,0);detail.change(now.timestamp()-1800,10);detail.advance(now.timestamp())
+        self.history_read.side_effect=lambda first,last:detail if last>now.timestamp()-86400 else backend.Archive()
+        await self.manager.load()
+        self.assertEqual(self.history_read.call_count,2)
+        self.assertEqual(self.manager.history.hours,{})
+        data=await self.manager.analyse({"start_date":"2026-11-17","end_date":"2026-11-17","chart_interval":900})
+        self.assertEqual([p["mean"] for p in data["chart"] if p["resolution"]==900],[0,0,10,10])
+        self.assertEqual(data["summary"]["mean"],5)
+        self.assertTrue(data["chart_fallback"])
+        self.assertLessEqual(data["summary"]["coverage"],1)
+        await self.manager.import_history()
+        self.assertEqual(self.history_read.call_count,2)
+
+    async def test_sensor_order_is_preserved_for_every_kind(self):
+        self.add_secondary_sensors()
+        message={"id":1,"card_id":"ordered","title":"Test","entities":["sensor.second","sensor.test"],
+                 "wind_entities":["sensor.wind2","sensor.wind"],"illuminance_entities":["sensor.lux2","sensor.lux"]}
+        connection=Connection(admin=True)
+        await backend.ws_save_card(self.hass,connection,message)
+        await backend.ws_sensors(self.hass,connection,{"id":2,"card_id":"ordered"})
+        saved=connection.results[-1][1]["settings"]
+        for key in ("entities","wind_entities","illuminance_entities"):
+            self.assertEqual(saved[key],message[key])
+
     async def test_invalid_ranges_rejected(self):
         for first, last in [("2025-01-01","2026-11-17"),("2027-01-01","2027-01-01"),("2026-11-17","2026-11-16")]:
             with self.assertRaises(ValueError):

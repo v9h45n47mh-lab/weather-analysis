@@ -50,12 +50,19 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.4.1",data
+            assert data["version"]=="1.5.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data
             assert data["summary"]["min"]==-2,data
             assert data["summary"]["min_at"] is not None,data
+            for interval in (900,3600,21600):
+                detail=await manager.analyse({**request,"chart_interval":interval})
+                assert detail["chart_interval"]==interval,detail
+                assert detail["chart"] and all(point["resolution"]==interval for point in detail["chart"]),detail
+                assert detail["summary"]["min"]==-2,detail
+            assert manager.dump()["history"]["quarters"]
+            assert manager.dump()["history_resolution"]==900
             assert "heating_degree_days" not in data["summary"]
             wind_manager=await ensure_manager(hass,"sensor.wind_test","wind")
             wind_data=await wind_manager.analyse(request)

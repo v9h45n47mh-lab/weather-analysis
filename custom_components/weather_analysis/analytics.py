@@ -7,6 +7,7 @@ import math
 from zoneinfo import ZoneInfo
 
 HOUR = 3600
+QUARTER = 900
 THRESHOLDS = ("frost", "warm", "hot")
 
 
@@ -25,14 +26,14 @@ def celsius(value, unit="°C"):
     return value if unit == "°C" else None
 
 
-def empty_bucket(start):
-    return {"start": start, "end": start + HOUR, "seconds": 0., "weighted": 0.,
+def empty_bucket(start, interval=HOUR):
+    return {"start": start, "end": start + interval, "seconds": 0., "weighted": 0.,
             "min": None, "max": None, "min_at": None, "max_at": None,
             "frost": 0., "warm": 0., "hot": 0.}
 
 
 class Archive:
-    """Persist hourly integrals and exact extrema; retain three days of transitions.
+    """Persist hourly and 15-minute integrals and exact extrema; retain three days of transitions.
 
     The last known value is held until a state change. Unavailable states and
     integration downtime are gaps, never silently interpolated.
@@ -41,6 +42,7 @@ class Archive:
     def __init__(self, data=None):
         data = data or {}
         self.hours = deepcopy(data.get("hours", {}))
+        self.quarters = deepcopy(data.get("quarters", {}))
         self.recent = deepcopy(data.get("recent", []))
         self.last_time = data.get("last_time")
         self.value = None
@@ -56,25 +58,26 @@ class Archive:
     def advance(self, now):
         if self.last_time is None or now <= self.last_time:
             return
-        cursor = self.last_time
         if self.value is not None:
-            while cursor < now:
-                start = math.floor(cursor / HOUR) * HOUR
-                end = min(start + HOUR, now)
-                bucket = self.hours.setdefault(str(start), empty_bucket(start))
-                seconds = end - cursor
-                bucket["seconds"] += seconds
-                bucket["weighted"] += self.value * seconds
-                bucket.setdefault("observed_start", cursor)
-                bucket["observed_end"] = end
-                for kind, condition in (("min", lambda a, b: a < b), ("max", lambda a, b: a > b)):
-                    if bucket[kind] is None or condition(self.value, bucket[kind]):
-                        bucket[kind] = self.value
-                        bucket[kind + "_at"] = cursor
-                bucket["frost"] += seconds if self.value < 0 else 0
-                bucket["warm"] += seconds if self.value >= 25 else 0
-                bucket["hot"] += seconds if self.value >= 30 else 0
-                cursor = end
+            for interval, buckets in ((HOUR, self.hours), (QUARTER, self.quarters)):
+                cursor = self.last_time
+                while cursor < now:
+                    start = math.floor(cursor / interval) * interval
+                    end = min(start + interval, now)
+                    bucket = buckets.setdefault(str(start), empty_bucket(start, interval))
+                    seconds = end - cursor
+                    bucket["seconds"] += seconds
+                    bucket["weighted"] += self.value * seconds
+                    bucket.setdefault("observed_start", cursor)
+                    bucket["observed_end"] = end
+                    for kind, condition in (("min", lambda a, b: a < b), ("max", lambda a, b: a > b)):
+                        if bucket[kind] is None or condition(self.value, bucket[kind]):
+                            bucket[kind] = self.value
+                            bucket[kind + "_at"] = cursor
+                    bucket["frost"] += seconds if self.value < 0 else 0
+                    bucket["warm"] += seconds if self.value >= 25 else 0
+                    bucket["hot"] += seconds if self.value >= 30 else 0
+                    cursor = end
         self.last_time = now
         self.prune(now)
 
@@ -98,7 +101,7 @@ class Archive:
         return found
 
     def dump(self):
-        return {"hours": self.hours, "recent": self.recent, "last_time": self.last_time}
+        return {"hours": self.hours, "quarters": self.quarters, "recent": self.recent, "last_time": self.last_time}
 
 
 def merge_hours(stats, archived, start, end):
@@ -202,6 +205,44 @@ def chart_rows(rows, daily, tz_name):
     return [{"start": datetime.fromisoformat(r["date"]).replace(tzinfo=ZoneInfo(tz_name)).timestamp(),
              "end": min(rows[-1]["end"], (datetime.fromisoformat(r["date"]) + timedelta(days=1)).replace(tzinfo=ZoneInfo(tz_name)).timestamp()),
              "mean": r["mean"], "min": r["min"], "max": r["max"]} for r in summary["days"]]
+
+
+def resolution_chart(hours, quarters, interval, tz_name):
+    """Use true quarter-hour detail or aggregate measured hourly integrals.
+
+    Older hours without 15-minute detail stay explicitly hourly. An hour with
+    any quarter-hour detail uses only that detail, retaining its known gaps.
+    Calendar six-hour/day bins follow local time, including DST transitions.
+    """
+    def point(row, resolution):
+        return {"start": row["start"], "end": row["end"],
+                "mean": row["weighted"] / row["seconds"], "min": row["min"], "max": row["max"],
+                "resolution": resolution, "estimated": row["source"] == "statistics"}
+    if interval == QUARTER:
+        detailed_hours = {math.floor(row["start"] / HOUR) for row in quarters}
+        coarse = [point(row, HOUR) for row in hours if math.floor(row["start"] / HOUR) not in detailed_hours and row["seconds"]]
+        return sorted(coarse + [point(row, QUARTER) for row in quarters if row["seconds"]], key=lambda row:row["start"])
+    if interval == HOUR:
+        return [point(row, HOUR) for row in hours if row["seconds"]]
+    tz = ZoneInfo(tz_name)
+    groups = {}
+    for row in hours:
+        if not row["seconds"]:
+            continue
+        local = datetime.fromtimestamp(row["start"], tz)
+        local_start = local.replace(hour=(local.hour // (interval // HOUR)) * (interval // HOUR), minute=0, second=0, microsecond=0)
+        start = local_start.timestamp()
+        stop = (local_start + timedelta(seconds=interval)).timestamp()
+        group = groups.setdefault(start, {"start":start,"end":start,"seconds":0.,"weighted":0.,"min":None,"max":None,"source":"archive"})
+        group["end"] = min(stop, max(group["end"],row["end"]))
+        group["seconds"] += row["seconds"]
+        group["weighted"] += row["weighted"]
+        if row["source"] == "statistics":
+            group["source"] = "statistics"
+        for key, choose in (("min",min),("max",max)):
+            if row.get(key) is not None:
+                group[key] = row[key] if group[key] is None else choose(group[key],row[key])
+    return [point(row,interval) for row in sorted(groups.values(),key=lambda row:row["start"])]
 
 WIND_UNITS = {"m/s": 3.6, "km/h": 1., "kmh": 1., "kph": 1., "mph": 1.609344,
               "kn": 1.852, "knots": 1.852, "kt": 1.852, "ft/s": 1.09728}

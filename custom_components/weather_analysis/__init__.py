@@ -31,10 +31,10 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
-                        history_archive, merge_hours, summarize, chart_rows)
+                        history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.4.1"
+VERSION = "1.5.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -129,7 +129,7 @@ class Manager:
         stored = await self.store.async_load() or {}
         self.archive = Archive(stored)
         self.history = Archive(stored.get("history"))
-        self.history_imported = stored.get("history_imported", False)
+        self.history_imported = stored.get("history_imported", False) and stored.get("history_resolution") == 900
         self.archive.start(dt_util.utcnow().timestamp(), self.state_value())
         self.unsubscribers = [
             async_track_state_change_event(self.hass, [self.entity], self.state_changed),
@@ -157,7 +157,7 @@ class Manager:
 
     def dump(self):
         return {**self.archive.dump(), "history": self.history.dump(),
-                "history_imported": self.history_imported, "kind": self.kind}
+                "history_imported": self.history_imported, "history_resolution": 900, "kind": self.kind}
 
     def read_history(self, first, last):
         """Read retained raw states and recording intervals in the recorder executor."""
@@ -181,12 +181,17 @@ class Manager:
         now = dt_util.utcnow().timestamp()
         first = getattr(getattr(recorder, "states_manager", None), "oldest_ts", None)
         first = max(0., first - 1.) if first is not None else now - getattr(recorder, "keep_days", 10) * 86400
-        last = min((r.get("observed_start", r["start"]) for r in self.archive.hours.values()), default=now)
+        now = dt_util.utcnow().timestamp()
+        hour_end = min((row.get("observed_start",row["start"]) for row in self.archive.hours.values()),default=now)
+        quarter_end = min((row.get("observed_start",row["start"]) for row in self.archive.quarters.values()),default=now)
         try:
-            imported = await recorder.async_add_executor_job(self.read_history, first, last)
-            for key, bucket in self.history.hours.items():
-                if key not in imported.hours or imported.hours[key]["seconds"] < bucket["seconds"]:
-                    imported.hours[key] = bucket
+            imported = await recorder.async_add_executor_job(self.read_history, first, hour_end)
+            detail = imported if quarter_end == hour_end else await recorder.async_add_executor_job(self.read_history, first, quarter_end)
+            for field, source in (("hours",imported.hours),("quarters",detail.quarters)):
+                for key, bucket in getattr(self.history,field).items():
+                    if key not in source or source[key]["seconds"] < bucket["seconds"]:
+                        source[key] = bucket
+                setattr(imported,field,source)
             self.history = imported
         except Exception:
             _LOGGER.warning("Retained history import failed for %s; retrying on next analysis", self.entity, exc_info=True)
@@ -221,6 +226,9 @@ class Manager:
         if len(msg["start_date"]) != 10 or len(msg["end_date"]) != 10:
             raise ValueError("Bitte gültige Kalendertage auswählen.")
         requested_end = (last_local + timedelta(days=1)).timestamp()
+        interval = msg.get("chart_interval", 3600 if (last_local-start_local).days <= 3 else 86400)
+        if interval not in (900,3600,21600,86400):
+            raise ValueError("Bitte eine gültige Chartauflösung auswählen.")
         start = start_local.timestamp()
         now = dt_util.utcnow().timestamp()
         end = min(now, requested_end)
@@ -240,6 +248,8 @@ class Manager:
                 self.statistics(0, now, "year"))
         rows = merge_hours(stats, archive_hours, start, end)
         summary = summarize(rows, start, end, tz_name)
+        quarters = merge_hours([], combine_hours(self.history.quarters,self.archive.quarters),start,end) if interval == 900 else []
+        chart = resolution_chart(rows,quarters,interval,tz_name)
         comparisons = {}
         for label, data, first, last in (("previous", prior, prior_start, prior_end),
                                          ("year", year, year_start, year_start + end - start)):
@@ -269,8 +279,8 @@ class Manager:
                 "timezone": tz_name, "current": current,
                 "last_updated": state.last_updated.timestamp() if state else None,
                 "start": start, "end": end, "partial": end < requested_end,
-                "summary": summary, "chart": chart_rows(rows, end-start > 3*86400, tz_name),
-                "chart_daily": end-start > 3*86400,
+                "summary": summary, "chart": chart, "chart_interval": interval,
+                "chart_daily": interval == 86400, "chart_fallback": any(point["resolution"] > interval for point in chart),
                 "comparisons": comparisons, "trends": trend, "records": record,
                 "archive_since": min((r.get("observed_start", r["start"]) for r in archive_hours.values()), default=now)}
 
@@ -349,6 +359,7 @@ async def ws_save_card(hass, connection, msg):
     vol.Required("entity_id"): str,
     vol.Required("start_date"): str,
     vol.Required("end_date"): str,
+    vol.Optional("chart_interval"): vol.All(vol.Coerce(int),vol.Range(min=900,max=86400)),
 })
 @websocket_api.async_response
 async def ws_analyse(hass, connection, msg):
