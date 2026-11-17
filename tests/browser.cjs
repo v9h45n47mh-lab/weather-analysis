@@ -58,14 +58,14 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
    await page.setViewportSize({width,height:1100});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    for(const view of ['temperature','wind','illuminance','settings']){
     await card().locator('[data-page="'+view+'"]').click();
-    if(view!=='settings')await card().locator('#wa-current').waitFor();
+    if(view!=='settings'){await card().locator('#wa-current').waitFor();await action('period').filter({hasText:'Tag',exact:true}).click();await card().locator('#wa-current').waitFor();assert(await action('next-day').isDisabled());}
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
    }
    assert.match(await card().locator('.version-info').innerText(),/1\.7\.1/);
   }
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
-  assert.match(await card().locator('#wa-current').innerText(),/1234|1.234/);assert.match(await card().locator('#wa-current').innerText(),/lx/);
+  assert.match(await card().locator('#wa-current').innerText(),/1234|1.234/);assert.match(await card().locator('#wa-current').innerText(),/lx/);assert.equal(await card().getByText('Temperaturspanne',{exact:true}).count(),0);
   await card().locator('[data-page="settings"]').click();await action('import-history').click();await card().getByText('Historie für 3 Sensoren übernommen.').waitFor();
   await page.setViewportSize({width:1100,height:1100});await page.evaluate(()=>document.body.classList.remove('dark'));
   await card().locator('#wa-title').fill('Entwurf');

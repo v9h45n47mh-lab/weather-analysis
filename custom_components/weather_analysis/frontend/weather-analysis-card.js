@@ -205,7 +205,7 @@ class WeatherAnalysisCard extends HTMLElement {
       this._tile('min','Minimum',num(s.min),this.unit,this._extremeDescription(s,'min'))+
       this._tile('max','Maximum',num(s.max),this.unit,this._extremeDescription(s,'max'))+
       this._tile('mean',d.partial?'Durchschnitt bisher':'Durchschnitt',(s.estimated?'≈ ':'')+num(s.mean),this.unit,'Zeitlich gewichtet')+
-      this._tile('range','Temperaturspanne',num(s.range),this.unit,'Maximum minus Minimum')})}
+      this._tile('range',this.view==='temperature'?'Temperaturspanne':'Spanne',num(s.range),this.unit,'Maximum minus Minimum')})}
       ${section({id:'wa-trends',title:'Weitere Vergleiche',expanded:false,content:
         row({title:'Veränderung in 3 Stunden',trailing:esc(delta(d.trends.three_hours,this.unit))})+
         row({title:'Gestern zur gleichen Uhrzeit',trailing:esc(delta(d.trends.yesterday,this.unit))})})}`;

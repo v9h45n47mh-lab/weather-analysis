@@ -171,7 +171,7 @@ class Manager:
         recorder = get_instance(self.hass)
         now = dt_util.utcnow().timestamp()
         first = getattr(getattr(recorder, "states_manager", None), "oldest_ts", None)
-        first = first if first is not None else now - getattr(recorder, "keep_days", 10) * 86400
+        first = max(0., first - 1.) if first is not None else now - getattr(recorder, "keep_days", 10) * 86400
         last = min((r.get("observed_start", r["start"]) for r in self.archive.hours.values()), default=now)
         try:
             imported = await recorder.async_add_executor_job(self.read_history, first, last)
