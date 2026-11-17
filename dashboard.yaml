@@ -1,6 +1,6 @@
 type: custom:weather-analysis-card
 card_id: temperatur-garten
-title: Temperaturanalyse
+title: Weather Analysis
 period: day
 grid_options:
   columns: 12

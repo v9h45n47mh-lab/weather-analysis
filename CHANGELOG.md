@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+- Anzeigename wieder Weather Analysis. Bestehende YAMLs, Karteneinstellungen und Archive bleiben kompatibel; eigene Kartentitel bleiben erhalten.
+- Relevante Thermometer in den Einstellungen vorauswählen und pro Karte umbenennen.
+- Sensordropdown oben rechts anstelle von Aktualisieren, auch bei nur einem vorausgewählten Thermometer.
+- Pluszeichen zum Vergleich mit einem zweiten vorausgewählten Sensor: zwei Farben, zusätzliche Strichelung, gemeinsame Temperaturskala, beschriftete Legende und Kennzahlenvergleich. Vergleich über × entfernen.
+- Auf-/Zuklappzustände aller Bereiche bleiben beim Wechsel des Zeitraums und beim Nachladen erhalten, unabhängig je Karte und Ansicht.
+- Sensoraliase werden mit den Karteneinstellungen gespeichert und nach nativen HA-Leserechten gefiltert.
+- Gemeinsames HA UI Kit 1.7.1 bleibt unverändert eingebunden.
+
 ## 1.1.0
 
 - Neuer Anzeigename: Temperaturanalyse. Bestehender Kartentyp und YAML bleiben gültig.

@@ -153,6 +153,26 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(saved["wind_entity"], "sensor.wind")
         self.assertEqual(len(self.hass.data[backend.DOMAIN]), 4)
 
+    async def test_sensor_aliases_are_trimmed_scoped_and_persisted_per_card(self):
+        msg = {"id":1,"card_id":"card-a","entities":["sensor.test","sensor.second"],
+               "entity":"sensor.test","title":"Weather Analysis", "sensor_names":{
+                   "sensor.test":"  Terrasse  ", "sensor.second":"", "sensor.humidity":"Hidden"}}
+        await backend.ws_save_card(self.hass, Connection(admin=True), msg)
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_settings"]["card-a"]["sensor_names"],
+                         {"sensor.test":"Terrasse"})
+        await backend.ws_save_card(self.hass, Connection(admin=True), {**msg,"card_id":"card-b",
+            "sensor_names":{"sensor.test":"Andere Karte"}})
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_settings"]["card-a"]["sensor_names"]["sensor.test"], "Terrasse")
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_settings"]["card-b"]["sensor_names"]["sensor.test"], "Andere Karte")
+        self.assertEqual(self.states["sensor.test"].name,"sensor.test")
+
+    async def test_sensor_aliases_follow_read_permissions(self):
+        self.hass.data[backend.DOMAIN+"_settings"]["card"] = {"entities":["sensor.test","sensor.second"],
+            "entity":"sensor.test", "sensor_names":{"sensor.test":"Private name","sensor.second":"Visible name"}}
+        conn=Connection(denied={"sensor.test"})
+        await backend.ws_sensors(self.hass,conn,{"id":1,"card_id":"card"})
+        self.assertEqual(conn.results[0][1]["settings"]["sensor_names"],{"sensor.second":"Visible name"})
+
     async def test_save_rejects_wrong_sensor_kind_without_partial_changes(self):
         conn = Connection(admin=True)
         await backend.ws_save_card(self.hass, conn, {"id":1,"card_id":"card",

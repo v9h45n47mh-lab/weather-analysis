@@ -2,7 +2,7 @@ import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, select
   field, notice, versionInfo, bindUI, escapeHtml as esc, accountTile, accountTiles,
   statisticsTable, filterButton, multiSelect, dateNavigation} from './family-ui/1.7.1/family-ui.js';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['year','Jahr'],['custom','Zeitraum']];
 const num = (value, digits=1) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('de-DE',{minimumFractionDigits:digits, maximumFractionDigits:digits});
 const delta = (value,unit='°C') => value == null ? '—' : `${value>0?'+':''}${num(value)} ${unit}`;
@@ -21,7 +21,12 @@ export function periodDates(period, timezone, now=new Date()) {
 }
 
 const CSS = `
-.wa-title{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 0;overflow-wrap:anywhere}
+.wa-title{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:12px 0;overflow-wrap:anywhere}
+.wa-heading{flex:1 1 160px;min-width:0}.wa-header-controls{display:flex;align-items:center;justify-content:flex-end;flex:1 1 200px;flex-wrap:wrap;gap:8px;min-width:0;max-width:100%}
+.wa-sensor-select{flex:1 1 140px;max-width:240px;min-width:0}.wa-sensor-select .field{margin:0}.wa-sensor-select select{min-width:0;max-width:100%}
+.wa-alias-list{display:grid;gap:8px}.wa-alias-list>*{min-width:0}
+.wa-chart .wa-series-secondary .wa-line{stroke:var(--warning-color,#ff9800);stroke-dasharray:7 3}.wa-chart .wa-series-secondary .wa-band{fill:var(--warning-color,#ff9800);opacity:.08}
+.wa-chart .wa-series-secondary .wa-point{fill:var(--warning-color,#ff9800)}.wa-swatch.secondary{background:var(--warning-color,#ff9800)}
 .wa-periods{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
 .wa-date-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .wa-date-fields .field{min-width:0}.wa-date-fields input{min-width:0;max-width:100%}
@@ -38,41 +43,45 @@ const CSS = `
 `;
 
 class WeatherAnalysisCard extends HTMLElement {
-  constructor(){super();this.attachShadow({mode:'open'});this.page='temperature';this._sensors=[];this._windSensors=[];this._illuminanceSensors=[];this._active={};this._settings={};this._request=0;this._busy=false;}
+  constructor(){super();this.attachShadow({mode:'open'});this.page='temperature';this._sensors=[];this._windSensors=[];this._illuminanceSensors=[];this._active={};this._settings={};this._request=0;this._busy=false;this._sectionStates=new Map();this._comparisonEnabled=false;}
   static getConfigElement(){return document.createElement('weather-analysis-card-editor');}
-  static getStubConfig(){return {card_id:crypto.randomUUID(),title:'Temperaturanalyse',period:'day'};}
+  static getStubConfig(){return {card_id:crypto.randomUUID(),title:'Weather Analysis',period:'day'};}
   setConfig(config){
     if(!config || typeof config!=='object')throw new Error('Bitte eine Kartenkonfiguration angeben.');
-    this.config={title:'Temperaturanalyse',period:'day',...config};
+    const previousId=this.config?.card_id;
+    this.config={title:'Weather Analysis',period:'day',...config};
     this.config.card_id ||= this.config.entity || 'default';
+    if(previousId!==this.config.card_id){this._sectionStates.clear();this._renderedScope=null;this._comparisonEnabled=false;this._comparisonEntity='';}
+    this._draftNames=null;
     this.period=PERIODS.some(([id])=>id===this.config.period)?this.config.period:'day';
     this._day=this.config.period==='yesterday'?shiftDay(dateKey(new Date(),this._hass?.config?.time_zone||'Europe/Berlin'),-1):null;
-    this._ready=false;this._data=null;this._settings={};this._active={};this._request++;
+    this._ready=false;this._data=null;this._comparisonData=null;this._comparisonError=null;this._settings={};this._active={};this._request++;
     if(this._hass)this._initialize();else this.render();
   }
   set hass(hass){
     this._hass=hass;
     if(!this.config)return;
     if(!this._ready){this._initialize();return;}
-    const entity=this.activeEntity;
-    const state=hass.states[entity];const signature=state?.state+'|'+state?.last_updated;
+    const signature=[this.activeEntity,this.compareEntity].filter(Boolean).map(entity=>{const state=hass.states[entity];return entity+'|'+state?.state+'|'+state?.last_updated;}).join(';');
     if(this._signature!==signature){this._signature=signature;this._schedule();}
   }
   get settings(){
     const s={...this.config,...this._settings};
     s.entities ||= s.entity?[s.entity]:[];
-    if(s.title==='Wetteranalyse'||s.title==='Weather Analysis')s.title='Temperaturanalyse';
+    if(['Wetteranalyse','Temperaturanalyse'].includes(s.title))s.title='Weather Analysis';
     return s;
   }
   get view(){return ['wind','illuminance'].includes(this.page)?this.page:'temperature';}
   get unit(){return {temperature:'°C',wind:'km/h',illuminance:'lx'}[this.view];}
   get activeEntity(){return (this._active[this.view]??(this.view==='wind'?this.settings.wind_entity:this.view==='illuminance'?this.settings.illuminance_entity:this.settings.entity))||'';}
+  get compareEntity(){if(this.view!=='temperature'||!this._comparisonEnabled)return '';return this.settings.entities.includes(this._comparisonEntity)&&this._comparisonEntity!==this.activeEntity?this._comparisonEntity:this.settings.entities.find(e=>e!==this.activeEntity)||'';}
+  _sensorName(entity,fallback=''){return this.settings.sensor_names?.[entity]||this._sensors.find(s=>s.entity_id===entity)?.name||this._windSensors.find(s=>s.entity_id===entity)?.name||this._illuminanceSensors.find(s=>s.entity_id===entity)?.name||fallback||entity;}
   get availableSensors(){return this.view==='wind'?this._windSensors:this.view==='illuminance'?this._illuminanceSensors:this._sensors;}
   connectedCallback(){
     this._unbind ||= bindUI(this.shadowRoot,event=>this._action(event));
     this._change ||= event=>this._onChange(event);
     this.shadowRoot.addEventListener('change',this._change);
-    this._inspect ||= event=>{const hit=event.target.closest?.('[data-point]');if(hit)this._inspectPoint(Number(hit.dataset.point));};
+    this._inspect ||= event=>{const hit=event.target.closest?.('[data-point]');if(hit)this._inspectPoint(Number(hit.dataset.point),Number(hit.dataset.series||0));};
     this.shadowRoot.addEventListener('pointerover',this._inspect);this.shadowRoot.addEventListener('focusin',this._inspect);
     this._timer ||= setInterval(()=>{if(this.page!=='settings')this._fetch();},60000);
     if(this._ready)this._fetch();else if(this._hass&&this.config)this._initialize();
@@ -91,26 +100,33 @@ class WeatherAnalysisCard extends HTMLElement {
       const result=await this._hass.callWS({type:'weather_analysis/sensors',card_id:this.config.card_id});
       this._sensors=result.sensors;this._windSensors=result.wind_sensors||[];this._illuminanceSensors=result.illuminance_sensors||[];this._settings=result.settings||{};this._admin=result.admin;this.timezone=result.timezone;
       this._ready=true;this._error=null;this.render();await this._fetch();
-    }catch(error){this._error='Temperaturanalyse ist noch nicht eingerichtet oder konnte nicht geladen werden. Bitte die Integration einmal unter Geräte & Dienste hinzufügen. '+(error.message||'');this.render();}
+    }catch(error){this._error='Weather Analysis ist noch nicht eingerichtet oder konnte nicht geladen werden. Bitte die Integration einmal unter Geräte & Dienste hinzufügen. '+(error.message||'');this.render();}
     finally{this._initializing=false;}
   }
   _dates(){if(this.period==='day'){const day=this._day||dateKey(new Date(),this.timezone||'Europe/Berlin');return [day,day];}return this.period==='custom'?(this._custom||periodDates('today',this.timezone||'Europe/Berlin')):periodDates(this.period,this.timezone||'Europe/Berlin');}
   async _fetch(){
     if(!this._ready||!this.activeEntity||!this._hass)return;
-    const request=++this._request;const [start_date,end_date]=this._dates();const entity=this.activeEntity;
+    const request=++this._request,[start_date,end_date]=this._dates();
+    const entity=this.activeEntity,compare=this.compareEntity;
     this._busy=true;
     if(!this._data)this.render();
-    try {
-      const data=await this._hass.callWS({type:'weather_analysis/analyse',entity_id:entity,
-        start_date,end_date});
+    try{
+      const query=entity_id=>this._hass.callWS({type:'weather_analysis/analyse',entity_id,start_date,end_date});
+      const responses=await Promise.allSettled([query(entity),...(compare?[query(compare)]:[])]);
       if(request!==this._request)return;
-      this._data=data;this._error=null;
-    }catch(error){if(request===this._request)this._error=error.message||String(error);}
+      if(responses[0].status==='rejected')throw responses[0].reason;
+      this._data=responses[0].value;this._error=null;
+      this._comparisonData=responses[1]?.status==='fulfilled'?responses[1].value:null;
+      this._comparisonError=responses[1]?.status==='rejected'?'Vergleichssensor: '+(responses[1].reason.message||String(responses[1].reason)):null;
+    }catch(error){if(request===this._request){this._error=error.message||String(error);this._comparisonData=null;}}
     finally{if(request===this._request){this._busy=false;if(this.page!=='settings')this.render();}}
   }
-  async _action({action,data}){
+  async _action({action,data,value}){
+    if(action==='choose-thermometers'){this._refreshAliasFields(value);return;}
+    if(action==='compare-add'){if(this.settings.entities.length<2)return;this._comparisonEnabled=true;this._comparisonEntity=this.settings.entities.find(e=>e!==this.activeEntity);this._comparisonData=null;this._data=null;this.render();await this._fetch();return;}
+    if(action==='compare-remove'){this._comparisonEnabled=false;this._comparisonEntity='';this._comparisonData=null;this._comparisonError=null;this._request++;this._busy=false;this.render();await this._fetch();return;}
     if(action==='navigate'){
-      const oldView=this.view;this.page=data.page;this._error=null;
+      const oldView=this.view;if(data.page==='settings')this._draftNames={...this.settings.sensor_names};this.page=data.page;this._error=null;
       if(this.view!==oldView||!['settings','help'].includes(this.page)){this._request++;this._data=null;this._busy=false;}
       this.render();if(!['settings','help'].includes(this.page))await this._fetch();return;
     }
@@ -136,16 +152,18 @@ class WeatherAnalysisCard extends HTMLElement {
     if(action==='save-settings'&&this._admin){
       const get=id=>this.shadowRoot.getElementById(id).value;
       const entities=[...this.shadowRoot.querySelectorAll('#wa-sensors input[type="checkbox"]:checked')].map(x=>x.value);
-      const settings={entities,entity:entities.includes(this.settings.entity)?this.settings.entity:entities[0]||'',wind_entity:get('wa-wind-sensor'),illuminance_entity:get('wa-illuminance-sensor'),title:get('wa-title')};
+      const sensor_names=Object.fromEntries([...this.shadowRoot.querySelectorAll('[data-alias-entity]')].map(el=>[el.dataset.aliasEntity,el.querySelector('input').value.trim()]).filter(([entity,name])=>entities.includes(entity)&&name));
+      const settings={entities,sensor_names,entity:entities.includes(this.settings.entity)?this.settings.entity:entities[0]||'',wind_entity:get('wa-wind-sensor'),illuminance_entity:get('wa-illuminance-sensor'),title:get('wa-title')};
       try {
         const previous=this._settings;
         let saved;try{saved=await this._persistSettings(settings);}catch(error){this._settings=previous;throw error;}
-        this._settings=saved;this._active={};this._request++;this._data=null;this._error=null;this.page='temperature';await this._fetch();
+        this._settings=saved;this._draftNames=null;this._active={};if(saved.entities.length<2)this._comparisonEnabled=false;this._request++;this._data=null;this._error=null;this.page='temperature';await this._fetch();
       }catch(error){this._error=error.message||String(error);const slot=this.shadowRoot.getElementById('wa-settings-error');if(slot)slot.innerHTML=notice(this._error,{error:true});}
     }
   }
   _onChange(event){
-    if(event.target.id==='wa-active-sensor'){this._active.temperature=event.target.value;this._request++;this._data=null;this._busy=false;this._error=null;this.render();this._fetch();return;}
+    if(event.target.id==='wa-compare-sensor'){this._comparisonEntity=event.target.value;this._comparisonData=null;this._request++;this._busy=false;this.render();this._fetch();return;}
+    if(event.target.id==='wa-active-sensor'){const previous=this.activeEntity;this._active.temperature=event.target.value;if(this._comparisonEntity===event.target.value)this._comparisonEntity=previous;this._comparisonData=null;this._request++;this._data=null;this._busy=false;this._error=null;this.render();this._fetch();return;}
     if(event.target.id==='wa-from'||event.target.id==='wa-to')this._custom=[this.shadowRoot.getElementById('wa-from').value,this.shadowRoot.getElementById('wa-to').value];
   }
   async _persistSettings(settings){
@@ -158,9 +176,39 @@ class WeatherAnalysisCard extends HTMLElement {
     return saved;
   }
   _sensorPicker(){
-    if(this.view!=='temperature'||this.settings.entities.length<2)return '';
-    return selectField({id:'wa-active-sensor',label:'Thermometer',value:this.activeEntity,
-      options:this._sensors.filter(s=>this.settings.entities.includes(s.entity_id)).map(s=>({value:s.entity_id,label:s.name}))});
+    const entities=this.settings.entities;
+    const options=entities.map(entity=>({value:entity,label:this._sensorName(entity)}));
+    const primary=selectField({id:'wa-active-sensor',label:'Thermometer',hideLabel:true,value:this.activeEntity,
+      options:options.length?options:[{value:'',label:'In Einstellungen auswählen'}],disabled:!options.length});
+    const compare=this._comparisonEnabled&&this.compareEntity;
+    return `<div class="wa-header-controls"><div class="wa-sensor-select">${primary}</div>${compare?
+      `<div class="wa-sensor-select">${selectField({id:'wa-compare-sensor',label:'Vergleichssensor',hideLabel:true,value:this.compareEntity,options:options.filter(o=>o.value!==this.activeEntity)})}</div>${iconButton({icon:'close',label:'Vergleich entfernen',action:'compare-remove'})}`:
+      iconButton({icon:'add',label:'Zweiten Sensor vergleichen',action:'compare-add',disabled:entities.length<2})}</div>`;
+  }
+  _rememberAliasDraft(){
+    this._draftNames||={...this.settings.sensor_names};
+    for(const el of this.shadowRoot.querySelectorAll('[data-alias-entity]'))this._draftNames[el.dataset.aliasEntity]=el.querySelector('input').value;
+  }
+  _aliasFields(entities){
+    const names=this._draftNames||this.settings.sensor_names||{};
+    return entities.length?entities.map((entity,index)=>`<div data-alias-entity="${esc(entity)}">${field({id:'wa-alias-'+index,label:this._sensors.find(s=>s.entity_id===entity)?.name||entity,value:names[entity]||'',maxLength:100,hint:entity+' · leer = ursprünglicher Name',disabled:!this._admin})}</div>`).join(''):notice('Zuerst relevante Thermometer auswählen.');
+  }
+  _refreshAliasFields(entities){
+    this._rememberAliasDraft();
+    const slot=this.shadowRoot.getElementById('wa-alias-fields');
+    if(slot)slot.innerHTML=this._aliasFields(entities);
+  }
+  _rememberSections(){
+    if(!this._renderedScope)return;
+    for(const control of this.shadowRoot.querySelectorAll('[data-ui="collapse"]'))this._sectionStates.set(this._renderedScope+'|'+control.getAttribute('aria-controls'),control.getAttribute('aria-expanded'));
+  }
+  _restoreSections(){
+    for(const control of this.shadowRoot.querySelectorAll('[data-ui="collapse"]')){
+      const id=control.getAttribute('aria-controls'),expanded=this._sectionStates.get(this._renderedScope+'|'+id);
+      if(expanded===undefined)continue;
+      const content=this.shadowRoot.getElementById(id);
+      if(content){content.hidden=expanded==='false';control.setAttribute('aria-expanded',expanded);control.querySelector('.chevron')?.classList.toggle('expanded',expanded==='true');}
+    }
   }
   _formatTime(seconds,full=false){return seconds==null?'Uhrzeit nicht gespeichert':new Intl.DateTimeFormat('de-DE',{timeZone:this.timezone,day:full?'2-digit':undefined,month:full?'2-digit':undefined,year:full?'numeric':undefined,hour:'2-digit',minute:'2-digit'}).format(new Date(seconds*1000));}
   _extremeDescription(summary,kind){return summary[kind+'_at']!=null?this._formatTime(summary[kind+'_at'],this.period!=='day'):'Uhrzeit nicht gespeichert';}
@@ -173,34 +221,51 @@ class WeatherAnalysisCard extends HTMLElement {
       <p class="hint wa-range">${esc(this._dateLabel(start))}${start!==end?' – '+esc(this._dateLabel(end)):''}${this._data?.partial?' · bisher':''}</p>`;
   }
   _dateLabel(key){return new Date(key+'T12:00:00Z').toLocaleDateString('de-DE',{timeZone:'UTC',day:'2-digit',month:'2-digit',year:'numeric'});}
+  _chartSeries(){
+    const series=[{data:this._data,entity:this.activeEntity}];
+    if(this.compareEntity&&this._comparisonData?.entity_id===this.compareEntity)series.push({data:this._comparisonData,entity:this.compareEntity});
+    return series;
+  }
   _chart(){
-    const d=this._data,points=d.chart;
+    const d=this._data,series=this._chartSeries(),points=series.flatMap(s=>s.data.chart);
     if(!points.length)return notice('Für diesen Zeitraum sind noch keine Messwerte vorhanden.');
     const W=640,H=240,L=48,R=18,T=18,B=34;
     let low=Math.min(...points.map(p=>p.min??p.mean)),high=Math.max(...points.map(p=>p.max??p.mean));
     const pad=Math.max(1,(high-low)*.15);low-=pad;high+=pad;
-    const x=t=>L+(t-d.start)/Math.max(1,d.end-d.start)*(W-L-R), y=v=>T+(high-v)/(high-low)*(H-T-B);
-    const groups=[];let group=[];const interval=d.chart_daily?86400:3600;
-    for(const p of points){if(group.length&&p.start-group.at(-1).start>interval*1.6){groups.push(group);group=[];}group.push(p);}if(group.length)groups.push(group);
-    const paths=groups.map(g=>{
-      const line=g.map((p,i)=>`${i?'L':'M'}${x(p.start).toFixed(2)},${y(p.mean).toFixed(2)}`).join(' ');
-      const band=[...g.map(p=>[x(p.start),y(p.max??p.mean)]),...g.toReversed().map(p=>[x(p.start),y(p.min??p.mean)])].map(([a,b],i)=>`${i?'L':'M'}${a.toFixed(2)},${b.toFixed(2)}`).join(' ')+' Z';
-      return `<path class="wa-band" d="${band}"/><path class="wa-line" d="${line}"/>`;
+    const x=t=>L+(t-d.start)/Math.max(1,d.end-d.start)*(W-L-R),y=v=>T+(high-v)/(high-low)*(H-T-B);
+    const plotted=series.map((series,seriesIndex)=>{
+      const groups=[];let group=[];const interval=series.data.chart_daily?86400:3600;
+      for(const point of series.data.chart){if(group.length&&point.start-group.at(-1).start>interval*1.6){groups.push(group);group=[];}group.push(point);}if(group.length)groups.push(group);
+      const paths=groups.map(g=>{
+        const line=g.map((p,i)=>`${i?'L':'M'}${x(p.start).toFixed(2)},${y(p.mean).toFixed(2)}`).join(' ');
+        const band=[...g.map(p=>[x(p.start),y(p.max??p.mean)]),...g.toReversed().map(p=>[x(p.start),y(p.min??p.mean)])].map(([a,b],i)=>`${i?'L':'M'}${a.toFixed(2)},${b.toFixed(2)}`).join(' ')+' Z';
+        return `<path class="wa-band" d="${band}"/><path class="wa-line" d="${line}"/>`;
+      }).join('');
+      return `<g class="wa-series ${seriesIndex?'wa-series-secondary':'wa-series-primary'}" data-series-entity="${esc(series.entity)}">${paths}${series.data.chart.map((p,i)=>`<circle class="wa-point" cx="${x(p.start)}" cy="${y(p.mean)}" r="${series.data.chart.length===1?4:2}"/><circle class="wa-hit" data-series="${seriesIndex}" data-point="${i}" tabindex="0" role="img" aria-label="${esc(this._pointText(p,series.entity))}" cx="${x(p.start)}" cy="${y(p.mean)}" r="9"><title>${esc(this._pointText(p,series.entity))}</title></circle>`).join('')}</g>`;
     }).join('');
-    return `<svg class="wa-chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${this.view==='wind'?'Windverlauf in Kilometer pro Stunde':this.view==='illuminance'?'Helligkeitsverlauf in Lux':'Temperaturverlauf in Grad Celsius'}"><title>${this.view==='wind'?'Windverlauf':this.view==='illuminance'?'Helligkeitsverlauf':'Temperaturverlauf'}</title><desc>Linie: Durchschnitt. Band: Minimum bis Maximum. Messpunkte lassen sich mit Tab auswählen.</desc>
+    return `<svg class="wa-chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${this.view==='wind'?'Windverlauf in Kilometer pro Stunde':this.view==='illuminance'?'Helligkeitsverlauf in Lux':'Temperaturverlauf in Grad Celsius'}"><title>${this.view==='wind'?'Windverlauf':this.view==='illuminance'?'Helligkeitsverlauf':'Temperaturverlauf'}</title><desc>${series.length>1?'Zwei Sensoren mit gemeinsamer Temperaturskala. Die zweite Linie ist zusätzlich gestrichelt.':'Linie: Durchschnitt. Band: Minimum bis Maximum.'} Messpunkte lassen sich mit Tab auswählen.</desc>
       ${Array.from({length:5},(_,i)=>{const value=low+(high-low)*i/4;return `<path class="wa-grid" d="M${L},${y(value)} H${W-R}"/><text text-anchor="end" x="${L-8}" y="${y(value)+4}">${num(value,0)}${this.view==='temperature'?'°':''}</text>`;}).join('')}
-      ${paths}${points.map((p,i)=>`<circle class="wa-point" cx="${x(p.start)}" cy="${y(p.mean)}" r="${points.length===1?4:2}"/><circle class="wa-hit" data-point="${i}" tabindex="0" role="img" aria-label="${esc(this._pointText(p))}" cx="${x(p.start)}" cy="${y(p.mean)}" r="9"><title>${esc(this._pointText(p))}</title></circle>`).join('')}
+      ${plotted}
       ${[0,.5,1].map((fraction,i)=>`<text x="${L+fraction*(W-L-R)}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${esc(new Intl.DateTimeFormat('de-DE',{timeZone:this.timezone,...(d.chart_daily?{day:'2-digit',month:'2-digit'}:{hour:'2-digit',minute:'2-digit'})}).format(new Date((d.start+fraction*(d.end-d.start))*1000)))}</text>`).join('')}</svg>
-      <div class="wa-legend hint"><span><i class="wa-swatch"></i>Durchschnitt</span><span><i class="wa-swatch band"></i>Minimum / Maximum</span></div><p class="hint wa-inspector" id="wa-inspector" aria-live="polite">${esc(d.chart_daily?'Tageswerte · Messpunkt für Details auswählen':'Stundenwerte · Messpunkt für Details auswählen')}</p>`;
+      <div class="wa-legend hint">${series.length>1?series.map((s,i)=>`<span><i class="wa-swatch ${i?'secondary':''}"></i>${esc(this._sensorName(s.entity))}</span>`).join(''):'<span><i class="wa-swatch"></i>Durchschnitt</span><span><i class="wa-swatch band"></i>Minimum / Maximum</span>'}</div><p class="hint wa-inspector" id="wa-inspector" aria-live="polite">${esc(d.chart_daily?'Tageswerte · Messpunkt für Details auswählen':'Stundenwerte · Messpunkt für Details auswählen')}</p>`;
   }
-  _pointText(p){return `${this._formatTime(p.start,true)} · Ø ${num(p.mean)} ${this.unit} · Min ${num(p.min)} ${this.unit} · Max ${num(p.max)} ${this.unit}`;}
-  _inspectPoint(index){const point=this._data?.chart[index],slot=this.shadowRoot.getElementById('wa-inspector');if(point&&slot)slot.textContent=this._pointText(point);}
+  _pointText(p,entity=this.activeEntity){return `${this._sensorName(entity)} · ${this._formatTime(p.start,true)} · Ø ${num(p.mean)} ${this.unit} · Min ${num(p.min)} ${this.unit} · Max ${num(p.max)} ${this.unit}`;}
+  _inspectPoint(index,seriesIndex=0){const series=this._chartSeries()[seriesIndex],point=series?.data?.chart[index],slot=this.shadowRoot.getElementById('wa-inspector');if(point&&slot)slot.textContent=this._pointText(point,series.entity);}
+  _comparisonSummary(){
+    if(!this.compareEntity)return '';
+    if(this._comparisonError)return notice(this._comparisonError,{error:true});
+    if(!this._comparisonData)return notice('Für den Vergleichssensor sind noch keine Messwerte geladen.');
+    const first=this._data,second=this._comparisonData;
+    return section({id:'wa-sensor-comparison',title:'Sensorvergleich',expanded:true,content:statisticsTable({label:'Vergleich der Thermometer',columns:[{label:'Kennzahl'},{label:this._sensorName(first.entity_id),align:'right'},{label:this._sensorName(second.entity_id),align:'right'}],rows:[
+      ['Aktuell °C',num(first.current),num(second.current)],['Durchschnitt °C',(first.summary.estimated?'≈ ':'')+num(first.summary.mean),(second.summary.estimated?'≈ ':'')+num(second.summary.mean)],['Minimum °C',num(first.summary.min),num(second.summary.min)],['Maximum °C',num(first.summary.max),num(second.summary.max)],['Datenintervalle',num(first.summary.coverage*100,0)+' %',num(second.summary.coverage*100,0)+' %']
+    ]})})+notice('Weitere Kennzahlen beziehen sich auf '+this._sensorName(first.entity_id)+'.');
+  }
   _overview(){
     const d=this._data,s=d.summary;
     return `<div class="wa-current">${accountTiles({label:this.view==='wind'?'Aktueller Wind':this.view==='illuminance'?'Aktuelle Helligkeit':'Aktuelle Temperatur',content:
       this._tile('current','Aktuell',num(d.current),this.unit,d.current==null?'Sensor nicht verfügbar':`Messung ${this._formatTime(d.last_updated)}`,'active')+
       this._tile('trend','Veränderung in 1 Stunde',delta(d.trends.hour,this.unit),'',d.trends.hour==null?'Noch keine Vergleichsdaten':d.trends.hour>.2?'Steigend':d.trends.hour<-.2?'Fallend':'Nahezu konstant')})}</div>
-      ${this._chart()}
+      ${this._chart()}${this._comparisonSummary()}
       ${accountTiles({label:this.view==='wind'?'Windkennzahlen':this.view==='illuminance'?'Helligkeitskennzahlen':'Temperaturkennzahlen',content:
       this._tile('min','Minimum',num(s.min),this.unit,this._extremeDescription(s,'min'))+
       this._tile('max','Maximum',num(s.max),this.unit,this._extremeDescription(s,'max'))+
@@ -230,40 +295,41 @@ class WeatherAnalysisCard extends HTMLElement {
     return `${section({id:'wa-card-settings',title:'Karte einrichten',content:
       '<div id="wa-settings-error"></div>'+
       field({id:'wa-title',label:'Anzeigename',value:s.title,maxLength:100,disabled:!this._admin})+
-      multiSelect({id:'wa-sensors',label:'Thermometer',values:s.entities,items:this._sensors.map(x=>({value:x.entity_id,label:x.name,description:x.entity_id})),disabled:!this._admin})+
+      multiSelect({id:'wa-sensors',label:'Relevante Thermometer',action:'choose-thermometers',values:s.entities,items:this._sensors.map(x=>({value:x.entity_id,label:x.name,description:x.entity_id})),disabled:!this._admin})+
+      section({id:'wa-sensor-names',title:'Namen in dieser Karte',content:`<div id="wa-alias-fields" class="wa-alias-list">${this._aliasFields(s.entities)}</div>`})+
       '<p class="hint">Ausgewählte Thermometer werden auch bei geschlossener Karte aufgezeichnet. In der Temperaturansicht kannst du direkt zwischen deinen Thermometern wechseln.</p>'+
       selectField({id:'wa-wind-sensor',label:'Windsensor',value:s.wind_entity||'',options:[{value:'',label:'Kein Windsensor ausgewählt'},...this._windSensors.map(x=>({value:x.entity_id,label:x.name}))],disabled:!this._admin})+
       selectField({id:'wa-illuminance-sensor',label:'Helligkeitssensor',value:s.illuminance_entity||'',options:[{value:'',label:'Kein Helligkeitssensor ausgewählt'},...this._illuminanceSensors.map(x=>({value:x.entity_id,label:x.name}))],disabled:!this._admin})})}
       ${section({id:'wa-history-settings',title:'Historie',content:'<p class="hint">Vorhandene Historie wird automatisch übernommen. Nach erneutem Import bleiben bereits gesicherte Werte erhalten. Geänderte Sensoren zuerst speichern.</p>'+(this._admin?button({label:'Historie übernehmen',action:'import-history',disabled:!this.settings.entities.length&&!this.settings.wind_entity&&!this.settings.illuminance_entity}):'')})}
       <div class="toolbar wa-setting-actions">${this._admin?button({label:'Speichern',action:'save-settings',variant:'primary'}):''}${button({label:'Zurück',action:'cancel-settings'})}</div>
-      ${versionInfo({frontend:VERSION,backend:this._data?.version||VERSION,ui:UI_VERSION,label:'Temperaturanalyse'})}`;
+      ${versionInfo({frontend:VERSION,backend:this._data?.version||VERSION,ui:UI_VERSION,label:'Weather Analysis'})}`;
   }
-  _help(){return section({id:'wa-help',title:'So funktioniert die Temperaturanalyse',content:
+  _help(){return section({id:'wa-help',title:'So funktioniert Weather Analysis',content:
     '<p>Temperatur, Wind und Helligkeit stammen direkt von deinen gewählten HA-Sensoren. Bereits bei der ersten Auswahl werden vorhandene Detailhistorie und Langzeitstatistik ausgewertet. Anschließend werden Stundenwerte und Extremwerte auch bei geschlossener Karte gespeichert.</p>'+
-    row({title:'Sensoren auswählen',description:'Die Integration wird einmal eingerichtet. Thermometer, Windsensor und Helligkeitssensor wählst du ausschließlich in den Einstellungen der Karte. Mehrere Karten erhalten eigene Einstellungen über ihre Karten-ID.'})+
+    row({title:'Sensoren auswählen und vergleichen',description:'Die Integration wird einmal eingerichtet. Thermometer, Windsensor und Helligkeitssensor wählst du ausschließlich in den Einstellungen der Karte. Ausgewählte Thermometer kannst du hier für diese Karte umbenennen. Das Dropdown oben wechselt den Sensor; + fügt einen zweiten Sensor zum Vergleich hinzu. Mehrere Karten erhalten eigene Einstellungen über ihre Karten-ID.'})+
     row({title:'Datenqualität',description:'≈ kennzeichnet Mittelwerte aus verdichteten HA-Statistiken. Grenzwertdauern und genaue Extremzeiten stammen aus vorhandener Detailhistorie und eigener Aufzeichnung. Fehlende Detaildaten werden nicht erfunden.'})+
     row({title:'Messlücken',description:'Unavailable/unknown und bekannte HA-Ausfallzeiten bleiben Lücken. Vergleiche sind nur bei ähnlicher Datenabdeckung aussagekräftig.'})+
     row({title:'Wind',description:'Windgeschwindigkeit wird einheitlich in km/h angezeigt. Unterstützt werden auch m/s, mph, Knoten und ft/s. Der höchste Sensorwert ist keine separat gemessene Windböe.'})+
     row({title:'Zeitraum und Zeitzone',description:'Tag, Woche, Monat und Jahr reichen jeweils bis jetzt. Tagesgrenzen und Uhrzeiten folgen der HA-Zeitzone. Freie Zeiträume dürfen höchstens ein Jahr umfassen.'})});}
   render(){
     if(!this.config)return;
-    const title=this.settings.title||'Temperaturanalyse';
+    this._rememberSections();
+    const title=this.settings.title||'Weather Analysis';
     let body;
     if(this.page==='settings')body=this._settingsView();
     else if(this.page==='help')body=this._help();
-    else body=this._sensorPicker()+
-      (!this.activeEntity?notice('Bitte den Sensor in den Einstellungen der Karte auswählen.')+(this._admin?button({label:'Sensoren auswählen',action:'navigate',data:{page:'settings'}}):''):
+    else body=(!this.activeEntity?notice('Bitte den Sensor in den Einstellungen der Karte auswählen.')+(this._admin?button({label:'Sensoren auswählen',action:'navigate',data:{page:'settings'}}):''):
       this._periodControls()+(this._data?this._overview()+this._statistics():notice(this._busy?'Vorhandene Historie und Messwerte werden geladen …':'Zeitraum auswählen und anzeigen.')));
     const quality=this._data&&!['settings','help'].includes(this.page)?notice(`Datenintervalle: ${num(this._data.summary.coverage*100,0)} %${this._data.summary.estimated?' · teilweise aus HA-Langzeitstatistik (Messabdeckung unbekannt)':''}. Detailabdeckung: ${num(this._data.summary.duration_coverage*100,0)} % des Zeitraums.`):'';
-    const collapsed=new Map([...this.shadowRoot.querySelectorAll('[data-ui="collapse"]')].map(el=>[el.getAttribute('aria-controls'),el.getAttribute('aria-expanded')]));
-    this.shadowRoot.innerHTML=`<style>${UI_CSS}${CSS}</style><ha-card>${navigation({label:'Temperaturanalyse',items:[{id:'temperature',label:'Temperatur'},{id:'wind',label:'Wind'},{id:'illuminance',label:'Helligkeit'}],active:this.page,settings:true,help:true})}<main><div class="wa-title"><div><h3>${esc(title)}</h3><small>${esc(this._data?.name||this.availableSensors.find(s=>s.entity_id===this.activeEntity)?.name||'Messwerte aus deinen Sensoren')}</small></div>${button({label:'Aktualisieren',action:'reload',compact:true,disabled:this._busy})}</div>${this._error&&this.page!=='settings'?notice(this._error,{error:true}):''}${body}<div class="wa-quality">${quality}</div></main></ha-card>`;
-    for(const [id,expanded] of collapsed){const content=this.shadowRoot.getElementById(id);const control=[...this.shadowRoot.querySelectorAll('[data-ui="collapse"]')].find(el=>el.getAttribute('aria-controls')===id);if(content&&control){content.hidden=expanded==='false';control.setAttribute('aria-expanded',expanded);control.querySelector('.chevron')?.classList.toggle('expanded',expanded==='true');}}
+    this._renderedScope=this.page;
+    this.shadowRoot.innerHTML=`<style>${UI_CSS}${CSS}</style><ha-card>${navigation({label:'Weather Analysis',items:[{id:'temperature',label:'Temperatur'},{id:'wind',label:'Wind'},{id:'illuminance',label:'Helligkeit'}],active:this.page,settings:true,help:true})}<main><div class="wa-title"><div class="wa-heading"><h3>${esc(title)}</h3><small>${esc(this.activeEntity?this._sensorName(this.activeEntity):'Messwerte aus deinen Sensoren')}</small></div>${this.page==='temperature'?this._sensorPicker():button({label:'Aktualisieren',action:'reload',compact:true,disabled:this._busy})}</div>${this._error&&this.page!=='settings'?notice(this._error,{error:true}):''}${body}<div class="wa-quality">${quality}</div></main></ha-card>`;
+    this._restoreSections();
   }
 }
 
 class WeatherAnalysisCardEditor extends HTMLElement {
   constructor(){super();this.attachShadow({mode:'open'});}
-  setConfig(config){this.config={card_id:crypto.randomUUID(),period:'day',title:'Temperaturanalyse',...config};this.render();}
+  setConfig(config){this.config={card_id:crypto.randomUUID(),period:'day',title:'Weather Analysis',...config};this.render();}
   set hass(hass){this._hass=hass;this.render();}
   render(){if(!this.config)return;const c=this.config;
     this.shadowRoot.innerHTML=`<style>${UI_CSS}</style>${field({id:'title',label:'Anzeigename',value:c.title})}${selectField({id:'period',label:'Startansicht',value:c.period,options:PERIODS.filter(([id])=>id!=='custom').map(([value,label])=>({value,label}))})}${field({id:'card_id',label:'Karten-ID',value:c.card_id,hint:'Für unabhängige Einstellungen eine eigene ID verwenden.'})}`;
@@ -273,4 +339,4 @@ class WeatherAnalysisCardEditor extends HTMLElement {
 if(!customElements.get('weather-analysis-card'))customElements.define('weather-analysis-card',WeatherAnalysisCard);
 if(!customElements.get('weather-analysis-card-editor'))customElements.define('weather-analysis-card-editor',WeatherAnalysisCardEditor);
 window.customCards=window.customCards||[];
-if(!window.customCards.some(c=>c.type==='weather-analysis-card'))window.customCards.push({type:'weather-analysis-card',name:'Temperaturanalyse',description:'Temperatur, Wind und Helligkeit mit vorhandener Historie und aufklappbaren Kennzahlen',icon:'mdi:thermometer',preview:true});
+if(!window.customCards.some(c=>c.type==='weather-analysis-card'))window.customCards.push({type:'weather-analysis-card',name:'Weather Analysis',description:'Temperatur, Wind und Helligkeit mit vorhandener Historie und aufklappbaren Kennzahlen',icon:'mdi:thermometer',preview:true});

@@ -40,6 +40,7 @@ async def main():
             assert not result["data_schema"].schema,result
             result=await hass.config_entries.flow.async_configure(result["flow_id"],{})
             assert result["type"]=="create_entry",result
+            assert result["title"]=="Weather Analysis",result
             await hass.async_block_till_done()
             from custom_components.weather_analysis import ensure_manager
             manager=await ensure_manager(hass,"sensor.outdoor_test","temperature")
@@ -47,7 +48,7 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.1.0",data
+            assert data["version"]=="1.2.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data

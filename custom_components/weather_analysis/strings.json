@@ -1,14 +1,14 @@
 {
-  "title": "Temperaturanalyse",
+  "title": "Weather Analysis",
   "config": {
     "step": {
       "user": {
-        "title": "Temperaturanalyse einrichten",
+        "title": "Weather Analysis einrichten",
         "description": "Die Integration wird einmal eingerichtet. Thermometer, Windsensor und Helligkeitssensor wählst du anschließend direkt in der Dashboard-Karte."
       }
     },
     "abort": {
-      "already_configured": "Temperaturanalyse ist bereits eingerichtet. Weitere Sensoren wählst du direkt in der Karte."
+      "already_configured": "Weather Analysis ist bereits eingerichtet. Weitere Sensoren wählst du direkt in der Karte."
     }
   }
 }

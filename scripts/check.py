@@ -27,7 +27,7 @@ assert not re.search(r"https?://", code), "No remote runtime dependency"
 assert (component / "translations" / "de.json").exists()
 print(f"Metadata, Python syntax and UI Kit checks passed for {version}")
 
-assert manifest["name"] == "Temperaturanalyse"
+assert manifest["name"] == "Weather Analysis"
 for directory in (root / "brand", component / "brand"):
     for name in ("icon.png", "dark_icon.png", "icon@2x.png"):
         assert (directory / name).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")

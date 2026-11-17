@@ -34,7 +34,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, chart_rows)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -72,6 +72,8 @@ async def ensure_manager(hass, entity, kind=None):
 
 async def async_setup_entry(hass, entry):
     hass.data[DOMAIN + "_entries"].add(entry.entry_id)
+    if not entry.data.get("entity_id") and getattr(entry, "title", None) in ("Temperaturanalyse", "Wetteranalyse"):
+        hass.config_entries.async_update_entry(entry, title="Weather Analysis")
     if entry.data.get("entity_id"):
         await ensure_manager(hass, entry.data["entity_id"], "temperature")
     for settings in hass.data[DOMAIN + "_settings"].values():
@@ -281,6 +283,9 @@ async def ws_sensors(hass, connection, msg):
         settings.pop("entity", None)
     if "entities" in settings:
         settings["entities"] = [e for e in settings["entities"] if may_read(connection, e)]
+    if "sensor_names" in settings:
+        settings["sensor_names"] = {e: name for e, name in settings["sensor_names"].items()
+                                    if e in settings.get("entities", [settings.get("entity")]) and may_read(connection, e)}
     if settings.get("wind_entity") and not may_read(connection, settings["wind_entity"]):
         settings.pop("wind_entity", None)
     if settings.get("illuminance_entity") and not may_read(connection, settings["illuminance_entity"]):
@@ -294,6 +299,7 @@ async def ws_sensors(hass, connection, msg):
     vol.Required("card_id"): vol.All(str, vol.Length(min=1, max=100)),
     vol.Optional("entity", default=""): str,
     vol.Optional("entities"): [str],
+    vol.Optional("sensor_names", default={}): {str: vol.All(str, vol.Length(max=100))},
     vol.Optional("wind_entity", default=""): str,
     vol.Optional("illuminance_entity", default=""): str,
     vol.Required("title"): vol.All(str, vol.Length(max=100)),
@@ -307,6 +313,8 @@ async def ws_save_card(hass, connection, msg):
     if len(entities) > 100:
         connection.send_error(msg["id"], "invalid_sensor", "Bitte höchstens 100 Thermometer pro Karte auswählen.")
         return
+    sensor_names = {entity: name.strip() for entity, name in msg.get("sensor_names", {}).items()
+                    if entity in entities and name.strip()}
     wind = msg.get("wind_entity", "")
     illuminance = msg.get("illuminance_entity", "")
     selected = [(entity, "temperature") for entity in entities] + ([(wind, "wind")] if wind else []) + ([(illuminance, "illuminance")] if illuminance else [])
@@ -316,7 +324,7 @@ async def ws_save_card(hass, connection, msg):
             connection.send_error(msg["id"], "invalid_sensor", "Bitte einen zugänglichen Sensor mit passender Einheit auswählen.")
             return
     settings = {"entities": entities, "entity": msg.get("entity") if msg.get("entity") in entities else next(iter(entities), ""),
-                "wind_entity": wind, "illuminance_entity": illuminance, "title": msg["title"]}
+                "wind_entity": wind, "illuminance_entity": illuminance, "title": msg["title"], "sensor_names": sensor_names}
     for entity, kind in selected:
         await ensure_manager(hass, entity, kind)
     hass.data[DOMAIN + "_settings"][msg["card_id"]] = settings
