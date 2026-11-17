@@ -21,6 +21,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.equal(await card().locator('.card-top [data-action="reload"] [data-icon="refresh"]').count(),1);
   assert.equal(await card().locator('.wa-title h3,#wa-title').count(),0);
   assert.equal(await card().locator('[data-page="statistics"]').count(),0);
+  assert.equal(await card().locator('[data-period="year"],#wa-months-content,#wa-measurements-content').count(),0);
   assert.equal(await card().locator('[data-page="temperature"]').count(),1);
   assert.equal(await card().locator('[data-page="wind"]').count(),1);
   assert.equal(await card().locator('#wa-statistics-content').isVisible(),false);
@@ -61,12 +62,17 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.equal(await card().locator('[data-alias-entity="sensor.north"]').count(),0);
   await card().locator('#wa-sensors input[value="sensor.north"]').check();
   assert.equal(await card().locator('[data-alias-entity="sensor.north"] input').inputValue(),'Nordseite kurz');
-  await card().locator('#wa-wind-sensor').selectOption('sensor.wind');
-  await card().locator('#wa-illuminance-sensor').selectOption('sensor.lux');
+  for(const [id,entities] of [['wa-wind-sensors',['sensor.wind','sensor.wind2']],['wa-illuminance-sensors',['sensor.lux','sensor.lux2']]])for(const entity of entities)await card().locator('#'+id+' input[value="'+entity+'"]').check();
+  await card().locator('[data-alias-entity="sensor.wind"] input').fill('Wind Garten');
+  await card().locator('[data-alias-entity="sensor.wind2"] input').fill('Wind Dach');
+  await card().locator('[data-alias-entity="sensor.lux"] input').fill('Licht Garten');
+  await card().locator('[data-alias-entity="sensor.lux2"] input').fill('Licht Dach');
   assert.equal(await card().locator('#wa-title').count(),0);
   await action('save-settings').click();await card().locator('#wa-current').waitFor();
   assert.deepEqual(await page.evaluate(()=>demo.saved.get('test-garden').entities),['sensor.garden','sensor.north']);
   assert.equal(await card().locator('.wa-title #wa-active-sensor').count(),1);
+  assert.deepEqual(await page.evaluate(()=>demo.saved.get('test-garden').wind_entities),['sensor.wind','sensor.wind2']);
+  assert.deepEqual(await page.evaluate(()=>demo.saved.get('test-garden').illuminance_entities),['sensor.lux','sensor.lux2']);
   assert.equal(await card().locator('.card-top [data-action="reload"]').count(),1);assert.equal(await action('reload').innerText(),'');
   assert.deepEqual(await card().locator('#wa-active-sensor option').allTextContents(),['Terrasse','Nordseite kurz']);
   await action('compare-add').click();await page.waitForFunction(()=>demo.card._comparisonData?.entity_id==='sensor.north');
@@ -96,13 +102,47 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await card().locator('[aria-controls="wa-statistics-content"]').click();
   await card().locator('[aria-controls="wa-statistics-content"]').click();
   assert.match(await card().locator('#wa-statistics-content').innerText(),/Höchster Windwert/);
+  for(const [view,first,second,names] of [['temperature','sensor.north','sensor.garden',['Nordseite kurz','Terrasse']],['wind','sensor.wind','sensor.wind2',['Wind Garten','Wind Dach']],['illuminance','sensor.lux','sensor.lux2',['Licht Garten','Licht Dach']]]){
+    await card().locator('[data-page="'+view+'"]').click();await page.waitForFunction(v=>demo.card.view===v&&demo.card._data&&!demo.card._busy,view);
+    if(!(await card().locator('#wa-compare-sensor').count()))await action('compare-add').click();
+    await page.waitForFunction(entity=>demo.card._comparisonData?.entity_id===entity,second);
+    assert.equal(await card().locator('#wa-active-sensor option').count(),2);
+    assert.equal(await card().locator('.wa-chart .wa-series').count(),2);
+    assert.equal(await card().locator('.wa-average-label').count(),2);
+    assert.match(await card().locator('.wa-legend').innerText(),new RegExp(names.join('.*'),'s'));
+    await action('period').filter({hasText:'Tag',exact:true}).click();await page.waitForFunction(()=>demo.card._data&&demo.card._comparisonData&&!demo.card._busy);
+    const box=await card().locator('.wa-chart').boundingBox();
+    await page.mouse.move(box.x+box.width*.25,box.y+box.height*.55);
+    assert(await card().locator('#wa-chart-tooltip').isVisible());
+    const initialTime=await page.evaluate(()=>demo.card._cursorTime);
+    await page.mouse.move(box.x+box.width*.75,box.y+box.height*.55);
+    assert.notEqual(await page.evaluate(()=>demo.card._cursorTime),initialTime);
+    for(const name of names)assert((await card().locator('#wa-chart-tooltip').innerText()).includes(name));
+    assert.equal(await card().locator('.wa-cursor-point:not([visibility="hidden"])').count(),2);
+    if(view==='illuminance')assert.doesNotMatch(await card().locator('#wa-chart-tooltip').innerText(),/\d,\d/);
+    // Swapping the primary also swaps the comparison, independently for each kind.
+    await card().locator('#wa-active-sensor').selectOption(second);
+    await page.waitForFunction(entity=>demo.card._data?.entity_id===entity&&!demo.card._busy,second);
+    assert.equal(await page.evaluate(()=>demo.card.compareEntity),first);
+    await card().locator('#wa-active-sensor').selectOption(first);
+    await page.waitForFunction(entity=>demo.card._data?.entity_id===entity&&!demo.card._busy,first);
+  }
+  await card().locator('[data-page="temperature"]').click();await page.waitForFunction(()=>demo.card._data?.entity_id==='sensor.north'&&demo.card._comparisonData&&!demo.card._busy);
+  const gapTime=await page.evaluate(()=>{const point=demo.card._data.chart[6];demo.gapEntity=demo.card.activeEntity;return (point.start+point.end)/2;});
+  await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing&&demo.card._data&&demo.card._comparisonData);
+  const gapPosition=await card().evaluate((el,time)=>{const rect=el.shadowRoot.querySelector('.wa-chart').getBoundingClientRect(),g=el._chartGeometry;return {x:rect.left+(g.L+(time-el._data.start)/(el._data.end-el._data.start)*(g.W-g.L-g.R))/g.W*rect.width,y:rect.top+rect.height*.5};},gapTime);
+  await page.mouse.move(gapPosition.x,gapPosition.y);
+  assert.match(await card().locator('#wa-chart-tooltip').innerText(),/Keine Messwerte in diesem Intervall/);
+  assert.equal(await card().locator('.wa-cursor-point:not([visibility="hidden"])').count(),1);
+  await page.evaluate(()=>demo.gapEntity=null);await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing&&demo.card._data&&demo.card._comparisonData);
   for(const width of [1100,390,320])for(const dark of [false,true]){
    await page.setViewportSize({width,height:1100});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
    for(const view of ['temperature','wind','illuminance','settings']){
     await card().locator('[data-page="'+view+'"]').click();
     if(view!=='settings'){await card().locator('#wa-current').waitFor();await action('period').filter({hasText:'Tag',exact:true}).click();await card().locator('#wa-current').waitFor();assert(await action('next-day').isDisabled());}
     assert.equal(await card().locator('.card-top [data-action="reload"]').count(),1);
-    if(view==='temperature')assert((await card().locator('#wa-active-sensor').boundingBox()).width<=151);
+    if(view!=='settings'){const select=await card().locator('#wa-active-sensor').boundingBox(),title=await card().locator('.wa-title').boundingBox();assert(select.width<=151);assert(Math.abs(select.x-title.x)<2);assert.equal(await card().locator('.wa-series').count(),2);assert.equal(await card().locator('#wa-months-content,#wa-measurements-content').count(),0);}
+    await page.mouse.move(0,0);
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
    }
@@ -110,7 +150,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   }
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
   assert.match(await card().locator('#wa-current').innerText(),/1.235/);assert.match(await card().locator('#wa-current').innerText(),/lx/);assert.equal(await card().getByText('Temperaturspanne',{exact:true}).count(),0);
-  await card().locator('[data-page="settings"]').click();await action('import-history').click();await card().getByText('Historie für 3 Sensoren übernommen.').waitFor();
+  await card().locator('[data-page="settings"]').click();await action('import-history').click();await card().getByText('Historie für 6 Sensoren übernommen.').waitFor();
   await page.setViewportSize({width:1100,height:1100});await page.evaluate(()=>document.body.classList.remove('dark'));
   await card().locator('[data-alias-entity="sensor.north"] input').fill('Entwurf');
   await page.evaluate(()=>{demo.hass.states['sensor.north'].state='12';demo.card.hass=demo.hass;});
@@ -142,7 +182,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await page.waitForFunction(()=>demo.card._data?.entity_id==='sensor.north');
   assert.equal(await page.evaluate(()=>demo.calls.filter(x=>x.type==='weather_analysis/save_card').length),savedCount);
   await card().locator('[data-page="settings"]').click();assert.equal(await action('save-settings').count(),0);
-  assert(await card().locator('#wa-wind-sensor').isDisabled());
+  assert(await card().locator('#wa-wind-sensors input').first().isDisabled());
   await page.evaluate(()=>{demo.admin=true;demo.card.page='temperature';demo.card.setConfig({card_id:'first'});});
   await page.waitForFunction(()=>demo.card._ready);
   assert.equal(await card().locator('#wa-current').count(),0);
@@ -150,26 +190,45 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert(await action('compare-add').isDisabled());
   await action('navigate').filter({hasText:'Sensoren auswählen'}).click();
   await card().locator('#wa-sensors input[value="sensor.garden"]').check();
-  await card().locator('#wa-wind-sensor').selectOption('sensor.wind');
-  await card().locator('#wa-illuminance-sensor').selectOption('sensor.lux');
+  await card().locator('#wa-wind-sensors input[value="sensor.wind"]').check();
+  await card().locator('#wa-illuminance-sensors input[value="sensor.lux"]').check();
   await action('save-settings').click();await card().locator('#wa-current').waitFor();
   assert.equal(await page.evaluate(()=>demo.saved.get('first').entity),'sensor.garden');
   assert.equal(await card().locator('.wa-title h3').count(),0);
   assert.equal(await card().locator('#wa-active-sensor option').count(),1);assert(await action('compare-add').isDisabled());
   await card().locator('[data-page="wind"]').click();await card().locator('#wa-current').waitFor();
-  assert.equal(await card().locator('#wa-active-sensor').count(),0);
+  assert.equal(await card().locator('#wa-active-sensor option').count(),1);assert(await action('compare-add').isDisabled());
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
   assert.match(await card().locator('#wa-current').innerText(),/lx/);
   for(const selector of ['.fui-account-metric-value','.wa-average-label'])assert.doesNotMatch(await card().locator(selector).allTextContents().then(values=>values.join(' ')),/\d,\d/);
   await card().locator('.wa-hit').first().focus();assert.doesNotMatch(await card().locator('#wa-inspector').innerText(),/\d,\d/);
   await card().locator('[aria-controls="wa-statistics-content"]').click();
-  await card().locator('[aria-controls="wa-measurements-content"]').click();
-  await card().locator('[aria-controls="wa-months-content"]').click();
-  assert.doesNotMatch(await card().getByRole('table',{name:'Tägliche Messwerte'}).innerText(),/\d,\d/);
-  assert.doesNotMatch(await card().getByRole('table',{name:'Monatliche Messwerte'}).innerText(),/\d,\d/);
+  assert.equal(await card().locator('#wa-months-content,#wa-measurements-content').count(),0);
+  await page.evaluate(()=>{demo.card.page='wind';demo.card.setConfig({card_id:'legacy',wind_entity:'sensor.wind',illuminance_entity:'sensor.lux',period:'year'});});
+  await card().locator('#wa-current').waitFor();assert.equal(await page.evaluate(()=>demo.card.period),'month');
+  assert.equal(await card().locator('#wa-active-sensor option').count(),1);assert(await action('compare-add').isDisabled());
+  await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();assert.equal(await card().locator('#wa-active-sensor option').count(),1);
   await card().locator('[data-page="help"]').click();assert.equal(await card().locator('.card-top [data-action="reload"]').count(),1);
+  const touchContext=await browser.newContext({viewport:{width:390,height:1000},isMobile:true,hasTouch:true});
+  const touchPage=await touchContext.newPage();touchPage.on('pageerror',error=>errors.push(error.message));
+  await touchPage.goto('http://127.0.0.1:'+server.address().port);
+  await touchPage.locator('weather-analysis-card').locator('#wa-current').waitFor();
+  await touchPage.evaluate(()=>demo.card.setConfig({card_id:'touch',entities:['sensor.garden','sensor.north']}));
+  const touchCard=touchPage.locator('weather-analysis-card');await touchCard.locator('#wa-current').waitFor();
+  await touchCard.locator('[data-action="compare-add"]').click();await touchPage.waitForFunction(()=>demo.card._comparisonData&&!demo.card._busy);
+  await touchCard.locator('.wa-chart').scrollIntoViewIfNeeded();const touchBox=await touchCard.locator('.wa-chart').boundingBox();
+  const cdp=await touchContext.newCDPSession(touchPage),touchY=touchBox.y+touchBox.height*.55;
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:touchBox.x+touchBox.width*.25,y:touchY,id:0}]});
+  const touchStart=await touchPage.evaluate(()=>demo.card._cursorTime);
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:touchBox.x+touchBox.width*.75,y:touchY,id:0}]});
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  assert.notEqual(await touchPage.evaluate(()=>demo.card._cursorTime),touchStart);
+  assert(await touchCard.locator('#wa-chart-tooltip').isVisible());
+  assert.match(await touchCard.locator('#wa-chart-tooltip').innerText(),/Garten.*Nordseite/s);
+  await touchPage.screenshot({path:path.join(screens,'touch-scrub.png'),fullPage:true});
+  await touchContext.close();
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:24,errors},null,2));
-  console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, separate wind, expandable statistics, permissions, stale responses, independent cards and 3 widths × 2 themes.');
+  fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:25,errors},null,2));
+  console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards and 3 widths × 2 themes.');
  }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

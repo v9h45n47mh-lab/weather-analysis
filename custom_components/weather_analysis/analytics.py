@@ -200,6 +200,7 @@ def chart_rows(rows, daily, tz_name):
                  "min": r["min"], "max": r["max"]} for r in rows if r["seconds"]]
     summary = summarize(rows, rows[0]["start"], rows[-1]["end"], tz_name) if rows else {"days": []}
     return [{"start": datetime.fromisoformat(r["date"]).replace(tzinfo=ZoneInfo(tz_name)).timestamp(),
+             "end": min(rows[-1]["end"], (datetime.fromisoformat(r["date"]) + timedelta(days=1)).replace(tzinfo=ZoneInfo(tz_name)).timestamp()),
              "mean": r["mean"], "min": r["min"], "max": r["max"]} for r in summary["days"]]
 
 WIND_UNITS = {"m/s": 3.6, "km/h": 1., "kmh": 1., "kph": 1., "mph": 1.609344,

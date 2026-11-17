@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0
+
+- Jahr aus der Zeitraumwahl entfernt; alte Jahres-Startansichten wechseln auf Monat.
+- Sensorauswahl links ausgerichtet.
+- Mehrere Wind- und Helligkeitssensoren mit derselben Vorauswahl, eigenen Kartennamen, Dropdowns und Zwei-Sensoren-Vergleich wie Temperatur. Vergleichsauswahl bleibt je Messansicht erhalten.
+- Bestehende einzelne Wind- und Helligkeitssensoren werden automatisch übernommen. Alle ausgewählten Sensoren werden auch ohne offene Karte aufgezeichnet und beim Historienimport berücksichtigt.
+- Doppelte Monatsübersicht und Tageswerttabelle unterhalb der Auswertung entfernt.
+- Maus- und Touchcursor im Verlauf zeigt Zeit sowie Mittel-, Minimal- und Maximalwerte beider Sensoren; Messlücken werden nicht überbrückt. Tastaturbedienung bleibt erhalten.
+- Tagesintervalle berücksichtigen die Sommer-/Winterzeit für korrekte Chartdetails. HA UI Kit 1.8.0 bleibt unverändert eingebunden.
+
 ## 1.3.0
 
 - Helligkeitswerte überall ohne Nachkommastellen, einschließlich Trends, Rekorden, Tabellen und Chartdetails. Berechnungen bleiben ungerundet.

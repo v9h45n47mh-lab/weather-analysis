@@ -138,7 +138,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([s["entity_id"] for s in result["sensors"]], ["sensor.second"])
         self.assertEqual(result["wind_sensors"], [])
         self.assertEqual(result["settings"]["entities"], ["sensor.second"])
-        self.assertNotIn("entity", result["settings"])
+        self.assertEqual(result["settings"]["entity"], "sensor.second")
         self.assertNotIn("wind_entity", result["settings"])
 
     async def test_only_admin_can_save_multiple_sensors(self):
@@ -172,6 +172,65 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         conn=Connection(denied={"sensor.test"})
         await backend.ws_sensors(self.hass,conn,{"id":1,"card_id":"card"})
         self.assertEqual(conn.results[0][1]["settings"]["sensor_names"],{"sensor.second":"Visible name"})
+
+    def add_secondary_sensors(self):
+        self.states["sensor.wind2"] = state("sensor.wind2", "8", "m/s", "wind_speed")
+        self.states["sensor.lux2"] = state("sensor.lux2", "2500", "lx", "illuminance")
+
+    async def test_all_sensor_kinds_support_multiple_selections_and_aliases(self):
+        self.add_secondary_sensors()
+        conn=Connection(admin=True)
+        await backend.ws_save_card(self.hass,conn,{"id":1,"card_id":"multi","entities":[],
+            "wind_entities":["sensor.wind","sensor.wind2"],"wind_entity":"sensor.wind2",
+            "illuminance_entities":["sensor.lux","sensor.lux2"],"title":"Weather Analysis",
+            "sensor_names":{"sensor.wind2":"Dach","sensor.lux2":"Garten"}})
+        saved=conn.results[0][1]
+        self.assertEqual(saved["wind_entities"],["sensor.wind","sensor.wind2"])
+        self.assertEqual(saved["wind_entity"],"sensor.wind2")
+        self.assertEqual(saved["illuminance_entities"],["sensor.lux","sensor.lux2"])
+        self.assertEqual(saved["sensor_names"],{"sensor.wind2":"Dach","sensor.lux2":"Garten"})
+        self.assertEqual(len(self.hass.data[backend.DOMAIN]),5)
+
+    async def test_legacy_wind_and_light_selections_are_expanded_on_read(self):
+        self.hass.data[backend.DOMAIN+"_settings"]["old"]={"wind_entity":"sensor.wind","illuminance_entity":"sensor.lux"}
+        conn=Connection()
+        await backend.ws_sensors(self.hass,conn,{"id":1,"card_id":"old"})
+        saved=conn.results[0][1]["settings"]
+        self.assertEqual(saved["wind_entities"],["sensor.wind"])
+        self.assertEqual(saved["illuminance_entities"],["sensor.lux"])
+
+    async def test_empty_new_list_clears_old_singular_selection(self):
+        conn=Connection(admin=True)
+        await backend.ws_save_card(self.hass,conn,{"id":1,"card_id":"clear","entities":[],
+            "wind_entities":[],"wind_entity":"sensor.wind","title":"Weather Analysis",
+            "sensor_names":{"sensor.wind":"Hidden"}})
+        self.assertEqual(conn.results[0][1]["wind_entities"],[])
+        self.assertEqual(conn.results[0][1]["wind_entity"],"")
+        self.assertEqual(conn.results[0][1]["sensor_names"],{})
+
+    async def test_lists_reject_wrong_kinds_before_saving(self):
+        conn=Connection(admin=True)
+        await backend.ws_save_card(self.hass,conn,{"id":1,"card_id":"bad",
+            "wind_entities":["sensor.test"],"title":"Weather Analysis"})
+        self.assertEqual(conn.errors[0][1],"invalid_sensor")
+        self.assertNotIn("bad",self.hass.data[backend.DOMAIN+"_settings"])
+
+    async def test_all_wind_and_light_sensors_restart_without_a_dashboard(self):
+        self.add_secondary_sensors()
+        self.hass.data[backend.DOMAIN].clear()
+        self.hass.data[backend.DOMAIN+"_settings"]["multi"]={"wind_entities":["sensor.wind","sensor.wind2"],
+            "illuminance_entities":["sensor.lux","sensor.lux2"]}
+        await backend.async_setup_entry(self.hass,SimpleNamespace(entry_id="service",data={}))
+        self.assertEqual({m.entity for m in self.hass.data[backend.DOMAIN].values()},
+                         {"sensor.wind","sensor.wind2","sensor.lux","sensor.lux2"})
+
+    async def test_history_import_includes_every_selected_sensor_kind(self):
+        self.add_secondary_sensors()
+        self.hass.data[backend.DOMAIN+"_settings"]["multi"]={"wind_entities":["sensor.wind","sensor.wind2"],
+            "illuminance_entities":["sensor.lux","sensor.lux2"]}
+        conn=Connection(admin=True)
+        await backend.ws_import_history(self.hass,conn,{"id":1,"card_id":"multi"})
+        self.assertEqual(conn.results[0][1],{"count":4,"failed":[]})
 
     async def test_save_rejects_wrong_sensor_kind_without_partial_changes(self):
         conn = Connection(admin=True)

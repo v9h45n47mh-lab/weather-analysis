@@ -27,6 +27,8 @@ async def main():
             wind={"device_class":"wind_speed","state_class":"measurement","unit_of_measurement":"m/s","friendly_name":"Wind"}
             hass.states.async_set("sensor.outdoor_test","-2",temp)
             hass.states.async_set("sensor.wind_test","5",wind)
+            hass.states.async_set("sensor.wind_test2","8",wind)
+            hass.states.async_set("sensor.lux_test2","2345",{"device_class":"illuminance","state_class":"measurement","unit_of_measurement":"lx"})
             hass.states.async_set("sensor.lux_test","1234",{"device_class":"illuminance","state_class":"measurement","unit_of_measurement":"lx"})
             await hass.async_block_till_done()
             await get_instance(hass).async_block_till_done()
@@ -48,7 +50,7 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.3.0",data
+            assert data["version"]=="1.4.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data
@@ -64,12 +66,24 @@ async def main():
             lux_data=await lux_manager.analyse(request)
             assert lux_data["current"]==1234 and lux_data["unit"]=="lx",lux_data
             assert len(hass.data["weather_analysis"])==3
+            hass.data["weather_analysis_settings"]["smoke"]={"entities":["sensor.outdoor_test"],
+                "wind_entities":["sensor.wind_test","sensor.wind_test2"],
+                "illuminance_entities":["sensor.lux_test","sensor.lux_test2"],
+                "sensor_names":{"sensor.wind_test2":"Roof wind"}}
+            await hass.data["weather_analysis_store"].async_save(hass.data["weather_analysis_settings"])
+            assert await hass.config_entries.async_reload(result["result"].entry_id)
+            await hass.async_block_till_done()
+            managers={m.entity:m for m in hass.data["weather_analysis"].values()}
+            assert len(managers)==5,managers
+            assert (await managers["sensor.wind_test2"].analyse(request))["current"]==28.8
+            assert (await managers["sensor.lux_test2"].analyse(request))["current"]==2345
+            manager=managers["sensor.outdoor_test"]
             hass.states.async_set("sensor.outdoor_test","unavailable",temp)
             await hass.async_block_till_done()
             assert manager.archive.value is None
             duplicate=await hass.config_entries.flow.async_init("weather_analysis",context={"source":"user"})
             assert duplicate["type"]=="abort",duplicate
-            print("Real HA smoke test passed: one setup without sensor, dynamic temperature and wind, initial recorder history, frost duration, units, statistics, state event and shutdown.")
+            print("Real HA smoke test passed: one setup without sensor, multiple temperature/wind/light sensors, reload migration, initial recorder history, frost duration, units, statistics, state event and shutdown.")
         finally:
             await hass.async_stop()
 

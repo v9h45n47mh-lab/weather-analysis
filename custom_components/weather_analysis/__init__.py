@@ -34,8 +34,17 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, chart_rows)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 _LOGGER = logging.getLogger(__name__)
+SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
+                 "illuminance": ("illuminance_entities", "illuminance_entity")}
+
+
+def configured_entities(settings, kind):
+    """Read sensor lists while retaining v1.3 singular wind/light selections."""
+    plural, single = SENSOR_FIELDS[kind]
+    values = settings.get(plural, [settings[single]] if settings.get(single) else [])
+    return list(dict.fromkeys(values))
 
 
 async def async_setup(hass, config):
@@ -77,11 +86,9 @@ async def async_setup_entry(hass, entry):
     if entry.data.get("entity_id"):
         await ensure_manager(hass, entry.data["entity_id"], "temperature")
     for settings in hass.data[DOMAIN + "_settings"].values():
-        for entity in settings.get("entities") or ([settings["entity"]] if settings.get("entity") else []):
-            await ensure_manager(hass, entity, "temperature")
-        for kind, key in (("wind", "wind_entity"), ("illuminance", "illuminance_entity")):
-            if settings.get(key):
-                await ensure_manager(hass, settings[key], kind)
+        for kind in SENSOR_FIELDS:
+            for entity in configured_entities(settings, kind):
+                await ensure_manager(hass, entity, kind)
     entry.runtime_data = hass.data[DOMAIN]
     return True
 
@@ -279,17 +286,18 @@ async def ws_sensors(hass, connection, msg):
     for group in groups.values():
         group.sort(key=lambda item: (item["name"].casefold(), item["entity_id"]))
     settings = deepcopy(hass.data[DOMAIN + "_settings"].get(msg["card_id"], {}))
-    if settings.get("entity") and not may_read(connection, settings["entity"]):
-        settings.pop("entity", None)
-    if "entities" in settings:
-        settings["entities"] = [e for e in settings["entities"] if may_read(connection, e)]
-    if "sensor_names" in settings:
-        settings["sensor_names"] = {e: name for e, name in settings["sensor_names"].items()
-                                    if e in settings.get("entities", [settings.get("entity")]) and may_read(connection, e)}
-    if settings.get("wind_entity") and not may_read(connection, settings["wind_entity"]):
-        settings.pop("wind_entity", None)
-    if settings.get("illuminance_entity") and not may_read(connection, settings["illuminance_entity"]):
-        settings.pop("illuminance_entity", None)
+    if settings:
+        allowed = set()
+        for kind, (plural, single) in SENSOR_FIELDS.items():
+            entities = [entity for entity in configured_entities(settings, kind) if may_read(connection, entity)]
+            settings[plural] = entities
+            allowed.update(entities)
+            if settings.get(single) not in entities:
+                settings.pop(single, None)
+            if entities and not settings.get(single):
+                settings[single] = entities[0]
+        if "sensor_names" in settings:
+            settings["sensor_names"] = {entity: name for entity, name in settings["sensor_names"].items() if entity in allowed}
     connection.send_result(msg["id"], {"sensors": groups["temperature"], "wind_sensors": groups["wind"], "illuminance_sensors": groups["illuminance"], "version": VERSION,
         "timezone": hass.config.time_zone, "admin": connection.user.is_admin, "settings": settings})
 
@@ -300,7 +308,9 @@ async def ws_sensors(hass, connection, msg):
     vol.Optional("entity", default=""): str,
     vol.Optional("entities"): [str],
     vol.Optional("sensor_names", default={}): {str: vol.All(str, vol.Length(max=100))},
+    vol.Optional("wind_entities"): [str],
     vol.Optional("wind_entity", default=""): str,
+    vol.Optional("illuminance_entities"): [str],
     vol.Optional("illuminance_entity", default=""): str,
     vol.Required("title"): vol.All(str, vol.Length(max=100)),
 })
@@ -309,22 +319,24 @@ async def ws_save_card(hass, connection, msg):
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Nur HA-Administratoren dürfen Karteneinstellungen speichern.")
         return
-    entities = list(dict.fromkeys(msg.get("entities", [msg["entity"]] if msg.get("entity") else [])))
-    if len(entities) > 100:
-        connection.send_error(msg["id"], "invalid_sensor", "Bitte höchstens 100 Thermometer pro Karte auswählen.")
+    chosen = {kind: configured_entities(msg, kind) for kind in SENSOR_FIELDS}
+    if any(len(entities) > 100 for entities in chosen.values()):
+        connection.send_error(msg["id"], "invalid_sensor", "Bitte höchstens 100 Sensoren je Messart auswählen.")
         return
-    sensor_names = {entity: name.strip() for entity, name in msg.get("sensor_names", {}).items()
-                    if entity in entities and name.strip()}
-    wind = msg.get("wind_entity", "")
-    illuminance = msg.get("illuminance_entity", "")
-    selected = [(entity, "temperature") for entity in entities] + ([(wind, "wind")] if wind else []) + ([(illuminance, "illuminance")] if illuminance else [])
+    selected = [(entity, kind) for kind, entities in chosen.items() for entity in entities]
     for entity, kind in selected:
         state = hass.states.get(entity)
         if not may_read(connection, entity) or not state or sensor_kind(entity, state.attributes) != kind:
             connection.send_error(msg["id"], "invalid_sensor", "Bitte einen zugänglichen Sensor mit passender Einheit auswählen.")
             return
-    settings = {"entities": entities, "entity": msg.get("entity") if msg.get("entity") in entities else next(iter(entities), ""),
-                "wind_entity": wind, "illuminance_entity": illuminance, "title": msg["title"], "sensor_names": sensor_names}
+    all_entities = {entity for entity, kind in selected}
+    sensor_names = {entity: name.strip() for entity, name in msg.get("sensor_names", {}).items()
+                    if entity in all_entities and name.strip()}
+    settings = {"title": msg["title"], "sensor_names": sensor_names}
+    for kind, (plural, single) in SENSOR_FIELDS.items():
+        entities = chosen[kind]
+        settings[plural] = entities
+        settings[single] = msg.get(single) if msg.get(single) in entities else next(iter(entities), "")
     for entity, kind in selected:
         await ensure_manager(hass, entity, kind)
     hass.data[DOMAIN + "_settings"][msg["card_id"]] = settings
@@ -372,8 +384,7 @@ async def ws_import_history(hass, connection, msg):
         connection.send_error(msg["id"], "unauthorized", "Nur HA-Administratoren dürfen die Historie übernehmen.")
         return
     settings = hass.data[DOMAIN + "_settings"].get(msg["card_id"], {})
-    entities = list(settings.get("entities") or ([settings["entity"]] if settings.get("entity") else []))
-    entities.extend(settings[key] for key in ("wind_entity", "illuminance_entity") if settings.get(key))
+    entities = [entity for kind in SENSOR_FIELDS for entity in configured_entities(settings, kind)]
     entities = list(dict.fromkeys(entities))
     if not entities:
         connection.send_error(msg["id"], "no_sensors", "Bitte zuerst Sensoren auswählen und speichern.")

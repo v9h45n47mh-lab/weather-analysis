@@ -122,6 +122,18 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual([p["start"] for p in chart],[0,7200])
 
 
+class ChartIntervalTests(unittest.TestCase):
+    def test_daily_chart_points_have_exact_dst_interval_ends(self):
+        tz=ZoneInfo("Europe/Berlin")
+        for date,hours in [("2026-03-29",23),("2026-10-25",25)]:
+            first=datetime.fromisoformat(date).replace(tzinfo=tz)
+            last=first+timedelta(days=1)
+            archive=Archive();archive.start(first.timestamp(),10);archive.advance(last.timestamp())
+            points=analytics.chart_rows(merge([],archive.hours,first.timestamp(),last.timestamp()),True,"Europe/Berlin")
+            self.assertEqual(len(points),1)
+            self.assertEqual(points[0]["end"]-points[0]["start"],hours*3600)
+
+
 class HistoryTests(unittest.TestCase):
     def snapshots(self, rows):
         return [SimpleNamespace(state=value, last_updated=datetime.fromtimestamp(at, ZoneInfo("UTC")),
