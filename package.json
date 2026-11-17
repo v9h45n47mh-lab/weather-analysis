@@ -1,0 +1,14 @@
+{
+  "name": "weather-analysis",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node --check custom_components/weather_analysis/frontend/weather-analysis-card.js",
+    "check": "python3 scripts/check.py",
+    "test": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
+    "test:browser": "node tests/browser.cjs",
+    "package": "python3 scripts/package.py"
+  },
+  "devDependencies": {"playwright": "1.62.1"}
+}

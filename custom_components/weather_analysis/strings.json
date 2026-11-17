@@ -1,0 +1,8 @@
+{
+  "title": "Weather Analysis",
+  "config": {
+    "step": {"user": {"title": "Choose a thermometer", "description": "Choose an existing temperature sensor. Its existing Home Assistant statistics are used immediately; detailed values are additionally archived from now on.", "data": {"entity_id": "Temperature sensor"}}},
+    "error": {"invalid_temperature": "Choose a temperature sensor with unit °C, °F or K."},
+    "abort": {"already_configured": "This thermometer is already configured."}
+  }
+}
