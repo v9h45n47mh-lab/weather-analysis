@@ -207,17 +207,28 @@ WIND_UNITS = {"m/s": 3.6, "km/h": 1., "kmh": 1., "kph": 1., "mph": 1.609344,
               "kn": 1.852, "knots": 1.852, "kt": 1.852, "ft/s": 1.09728}
 
 
+def normalized_unit(unit):
+    """Normalize equivalent unit spellings used by custom weather integrations."""
+    if not isinstance(unit, str):
+        return unit
+    key = "".join(unit.casefold().split())
+    return {"lux": "lx", "lx": "lx", "mps": "m/s", "m/sec": "m/s",
+            "ms-1": "m/s", "m·s⁻¹": "m/s", "kmph": "km/h",
+            "km/hr": "km/h", "knot": "kn", "kts": "kt"}.get(key, key)
+
+
 def sensor_kind(entity, attributes):
-    """Accept temperature and wind-speed sensors, including unavailable states."""
+    """Accept compatible units even with absent or legacy device classes."""
     if not entity.startswith("sensor."):
         return None
-    unit = attributes.get("unit_of_measurement")
-    device_class = attributes.get("device_class")
-    if unit in ("°C", "°F", "K") and device_class in (None, "temperature"):
+    original_unit = attributes.get("unit_of_measurement")
+    unit = normalized_unit(original_unit)
+    device_class = attributes.get("device_class") or None
+    if original_unit in ("°C", "°F", "K") and device_class in (None, "temperature"):
         return "temperature"
-    if unit == "lx" and device_class in (None, "illuminance"):
+    if unit == "lx" and device_class in (None, "illuminance", "illumination", "brightness", "light"):
         return "illuminance"
-    if unit in WIND_UNITS and device_class in (None, "wind_speed", "speed"):
+    if unit in WIND_UNITS and device_class in (None, "wind_speed", "speed", "wind", "windstrength", "wind_strength"):
         return "wind"
     return None
 
@@ -225,12 +236,13 @@ def sensor_kind(entity, attributes):
 def sensor_value(value, unit, kind):
     if kind == "temperature":
         return celsius(value, unit)
+    unit = normalized_unit(unit)
     try:
         number = float(value)
-        factor = 1. if kind == "illuminance" and unit == "lx" else WIND_UNITS[unit]
+        factor = {"lx": 1.}[unit] if kind == "illuminance" else WIND_UNITS[unit] if kind == "wind" else None
     except (ValueError, TypeError, KeyError):
         return None
-    return number * factor if math.isfinite(number) and number >= 0 else None
+    return number * factor if factor is not None and math.isfinite(number) and number >= 0 else None
 
 
 def combine_hours(older, newer):

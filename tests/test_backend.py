@@ -141,6 +141,21 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["settings"]["entity"], "sensor.second")
         self.assertNotIn("wind_entity", result["settings"])
 
+    async def test_custom_weather_units_are_discovered_saved_and_converted(self):
+        self.states["sensor.illumination"] = state("sensor.illumination", "1234", "Lux", "")
+        self.states["sensor.anemometer"] = state("sensor.anemometer", "5", " km / h ", "")
+        conn = Connection(admin=True)
+        await backend.ws_sensors(self.hass, conn, {"id":1,"card_id":"custom"})
+        result = conn.results[-1][1]
+        self.assertIn("sensor.illumination", [sensor["entity_id"] for sensor in result["illuminance_sensors"]])
+        self.assertIn("sensor.anemometer", [sensor["entity_id"] for sensor in result["wind_sensors"]])
+        await backend.ws_save_card(self.hass, conn, {"id":2,"card_id":"custom","title":"Test",
+            "wind_entities":["sensor.anemometer"],"illuminance_entities":["sensor.illumination"]})
+        self.assertFalse(conn.errors)
+        managers = {manager.entity:manager for manager in self.hass.data[backend.DOMAIN].values()}
+        self.assertEqual(managers["sensor.illumination"].state_value(),1234)
+        self.assertEqual(managers["sensor.anemometer"].state_value(),5)
+
     async def test_only_admin_can_save_multiple_sensors(self):
         msg = {"id":1,"card_id":"card","entities":["sensor.test","sensor.second"],
                "entity":"sensor.second","wind_entity":"sensor.wind","illuminance_entity":"sensor.lux","title":"Test"}

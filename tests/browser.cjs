@@ -54,6 +54,20 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await action('custom-apply').click();await page.waitForFunction(()=>demo.calls.at(-1)?.end_date==='2026-10-31');
   await card().locator('[data-page="settings"]').click();
   assert.equal(await card().locator('#wa-base,#wa-limit,#wa-heating-settings').count(),0);
+  for(const [kind,title] of [['temperature','Temperatur'],['wind','Wind'],['illuminance','Helligkeit']])assert.equal(await card().locator('[aria-controls="wa-names-'+kind+'-content"]').innerText(),title);
+  assert.equal(await card().getByText('Namen in dieser Karte',{exact:true}).count(),0);
+  // Search the German measurement kind even when a provider uses English names.
+  await card().locator('#wa-wind-sensors-search').fill('Wind');
+  assert.equal(await card().locator('#wa-wind-sensors [data-selection-row]:visible').count(),2);
+  await card().locator('#wa-illuminance-sensors-search').fill('Helligkeit');
+  assert.equal(await card().locator('#wa-illuminance-sensors [data-selection-row]:visible').count(),2);
+  await card().locator('#wa-wind-sensors-search').fill('sensor.wind2');
+  assert.equal(await card().locator('#wa-wind-sensors [data-selection-row]:visible').count(),1);
+  assert.equal(await card().locator('#wa-illuminance-sensors [data-selection-row]:visible').count(),2);
+  await card().locator('#wa-wind-sensors-search').fill('not-found');
+  assert(await card().locator('#wa-wind-sensors .fui-selection-empty').isVisible());
+  await card().locator('#wa-wind-sensors-search').fill('');
+  await card().locator('#wa-illuminance-sensors-search').fill('');
   await card().locator('#wa-sensors input[value="sensor.garden"]').check();
   await card().locator('#wa-sensors input[value="sensor.north"]').check();
   await card().locator('[data-alias-entity="sensor.garden"] input').fill('Terrasse');
@@ -114,6 +128,9 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
     const box=await card().locator('.wa-chart').boundingBox();
     await page.mouse.move(box.x+box.width*.25,box.y+box.height*.55);
     assert(await card().locator('#wa-chart-tooltip').isVisible());
+    const tooltipBox=await card().locator('#wa-chart-tooltip').boundingBox(),chartAfter=await card().locator('.wa-chart').boundingBox();
+    assert(tooltipBox.y+tooltipBox.height<chartAfter.y,'Values must remain above the chart');
+    assert.equal(chartAfter.y,box.y,'Hover must not move the chart');
     const initialTime=await page.evaluate(()=>demo.card._cursorTime);
     await page.mouse.move(box.x+box.width*.75,box.y+box.height*.55);
     assert.notEqual(await page.evaluate(()=>demo.card._cursorTime),initialTime);
@@ -132,7 +149,8 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing&&demo.card._data&&demo.card._comparisonData);
   const gapPosition=await card().evaluate((el,time)=>{const rect=el.shadowRoot.querySelector('.wa-chart').getBoundingClientRect(),g=el._chartGeometry;return {x:rect.left+(g.L+(time-el._data.start)/(el._data.end-el._data.start)*(g.W-g.L-g.R))/g.W*rect.width,y:rect.top+rect.height*.5};},gapTime);
   await page.mouse.move(gapPosition.x,gapPosition.y);
-  assert.match(await card().locator('#wa-chart-tooltip').innerText(),/Keine Messwerte in diesem Intervall/);
+  assert.match(await card().locator('#wa-inspector').innerText(),/Keine Messwerte/);
+  assert.equal(await card().locator('#wa-chart-tooltip [title="Keine Messwerte in diesem Intervall"]').count(),1);
   assert.equal(await card().locator('.wa-cursor-point:not([visibility="hidden"])').count(),1);
   await page.evaluate(()=>demo.gapEntity=null);await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing&&demo.card._data&&demo.card._comparisonData);
   for(const width of [1100,390,320])for(const dark of [false,true]){
@@ -225,6 +243,9 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.notEqual(await touchPage.evaluate(()=>demo.card._cursorTime),touchStart);
   assert(await touchCard.locator('#wa-chart-tooltip').isVisible());
   assert.match(await touchCard.locator('#wa-chart-tooltip').innerText(),/Garten.*Nordseite/s);
+  const touchTooltip=await touchCard.locator('#wa-chart-tooltip').boundingBox(),touchChartAfter=await touchCard.locator('.wa-chart').boundingBox();
+  assert(touchTooltip.y+touchTooltip.height<touchChartAfter.y);
+  assert.equal(touchChartAfter.y,touchBox.y);
   await touchPage.screenshot({path:path.join(screens,'touch-scrub.png'),fullPage:true});
   await touchContext.close();
   assert.deepEqual(errors,[]);

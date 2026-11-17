@@ -50,7 +50,7 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.4.0",data
+            assert data["version"]=="1.4.1",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data
@@ -77,6 +77,12 @@ async def main():
             assert len(managers)==5,managers
             assert (await managers["sensor.wind_test2"].analyse(request))["current"]==28.8
             assert (await managers["sensor.lux_test2"].analyse(request))["current"]==2345
+            hass.states.async_set("sensor.legacy_lux","1234",{"unit_of_measurement":"Lux","device_class":""})
+            hass.states.async_set("sensor.legacy_wind","5",{"unit_of_measurement":" km / h ","device_class":""})
+            await hass.async_block_till_done()
+            for entity,kind,current in [("sensor.legacy_lux","illuminance",1234),("sensor.legacy_wind","wind",5)]:
+                legacy=await ensure_manager(hass,entity,kind)
+                assert (await legacy.analyse(request))["current"]==current
             manager=managers["sensor.outdoor_test"]
             hass.states.async_set("sensor.outdoor_test","unavailable",temp)
             await hass.async_block_till_done()

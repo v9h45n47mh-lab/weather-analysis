@@ -122,6 +122,24 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual([p["start"] for p in chart],[0,7200])
 
 
+class SensorDiscoveryTests(unittest.TestCase):
+    def test_equivalent_weather_units_and_legacy_classes(self):
+        for unit,device_class in [("Lux", ""), (" lux ", "brightness"), ("LX", "illuminance"), ("lx", None)]:
+            with self.subTest(unit=unit,device_class=device_class):
+                self.assertEqual(analytics.sensor_kind("sensor.brightness", {"unit_of_measurement":unit,"device_class":device_class}), "illuminance")
+                self.assertEqual(analytics.sensor_value("1234",unit,"illuminance"), 1234)
+        for unit,device_class,expected in [("KM/H", "", 5), (" km / h ", "wind", 5), ("mps", "wind_strength", 18), (" M/S ", None, 18)]:
+            with self.subTest(unit=unit,device_class=device_class):
+                self.assertEqual(analytics.sensor_kind("sensor.anemometer", {"unit_of_measurement":unit,"device_class":device_class}), "wind")
+                self.assertEqual(analytics.sensor_value("5",unit,"wind"), expected)
+
+    def test_incompatible_measurements_remain_excluded(self):
+        for entity,unit,device_class in [("sensor.light","%","brightness"), ("sensor.direction","°","wind"), ("binary_sensor.wind",None,"wind"), ("sensor.current","m/s","current")]:
+            self.assertIsNone(analytics.sensor_kind(entity,{"unit_of_measurement":unit,"device_class":device_class}))
+        self.assertIsNone(analytics.sensor_value(5,"m/s","illuminance"))
+        self.assertIsNone(analytics.sensor_value(5,"lx","wind"))
+
+
 class ChartIntervalTests(unittest.TestCase):
     def test_daily_chart_points_have_exact_dst_interval_ends(self):
         tz=ZoneInfo("Europe/Berlin")

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1
+
+- Maus-/Touchwerte erhalten einen festen Bereich oberhalb des Charts; die Kurven werden nicht verdeckt und verschieben sich beim Ablesen nicht. Farbige Messpunktmarkierungen und Detailwerte bleiben erhalten.
+- Sensornamen in den Einstellungen stehen unter Temperatur, Wind beziehungsweise Helligkeit.
+- Sensorsuche berücksichtigt die Messart zusätzlich zu Name und Entitäts-ID; auch englisch benannte Sensoren werden mit Wind oder Helligkeit gefunden.
+- Alternative Lux- und Geschwindigkeitseinheiten sowie leere beziehungsweise ältere Geräteklassen werden bei Auswahl und Detailhistorie erkannt.
+- HA UI Kit 1.8.0 bleibt unverändert eingebunden.
+
 ## 1.4.0
 
 - Jahr aus der Zeitraumwahl entfernt; alte Jahres-Startansichten wechseln auf Monat.

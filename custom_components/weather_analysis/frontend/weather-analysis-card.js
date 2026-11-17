@@ -2,7 +2,7 @@ import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, select
   field, notice, versionInfo, bindUI, escapeHtml as esc, accountTile, accountTiles,
   statisticsTable, filterButton, multiSelect, dateNavigation} from './family-ui/1.8.0/family-ui.js';
 
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['custom','Zeitraum']];
 const SENSOR_TYPES={temperature:{list:'entities',single:'entity',source:'_sensors',id:'wa-sensors',label:'Thermometer',title:'Temperatur'},wind:{list:'wind_entities',single:'wind_entity',source:'_windSensors',id:'wa-wind-sensors',label:'Windsensoren',title:'Wind'},illuminance:{list:'illuminance_entities',single:'illuminance_entity',source:'_illuminanceSensors',id:'wa-illuminance-sensors',label:'Helligkeitssensoren',title:'Helligkeit'}};
 const num = (value, digits=1) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('de-DE',{minimumFractionDigits:digits, maximumFractionDigits:digits});
@@ -29,7 +29,7 @@ const CSS = `
 .wa-periods{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
 .wa-date-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .wa-date-fields .field{min-width:0}.wa-date-fields input{min-width:0;max-width:100%}
-.wa-range{margin:12px 0}.wa-chart-wrap{position:relative}.wa-chart{width:100%;display:block;height:auto;overflow:visible;touch-action:pan-y}.wa-chart-surface{fill:transparent;cursor:crosshair}.wa-cursor{pointer-events:none}.wa-cursor[hidden]{display:none}.wa-crosshair{stroke:var(--secondary-text-color,#727272);stroke-width:1;stroke-dasharray:3 3}.wa-cursor-point{fill:var(--primary-color,#03a9f4);stroke:var(--ha-card-background,var(--card-background-color,#fff));stroke-width:2}.wa-cursor-point.secondary{fill:var(--warning-color,#ff9800)}.wa-chart-tooltip{position:absolute;z-index:3;pointer-events:none;max-width:min(340px,100%);box-sizing:border-box;background:var(--ha-card-background,var(--card-background-color,#fff));border:1px solid var(--divider-color,#e0e0e0);border-radius:var(--ha-card-border-radius,12px);box-shadow:var(--ha-card-box-shadow,0 2px 8px #0003);padding:8px;overflow-wrap:anywhere}.wa-chart-tooltip[hidden]{display:none}.wa-chart-tooltip .setting-row{gap:8px}.wa-tooltip-reading{white-space:nowrap}.wa-tooltip-time{display:block}
+.wa-range{margin:12px 0}.wa-chart-wrap{position:relative}.wa-chart{width:100%;display:block;height:auto;overflow:visible;touch-action:pan-y}.wa-chart-surface{fill:transparent;cursor:crosshair}.wa-cursor{pointer-events:none}.wa-cursor[hidden]{display:none}.wa-crosshair{stroke:var(--secondary-text-color,#727272);stroke-width:1;stroke-dasharray:3 3}.wa-cursor-point{fill:var(--primary-color,#03a9f4);stroke:var(--ha-card-background,var(--card-background-color,#fff));stroke-width:2}.wa-cursor-point.secondary{fill:var(--warning-color,#ff9800)}.wa-chart-details{min-height:calc(42px + var(--wa-detail-rows,1)*24px);margin-bottom:8px}.wa-chart-tooltip{position:relative;pointer-events:none;width:100%;box-sizing:border-box;background:var(--ha-card-background,var(--card-background-color,#fff));border:1px solid var(--divider-color,#e0e0e0);border-radius:var(--ha-card-border-radius,12px);padding:8px;overflow-wrap:anywhere}.wa-chart-tooltip[hidden]{display:none}.wa-tooltip-values{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;margin:4px 0 0}.wa-tooltip-values dt{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wa-tooltip-values dd{margin:0;white-space:nowrap}.wa-tooltip-time{display:block}
 .wa-chart text{font:inherit;font-size:12px;fill:var(--secondary-text-color,#727272)}
 .wa-chart .wa-grid{stroke:var(--divider-color,#e0e0e0);stroke-width:1;stroke-dasharray:3 4}
 .wa-chart .wa-line{fill:none;stroke:var(--primary-color,#03a9f4);stroke-width:2.5;stroke-linejoin:round}
@@ -225,9 +225,9 @@ class WeatherAnalysisCard extends HTMLElement {
   }
   _sensorSettings(kind,s){
     const config=SENSOR_TYPES[kind],entities=s[config.list]||[];
-    return section({id:'wa-select-'+kind,title:config.title,content:
-      multiSelect({id:config.id,label:'Relevante '+config.label,action:'choose-sensors-'+kind,values:entities,items:this[config.source].map(sensor=>({value:sensor.entity_id,label:sensor.name,description:sensor.entity_id})),disabled:!this._admin})+
-      section({id:'wa-names-'+kind,title:'Namen in dieser Karte',content:`<div id="wa-alias-fields-${kind}" class="wa-alias-list">${this._aliasFields(entities,kind)}</div>`})});
+    return section({id:'wa-select-'+kind,title:config.label,content:
+      multiSelect({id:config.id,label:'Relevante '+config.label,action:'choose-sensors-'+kind,values:entities,items:this[config.source].map(sensor=>({value:sensor.entity_id,label:sensor.name,description:config.title+' · '+({temperature:'°C / °F / K',wind:'km/h / m/s',illuminance:'lx / Lux'}[kind])+' · '+sensor.entity_id})),disabled:!this._admin})+
+      section({id:'wa-names-'+kind,title:config.title,content:`<div id="wa-alias-fields-${kind}" class="wa-alias-list">${this._aliasFields(entities,kind)}</div>`})});
   }
   _rememberSections(){
     if(!this._renderedScope)return;
@@ -282,12 +282,12 @@ class WeatherAnalysisCard extends HTMLElement {
       previousMeanLabel=labelY;
       return `<g class="${index?'wa-series-secondary':'wa-series-primary'}"><path class="wa-average-line" d="M${L},${at} H${W-R}"/><text class="wa-average-label" x="${W-R-4}" y="${labelY}" text-anchor="end"><title>Durchschnitt im gewählten Zeitraum · ${esc(this._sensorName(entry.entity))}</title>Ø ${esc(this._num(mean))} ${esc(this.unit)}</text></g>`;
     }).join('');
-    return `<div class="wa-chart-wrap"><svg class="wa-chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${this.view==='wind'?'Windverlauf in Kilometer pro Stunde':this.view==='illuminance'?'Helligkeitsverlauf in Lux':'Temperaturverlauf in Grad Celsius'}"><title>${this.view==='wind'?'Windverlauf':this.view==='illuminance'?'Helligkeitsverlauf':'Temperaturverlauf'}</title><desc>${series.length>1?'Zwei Sensoren mit gemeinsamer Messwertskala. Die zweite Linie ist zusätzlich gestrichelt.':'Linie: Durchschnitt. Band: Minimum bis Maximum.'} Maus oder Finger über den Verlauf bewegen, um Intervallwerte zu sehen. Messpunkte lassen sich mit Tab auswählen.</desc>
+    return `<div class="wa-chart-wrap"><div class="wa-chart-details" style="--wa-detail-rows:${series.length}"><div class="wa-chart-tooltip" id="wa-chart-tooltip" role="tooltip" hidden></div><p class="hint" id="wa-chart-prompt">Maus oder Finger über den Verlauf bewegen, um die Werte zu sehen.</p></div><svg class="wa-chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${this.view==='wind'?'Windverlauf in Kilometer pro Stunde':this.view==='illuminance'?'Helligkeitsverlauf in Lux':'Temperaturverlauf in Grad Celsius'}"><title>${this.view==='wind'?'Windverlauf':this.view==='illuminance'?'Helligkeitsverlauf':'Temperaturverlauf'}</title><desc>${series.length>1?'Zwei Sensoren mit gemeinsamer Messwertskala. Die zweite Linie ist zusätzlich gestrichelt.':'Linie: Durchschnitt. Band: Minimum bis Maximum.'} Maus oder Finger über den Verlauf bewegen, um Intervallwerte zu sehen. Messpunkte lassen sich mit Tab auswählen.</desc>
       ${Array.from({length:5},(_,i)=>{const value=low+(high-low)*i/4;return `<path class="wa-grid" d="M${L},${y(value)} H${W-R}"/><text text-anchor="end" x="${L-8}" y="${y(value)+4}">${this._num(value,0)}${this.view==='temperature'?'°':''}</text>`;}).join('')}
       ${plotted}${averages}
       <rect class="wa-chart-surface" x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}"/>
       <g class="wa-cursor" id="wa-cursor" hidden><path class="wa-crosshair" id="wa-crosshair"/>${series.map((entry,index)=>`<circle class="wa-cursor-point ${index?'secondary':''}" data-cursor-series="${index}" r="4" visibility="hidden"/>`).join('')}</g>
-      ${[0,.5,1].map((fraction,i)=>`<text x="${L+fraction*(W-L-R)}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${esc(new Intl.DateTimeFormat('de-DE',{timeZone:this.timezone,...(d.chart_daily?{day:'2-digit',month:'2-digit'}:{hour:'2-digit',minute:'2-digit'})}).format(new Date((d.start+fraction*(d.end-d.start))*1000)))}</text>`).join('')}</svg><div class="wa-chart-tooltip" id="wa-chart-tooltip" role="tooltip" hidden></div></div>
+      ${[0,.5,1].map((fraction,i)=>`<text x="${L+fraction*(W-L-R)}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${esc(new Intl.DateTimeFormat('de-DE',{timeZone:this.timezone,...(d.chart_daily?{day:'2-digit',month:'2-digit'}:{hour:'2-digit',minute:'2-digit'})}).format(new Date((d.start+fraction*(d.end-d.start))*1000)))}</text>`).join('')}</svg></div>
       <div class="wa-legend hint">${series.length>1?series.map((s,i)=>`<span><i class="wa-swatch ${i?'secondary':''}"></i>${esc(this._sensorName(s.entity))}</span>`).join(''):'<span><i class="wa-swatch"></i>Durchschnitt</span><span><i class="wa-swatch band"></i>Minimum / Maximum</span>'}</div><p class="hint wa-inspector" id="wa-inspector" aria-live="polite">${esc(d.chart_daily?'Tagesmittel · Maus oder Finger für Details bewegen':'Stundenmittel · Maus oder Finger für Details bewegen')}</p>`;
   }
   _pointText(p,entity=this.activeEntity){return `${this._sensorName(entity)} · ${this._formatTime(p.start,true)} · Ø ${this._num(p.mean)} ${this.unit} · Min ${this._num(p.min)} ${this.unit} · Max ${this._num(p.max)} ${this.unit}`;}
@@ -317,18 +317,15 @@ class WeatherAnalysisCard extends HTMLElement {
       if(!entry.point){dot.setAttribute('visibility','hidden');continue;}
       dot.removeAttribute('visibility');dot.setAttribute('cx',String(g.L+(entry.point.start-this._data.start)/Math.max(1,this._data.end-this._data.start)*(g.W-g.L-g.R)));dot.setAttribute('cy',String(g.T+(g.high-entry.point.mean)/(g.high-g.low)*(g.H-g.T-g.B)));
     }
-    tooltip.innerHTML=`<strong class="wa-tooltip-time">${esc(this._formatTime(at,true))}</strong>`+readings.map((entry,index)=>row({title:this._sensorName(entry.entity),description:entry.point?`${entry.data.chart_daily?'Tagesmittel':'Stundenmittel'} · Min ${this._num(entry.point.min)} · Max ${this._num(entry.point.max)} ${this.unit}`:'Keine Messwerte in diesem Intervall',trailing:`<span class="wa-tooltip-reading"><i class="wa-swatch ${index?'secondary':''}"></i>${esc(entry.point?this._num(entry.point.mean)+' '+this.unit:'—')}</span>`})).join('');
-    tooltip.hidden=false;
-    const chartRect=svg.getBoundingClientRect(),width=chartRect.width,position=x/g.W*width;
-    tooltip.style.left=Math.max(0,Math.min(width-tooltip.offsetWidth,position-tooltip.offsetWidth/2))+'px';
-    tooltip.style.top=(tooltip.offsetHeight>chartRect.height?-tooltip.offsetHeight-8:8)+'px';
+    tooltip.innerHTML=`<strong class="wa-tooltip-time">${esc(this._formatTime(at,true))}</strong><dl class="wa-tooltip-values">`+readings.map((entry,index)=>`<dt title="${esc(this._sensorName(entry.entity))}"><i class="wa-swatch ${index?'secondary':''}"></i>${esc(this._sensorName(entry.entity))}</dt><dd data-value-entity="${esc(entry.entity)}"${entry.point?'':' title="Keine Messwerte in diesem Intervall"'}>${esc(entry.point?this._num(entry.point.mean)+' '+this.unit:'—')}</dd>`).join('')+'</dl>';
+    tooltip.hidden=false;const prompt=this.shadowRoot.getElementById('wa-chart-prompt');if(prompt)prompt.hidden=true;
     const inspector=this.shadowRoot.getElementById('wa-inspector');
     if(inspector)inspector.textContent=readings.map(entry=>entry.point?this._pointText(entry.point,entry.entity):this._sensorName(entry.entity)+' · Keine Messwerte').join(' | ');
     this._cursorTime=at;
   }
   _hideChartCursor(){
     const tooltip=this.shadowRoot.getElementById('wa-chart-tooltip'),cursor=this.shadowRoot.getElementById('wa-cursor');
-    if(tooltip)tooltip.hidden=true;if(cursor)cursor.setAttribute('hidden','');
+    if(tooltip)tooltip.hidden=true;if(cursor)cursor.setAttribute('hidden','');const prompt=this.shadowRoot.getElementById('wa-chart-prompt');if(prompt)prompt.hidden=false;
   }
   _comparisonSummary(){
     if(!this.compareEntity)return '';
@@ -375,7 +372,7 @@ class WeatherAnalysisCard extends HTMLElement {
   }
   _help(){return section({id:'wa-help',title:'So funktioniert Weather Analysis',content:
     '<p>Temperatur, Wind und Helligkeit stammen direkt von deinen gewählten HA-Sensoren. Bereits bei der ersten Auswahl werden vorhandene Detailhistorie und Langzeitstatistik ausgewertet. Anschließend werden Stundenwerte und Extremwerte auch bei geschlossener Karte gespeichert.</p>'+
-    row({title:'Sensoren auswählen und vergleichen',description:'Die Integration wird einmal eingerichtet. Sensoren aller drei Messarten wählst du ausschließlich in den Einstellungen der Karte. Ausgewählte Sensoren kannst du hier für diese Karte umbenennen. Das Dropdown oben wechselt den Sensor; + fügt einen zweiten Sensor zum Vergleich hinzu. Mehrere Karten erhalten eigene Einstellungen über ihre Karten-ID.'})+
+    row({title:'Sensoren auswählen und vergleichen',description:'Die Integration wird einmal eingerichtet. Sensoren aller drei Messarten wählst du ausschließlich in den Einstellungen der Karte. Ausgewählte Sensoren kannst du im jeweiligen Bereich für diese Karte umbenennen. Das Dropdown oben wechselt den Sensor; + fügt einen zweiten Sensor zum Vergleich hinzu. Mehrere Karten erhalten eigene Einstellungen über ihre Karten-ID.'})+
     row({title:'Datenqualität',description:'≈ kennzeichnet Mittelwerte aus verdichteten HA-Statistiken. Grenzwertdauern und genaue Extremzeiten stammen aus vorhandener Detailhistorie und eigener Aufzeichnung. Fehlende Detaildaten werden nicht erfunden.'})+
     row({title:'Messlücken',description:'Unavailable/unknown und bekannte HA-Ausfallzeiten bleiben Lücken. Vergleiche sind nur bei ähnlicher Datenabdeckung aussagekräftig.'})+
     row({title:'Wind',description:'Windgeschwindigkeit wird einheitlich in km/h angezeigt. Unterstützt werden auch m/s, mph, Knoten und ft/s. Der höchste Sensorwert ist keine separat gemessene Windböe.'})+
