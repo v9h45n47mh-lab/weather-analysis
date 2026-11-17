@@ -1,8 +1,14 @@
 {
-  "title": "Weather Analysis",
+  "title": "Temperaturanalyse",
   "config": {
-    "step": {"user": {"title": "Thermometer auswählen", "description": "Wähle einen vorhandenen Temperatursensor. Seine HA-Langzeitstatistik wird sofort genutzt. Zusätzliche Details werden ab jetzt dauerhaft aufgezeichnet.", "data": {"entity_id": "Temperatursensor"}}},
-    "error": {"invalid_temperature": "Bitte einen Temperatursensor mit der Einheit °C, °F oder K auswählen."},
-    "abort": {"already_configured": "Dieses Thermometer ist bereits eingerichtet."}
+    "step": {
+      "user": {
+        "title": "Temperaturanalyse einrichten",
+        "description": "Die Integration wird einmal eingerichtet. Thermometer, Windsensor und Helligkeitssensor wählst du anschließend direkt in der Dashboard-Karte."
+      }
+    },
+    "abort": {
+      "already_configured": "Temperaturanalyse ist bereits eingerichtet. Weitere Sensoren wählst du direkt in der Karte."
+    }
   }
 }

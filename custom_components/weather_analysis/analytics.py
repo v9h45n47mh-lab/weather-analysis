@@ -149,7 +149,7 @@ def merge_hours(stats, archived, start, end):
     return sorted(rows.values(), key=lambda r: r["start"])
 
 
-def summarize(rows, start, end, tz_name="Europe/Berlin", heating_base=20., heating_limit=15.):
+def summarize(rows, start, end, tz_name="Europe/Berlin"):
     tz = ZoneInfo(tz_name)
     seconds = sum(r["seconds"] for r in rows)
     exact = sum(r.get("exact_seconds", 0) for r in rows)
@@ -177,7 +177,7 @@ def summarize(rows, start, end, tz_name="Europe/Berlin", heating_base=20., heati
         for kind, cmp in (("min", min), ("max", max)):
             if row.get(kind) is not None:
                 day[kind] = row[kind] if day[kind] is None else cmp(day[kind], row[kind])
-    result.update(frost_days=0, warm_days=0, hot_days=0, heating_degree_days=0., heating_days=0, complete_days=0)
+    result.update(frost_days=0, warm_days=0, hot_days=0, complete_days=0)
     for day in days.values():
         day["mean"] = day.pop("weighted") / day["seconds"]
         date = datetime.fromisoformat(day["date"])
@@ -190,9 +190,6 @@ def summarize(rows, start, end, tz_name="Europe/Berlin", heating_base=20., heati
         result["frost_days"] += int(day["min"] is not None and day["min"] < 0)
         result["warm_days"] += int(day["max"] is not None and day["max"] >= 25)
         result["hot_days"] += int(day["max"] is not None and day["max"] >= 30)
-        if day["complete"] and day["mean"] < heating_limit:
-            result["heating_degree_days"] += max(0., heating_base - day["mean"])
-            result["heating_days"] += 1
     result["days"] = list(days.values())
     return result
 
@@ -204,3 +201,76 @@ def chart_rows(rows, daily, tz_name):
     summary = summarize(rows, rows[0]["start"], rows[-1]["end"], tz_name) if rows else {"days": []}
     return [{"start": datetime.fromisoformat(r["date"]).replace(tzinfo=ZoneInfo(tz_name)).timestamp(),
              "mean": r["mean"], "min": r["min"], "max": r["max"]} for r in summary["days"]]
+
+WIND_UNITS = {"m/s": 3.6, "km/h": 1., "kmh": 1., "kph": 1., "mph": 1.609344,
+              "kn": 1.852, "knots": 1.852, "kt": 1.852, "ft/s": 1.09728}
+
+
+def sensor_kind(entity, attributes):
+    """Accept temperature and wind-speed sensors, including unavailable states."""
+    if not entity.startswith("sensor."):
+        return None
+    unit = attributes.get("unit_of_measurement")
+    device_class = attributes.get("device_class")
+    if unit in ("°C", "°F", "K") and device_class in (None, "temperature"):
+        return "temperature"
+    if unit == "lx" and device_class in (None, "illuminance"):
+        return "illuminance"
+    if unit in WIND_UNITS and device_class in (None, "wind_speed", "speed"):
+        return "wind"
+    return None
+
+
+def sensor_value(value, unit, kind):
+    if kind == "temperature":
+        return celsius(value, unit)
+    try:
+        number = float(value)
+        factor = 1. if kind == "illuminance" and unit == "lx" else WIND_UNITS[unit]
+    except (ValueError, TypeError, KeyError):
+        return None
+    return number * factor if math.isfinite(number) and number >= 0 else None
+
+
+def combine_hours(older, newer):
+    """Combine disjoint measured prefixes with the existing live archive."""
+    result = deepcopy(older)
+    for key, source in newer.items():
+        if key not in result:
+            result[key] = deepcopy(source)
+            continue
+        dest = result[key]
+        for field in ("seconds", "weighted", *THRESHOLDS):
+            dest[field] += source[field]
+        dest["observed_start"] = min(dest.get("observed_start", dest["start"]),
+                                     source.get("observed_start", source["start"]))
+        dest["observed_end"] = max(dest.get("observed_end", dest["end"]),
+                                   source.get("observed_end", source["end"]))
+        for field, choose in (("min", min), ("max", max)):
+            if source[field] is not None and (dest[field] is None or choose(dest[field], source[field]) == source[field]):
+                dest[field], dest[field + "_at"] = source[field], source[field + "_at"]
+    return result
+
+
+def history_archive(states, start, end, runs, kind):
+    """Integrate recorder states inside recording runs, preserving downtime."""
+    result = Archive()
+    snapshots = sorted(states, key=lambda state: state.last_updated.timestamp())
+    index = 0
+    for run_start, run_end in sorted(runs):
+        first, last = max(start, run_start), min(end, run_end)
+        if first >= last:
+            continue
+        result.start(first, None)
+        while index < len(snapshots) and snapshots[index].last_updated.timestamp() < first:
+            index += 1
+        while index < len(snapshots):
+            state = snapshots[index]
+            at = state.last_updated.timestamp()
+            if at >= last:
+                break
+            result.change(at, sensor_value(state.state, state.attributes.get("unit_of_measurement"), kind))
+            index += 1
+        result.advance(last)
+        result.change(last, None)
+    return result

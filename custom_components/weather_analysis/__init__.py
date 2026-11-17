@@ -5,6 +5,8 @@ import asyncio
 from copy import deepcopy
 from datetime import datetime, timedelta
 from functools import partial
+from hashlib import sha256
+from types import SimpleNamespace
 import logging
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -18,6 +20,9 @@ from homeassistant.auth.permissions.const import POLICY_READ
 from homeassistant.components import frontend, websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.recorder.statistics import statistics_during_period
+from homeassistant.components.recorder.history import get_significant_states
+from homeassistant.components.recorder.db_schema import RecorderRuns
+from homeassistant.components.recorder.util import session_scope
 from homeassistant.core import callback
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
@@ -25,15 +30,18 @@ from homeassistant.helpers.recorder import get_instance
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .analytics import Archive, celsius, merge_hours, summarize, chart_rows
+from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
+                        history_archive, merge_hours, summarize, chart_rows)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup(hass, config):
     hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN + "_entries"] = set()
+    hass.data[DOMAIN + "_lock"] = asyncio.Lock()
     settings_store = Store(hass, 1, DOMAIN + ".cards")
     hass.data[DOMAIN + "_settings"] = await settings_store.async_load() or {}
     hass.data[DOMAIN + "_store"] = settings_store
@@ -41,25 +49,49 @@ async def async_setup(hass, config):
         StaticPathConfig("/weather-analysis", str(Path(__file__).parent / "frontend"), False)
     ])
     frontend.add_extra_js_url(hass, f"/weather-analysis/weather-analysis-card.js?v={VERSION}")
-    for command in (ws_sensors, ws_analyse, ws_save_card):
+    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history):
         websocket_api.async_register_command(hass, command)
     return True
 
 
+async def ensure_manager(hass, entity, kind=None):
+    """Create each selected sensor once; preserve the original v1.0 archive key."""
+    async with hass.data[DOMAIN + "_lock"]:
+        manager = next((m for m in hass.data[DOMAIN].values() if m.entity == entity), None)
+        if manager is not None:
+            return manager
+        legacy = next((e for e in hass.config_entries.async_entries(DOMAIN)
+                       if e.data.get("entity_id") == entity), None)
+        entry = legacy or SimpleNamespace(data={"entity_id": entity},
+            entry_id="sensor_" + sha256(entity.encode()).hexdigest()[:24])
+        manager = Manager(hass, entry, kind)
+        await manager.load()
+        hass.data[DOMAIN][entry.entry_id] = manager
+        return manager
+
+
 async def async_setup_entry(hass, entry):
-    manager = Manager(hass, entry)
-    await manager.load()
-    hass.data[DOMAIN][entry.entry_id] = manager
-    entry.runtime_data = manager
-    entry.async_on_unload(async_track_state_change_event(hass, [manager.entity], manager.state_changed))
-    entry.async_on_unload(async_track_time_interval(hass, manager.pulse, timedelta(minutes=1)))
-    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, manager.stop))
+    hass.data[DOMAIN + "_entries"].add(entry.entry_id)
+    if entry.data.get("entity_id"):
+        await ensure_manager(hass, entry.data["entity_id"], "temperature")
+    for settings in hass.data[DOMAIN + "_settings"].values():
+        for entity in settings.get("entities") or ([settings["entity"]] if settings.get("entity") else []):
+            await ensure_manager(hass, entity, "temperature")
+        for kind, key in (("wind", "wind_entity"), ("illuminance", "illuminance_entity")):
+            if settings.get(key):
+                await ensure_manager(hass, settings[key], kind)
+    entry.runtime_data = hass.data[DOMAIN]
     return True
 
 
 async def async_unload_entry(hass, entry):
-    manager = hass.data[DOMAIN].pop(entry.entry_id)
-    await manager.stop()
+    hass.data[DOMAIN + "_entries"].discard(entry.entry_id)
+    if not hass.data[DOMAIN + "_entries"]:
+        for manager in list(hass.data[DOMAIN].values()):
+            for unsubscribe in manager.unsubscribers:
+                unsubscribe()
+            await manager.stop()
+        hass.data[DOMAIN].clear()
     return True
 
 
@@ -68,38 +100,91 @@ def may_read(connection, entity):
 
 
 class Manager:
-    def __init__(self, hass, entry):
+    def __init__(self, hass, entry, kind=None):
         self.hass = hass
         self.entity = entry.data["entity_id"]
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
+        state = hass.states.get(self.entity)
+        self.kind = kind or (sensor_kind(self.entity, state.attributes) if state else None) or "temperature"
+        self.history = Archive()
+        self.history_imported = False
         self.archive = Archive()
         self.cache = {}
         self.semaphore = asyncio.Semaphore(2)
 
     def state_value(self):
         state = self.hass.states.get(self.entity)
-        return celsius(state.state, state.attributes.get("unit_of_measurement")) if state else None
+        return sensor_value(state.state, state.attributes.get("unit_of_measurement"), self.kind) if state else None
 
     async def load(self):
-        self.archive = Archive(await self.store.async_load())
+        stored = await self.store.async_load() or {}
+        self.archive = Archive(stored)
+        self.history = Archive(stored.get("history"))
+        self.history_imported = stored.get("history_imported", False)
         self.archive.start(dt_util.utcnow().timestamp(), self.state_value())
-        self.store.async_delay_save(self.archive.dump, 10)
+        self.unsubscribers = [
+            async_track_state_change_event(self.hass, [self.entity], self.state_changed),
+            async_track_time_interval(self.hass, self.pulse, timedelta(minutes=1)),
+            self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self.stop),
+        ]
+        await self.import_history()
+        self.store.async_delay_save(self.dump, 10)
 
     @callback
     def state_changed(self, event):
         state = event.data.get("new_state")
-        value = celsius(state.state, state.attributes.get("unit_of_measurement")) if state else None
+        value = sensor_value(state.state, state.attributes.get("unit_of_measurement"), self.kind) if state else None
         self.archive.change(event.time_fired.timestamp(), value)
         self.cache.clear()
-        self.store.async_delay_save(self.archive.dump, 10)
+        self.store.async_delay_save(self.dump, 10)
 
     async def pulse(self, now=None):
         self.archive.advance(dt_util.utcnow().timestamp())
-        self.store.async_delay_save(self.archive.dump, 10)
+        self.store.async_delay_save(self.dump, 10)
 
     async def stop(self, event=None):
         self.archive.advance(dt_util.utcnow().timestamp())
-        await self.store.async_save(self.archive.dump())
+        await self.store.async_save(self.dump())
+
+    def dump(self):
+        return {**self.archive.dump(), "history": self.history.dump(),
+                "history_imported": self.history_imported, "kind": self.kind}
+
+    def read_history(self, first, last):
+        """Read retained raw states and recording intervals in the recorder executor."""
+        if first >= last:
+            return Archive()
+        start = datetime.fromtimestamp(first, dt_util.UTC)
+        end = datetime.fromtimestamp(last, dt_util.UTC)
+        rows = get_significant_states(self.hass, start, end, [self.entity],
+            include_start_time_state=True, significant_changes_only=False,
+            minimal_response=False, no_attributes=False).get(self.entity, [])
+        with session_scope(hass=self.hass, read_only=True) as session:
+            runs = session.query(RecorderRuns).filter(RecorderRuns.start < end).filter(
+                RecorderRuns.end.is_(None) | (RecorderRuns.end > start)).all()
+            intervals = [(r.start.timestamp(), r.end.timestamp() if r.end else last) for r in runs]
+        return history_archive(rows, first, last, intervals, self.kind)
+
+    async def import_history(self, force=False):
+        if self.history_imported and not force:
+            return True
+        recorder = get_instance(self.hass)
+        now = dt_util.utcnow().timestamp()
+        first = getattr(getattr(recorder, "states_manager", None), "oldest_ts", None)
+        first = max(0., first - 1.) if first is not None else now - getattr(recorder, "keep_days", 10) * 86400
+        last = min((r.get("observed_start", r["start"]) for r in self.archive.hours.values()), default=now)
+        try:
+            imported = await recorder.async_add_executor_job(self.read_history, first, last)
+            for key, bucket in self.history.hours.items():
+                if key not in imported.hours or imported.hours[key]["seconds"] < bucket["seconds"]:
+                    imported.hours[key] = bucket
+            self.history = imported
+        except Exception:
+            _LOGGER.warning("Retained history import failed for %s; retrying on next analysis", self.entity, exc_info=True)
+            return False
+        self.history_imported = True
+        self.store.async_delay_save(self.dump, 10)
+        return True
 
     async def statistics(self, start, end, period="hour"):
         key = (start, end, period)
@@ -111,7 +196,7 @@ class Manager:
             partial(statistics_during_period, self.hass,
                     datetime.fromtimestamp(start, dt_util.UTC),
                     datetime.fromtimestamp(end, dt_util.UTC), {self.entity}, period,
-                    {"temperature": "°C"}, {"mean", "min", "max"}))
+                    ({"temperature": "°C"} if self.kind == "temperature" else {"speed": "km/h"} if self.kind == "wind" else None), {"mean", "min", "max"}))
         rows = result.get(self.entity, [])
         if len(self.cache) > 16:
             self.cache.clear()
@@ -132,11 +217,9 @@ class Manager:
         end = min(now, requested_end)
         if start >= end or requested_end <= start or (last_local.date()-start_local.date()).days > 365:
             raise ValueError("Der Zeitraum muss in der Vergangenheit beginnen und darf höchstens ein Jahr umfassen.")
-        base, limit = msg["heating_base"], msg["heating_limit"]
-        if base < limit:
-            raise ValueError("Die Raumtemperatur muss mindestens der Heizgrenze entsprechen.")
+        await self.import_history()
         self.archive.advance(now)
-        archive_hours = deepcopy(self.archive.hours)
+        archive_hours = combine_hours(self.history.hours, self.archive.hours)
         prior_start = (start_local - (last_local + timedelta(days=1) - start_local)).timestamp()
         prior_end = prior_start + (end - start)
         year_start_local = start_local.replace(year=start_local.year - 1, day=min(start_local.day, 28)) if start_local.month == 2 and start_local.day == 29 else start_local.replace(year=start_local.year - 1)
@@ -147,11 +230,11 @@ class Manager:
                 self.statistics(year_start, year_start + end - start),
                 self.statistics(0, now, "year"))
         rows = merge_hours(stats, archive_hours, start, end)
-        summary = summarize(rows, start, end, tz_name, base, limit)
+        summary = summarize(rows, start, end, tz_name)
         comparisons = {}
         for label, data, first, last in (("previous", prior, prior_start, prior_end),
                                          ("year", year, year_start, year_start + end - start)):
-            other = summarize(merge_hours(data, archive_hours, first, last), first, last, tz_name, base, limit)
+            other = summarize(merge_hours(data, archive_hours, first, last), first, last, tz_name)
             comparisons[label] = {"mean": other["mean"], "coverage": other["coverage"],
                                   "delta": summary["mean"] - other["mean"] if summary["mean"] is not None and other["mean"] is not None else None}
         state = self.hass.states.get(self.entity)
@@ -160,6 +243,8 @@ class Manager:
         trend = {}
         for label, target in (("hour", now-3600), ("three_hours", now-10800), ("yesterday", yesterday.timestamp())):
             old = self.archive.value_at(target)
+            if old is None:
+                old = self.history.value_at(target)
             trend[label] = current-old if current is not None and old is not None else None
         # Yearly recorder summaries preserve values, but do not reveal record dates.
         record = {}
@@ -171,7 +256,7 @@ class Manager:
                 record[kind] = next((r for r in candidates if r["value"] == extreme["value"] and r["at"] is not None), extreme)
             else:
                 record[kind] = None
-        return {"version": VERSION, "entity_id": self.entity, "name": state.name if state else self.entity,
+        return {"version": VERSION, "kind": self.kind, "unit": {"temperature": "°C", "wind": "km/h", "illuminance": "lx"}[self.kind], "entity_id": self.entity, "name": state.name if state else self.entity,
                 "timezone": tz_name, "current": current,
                 "last_updated": state.last_updated.timestamp() if state else None,
                 "start": start, "end": end, "partial": end < requested_end,
@@ -184,36 +269,56 @@ class Manager:
 @websocket_api.websocket_command({vol.Required("type"): "weather_analysis/sensors", vol.Optional("card_id", default="default"): str})
 @websocket_api.async_response
 async def ws_sensors(hass, connection, msg):
-    result = []
-    for manager in hass.data.get(DOMAIN, {}).values():
-        if may_read(connection, manager.entity):
-            state = hass.states.get(manager.entity)
-            result.append({"entity_id": manager.entity, "name": state.name if state else manager.entity})
-    settings = hass.data[DOMAIN + "_settings"].get(msg["card_id"], {})
+    groups = {"temperature": [], "wind": [], "illuminance": []}
+    for state in hass.states.async_all("sensor"):
+        kind = sensor_kind(state.entity_id, state.attributes)
+        if kind and may_read(connection, state.entity_id):
+            groups[kind].append({"entity_id": state.entity_id, "name": state.name})
+    for group in groups.values():
+        group.sort(key=lambda item: (item["name"].casefold(), item["entity_id"]))
+    settings = deepcopy(hass.data[DOMAIN + "_settings"].get(msg["card_id"], {}))
     if settings.get("entity") and not may_read(connection, settings["entity"]):
-        settings = {}
-    connection.send_result(msg["id"], {"sensors": result, "version": VERSION,
+        settings.pop("entity", None)
+    if "entities" in settings:
+        settings["entities"] = [e for e in settings["entities"] if may_read(connection, e)]
+    if settings.get("wind_entity") and not may_read(connection, settings["wind_entity"]):
+        settings.pop("wind_entity", None)
+    if settings.get("illuminance_entity") and not may_read(connection, settings["illuminance_entity"]):
+        settings.pop("illuminance_entity", None)
+    connection.send_result(msg["id"], {"sensors": groups["temperature"], "wind_sensors": groups["wind"], "illuminance_sensors": groups["illuminance"], "version": VERSION,
         "timezone": hass.config.time_zone, "admin": connection.user.is_admin, "settings": settings})
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): "weather_analysis/save_card", vol.Required("card_id"): vol.All(str, vol.Length(min=1, max=100)),
-    vol.Required("entity"): str, vol.Required("title"): vol.All(str, vol.Length(max=100)),
-    vol.Required("heating_base"): vol.All(vol.Coerce(float), vol.Range(min=0, max=40)),
-    vol.Required("heating_limit"): vol.All(vol.Coerce(float), vol.Range(min=-20, max=30)),
+    vol.Required("type"): "weather_analysis/save_card",
+    vol.Required("card_id"): vol.All(str, vol.Length(min=1, max=100)),
+    vol.Optional("entity", default=""): str,
+    vol.Optional("entities"): [str],
+    vol.Optional("wind_entity", default=""): str,
+    vol.Optional("illuminance_entity", default=""): str,
+    vol.Required("title"): vol.All(str, vol.Length(max=100)),
 })
 @websocket_api.async_response
 async def ws_save_card(hass, connection, msg):
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Nur HA-Administratoren dürfen Karteneinstellungen speichern.")
         return
-    if not any(m.entity == msg["entity"] for m in hass.data[DOMAIN].values()) or not may_read(connection, msg["entity"]):
-        connection.send_error(msg["id"], "invalid_sensor", "Bitte einen eingerichteten Temperatursensor wählen.")
+    entities = list(dict.fromkeys(msg.get("entities", [msg["entity"]] if msg.get("entity") else [])))
+    if len(entities) > 100:
+        connection.send_error(msg["id"], "invalid_sensor", "Bitte höchstens 100 Thermometer pro Karte auswählen.")
         return
-    if msg["heating_base"] < msg["heating_limit"]:
-        connection.send_error(msg["id"], "invalid_settings", "Die Raumtemperatur muss mindestens der Heizgrenze entsprechen.")
-        return
-    settings = {key: msg[key] for key in ("entity", "title", "heating_base", "heating_limit")}
+    wind = msg.get("wind_entity", "")
+    illuminance = msg.get("illuminance_entity", "")
+    selected = [(entity, "temperature") for entity in entities] + ([(wind, "wind")] if wind else []) + ([(illuminance, "illuminance")] if illuminance else [])
+    for entity, kind in selected:
+        state = hass.states.get(entity)
+        if not may_read(connection, entity) or not state or sensor_kind(entity, state.attributes) != kind:
+            connection.send_error(msg["id"], "invalid_sensor", "Bitte einen zugänglichen Sensor mit passender Einheit auswählen.")
+            return
+    settings = {"entities": entities, "entity": msg.get("entity") if msg.get("entity") in entities else next(iter(entities), ""),
+                "wind_entity": wind, "illuminance_entity": illuminance, "title": msg["title"]}
+    for entity, kind in selected:
+        await ensure_manager(hass, entity, kind)
     hass.data[DOMAIN + "_settings"][msg["card_id"]] = settings
     await hass.data[DOMAIN + "_store"].async_save(hass.data[DOMAIN + "_settings"])
     connection.send_result(msg["id"], settings)
@@ -224,8 +329,6 @@ async def ws_save_card(hass, connection, msg):
     vol.Required("entity_id"): str,
     vol.Required("start_date"): str,
     vol.Required("end_date"): str,
-    vol.Optional("heating_base", default=20.): vol.All(vol.Coerce(float), vol.Range(min=0, max=40)),
-    vol.Optional("heating_limit", default=15.): vol.All(vol.Coerce(float), vol.Range(min=-20, max=30)),
 })
 @websocket_api.async_response
 async def ws_analyse(hass, connection, msg):
@@ -234,8 +337,12 @@ async def ws_analyse(hass, connection, msg):
         return
     manager = next((m for m in hass.data.get(DOMAIN, {}).values() if m.entity == msg["entity_id"]), None)
     if manager is None:
-        connection.send_error(msg["id"], "not_configured", "Bitte den Sensor zuerst als Weather-Analysis-Integration hinzufügen.")
-        return
+        state = hass.states.get(msg["entity_id"])
+        kind = sensor_kind(msg["entity_id"], state.attributes) if state else None
+        if not kind:
+            connection.send_error(msg["id"], "invalid_sensor", "Bitte einen Temperatur-, Wind- oder Helligkeitssensor auswählen.")
+            return
+        manager = await ensure_manager(hass, msg["entity_id"], kind)
     try:
         result = await manager.analyse(msg)
     except (ValueError, OverflowError) as err:
@@ -245,3 +352,32 @@ async def ws_analyse(hass, connection, msg):
         connection.send_error(msg["id"], "analysis_failed", "Die Historie konnte nicht gelesen werden. Details stehen im HA-Protokoll.")
     else:
         connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "weather_analysis/import_history",
+    vol.Required("card_id"): vol.All(str, vol.Length(min=1, max=100)),
+})
+@websocket_api.async_response
+async def ws_import_history(hass, connection, msg):
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Nur HA-Administratoren dürfen die Historie übernehmen.")
+        return
+    settings = hass.data[DOMAIN + "_settings"].get(msg["card_id"], {})
+    entities = list(settings.get("entities") or ([settings["entity"]] if settings.get("entity") else []))
+    entities.extend(settings[key] for key in ("wind_entity", "illuminance_entity") if settings.get(key))
+    entities = list(dict.fromkeys(entities))
+    if not entities:
+        connection.send_error(msg["id"], "no_sensors", "Bitte zuerst Sensoren auswählen und speichern.")
+        return
+    for entity in entities:
+        if not may_read(connection, entity):
+            connection.send_error(msg["id"], "unauthorized", "Kein Lesezugriff auf einen der gewählten Sensoren.")
+            return
+    failed = []
+    for entity in entities:
+        manager = await ensure_manager(hass, entity)
+        if not await manager.import_history(force=True):
+            failed.append(entity)
+        manager.cache.clear()
+    connection.send_result(msg["id"], {"count": len(entities)-len(failed), "failed": failed})
