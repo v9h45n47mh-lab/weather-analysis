@@ -100,6 +100,27 @@ class Archive:
             found = value
         return found
 
+    def buckets_between(self, field, start, end):
+        """Clip boundary buckets from actual transitions rather than averages."""
+        result = {}
+        for key, bucket in getattr(self,field).items():
+            first = bucket.get("observed_start",bucket["start"])
+            last = bucket.get("observed_end",bucket["end"])
+            if first >= end or last <= start:
+                continue
+            if first >= start and last <= end:
+                result[key] = bucket
+                continue
+            first,last = max(first,start),min(last,end)
+            clipped = Archive()
+            clipped.start(first,self.value_at(first))
+            for at,value in self.recent:
+                if first < at < last:
+                    clipped.change(at,value)
+            clipped.advance(last)
+            result.update(getattr(clipped,field))
+        return result
+
     def dump(self):
         return {"hours": self.hours, "quarters": self.quarters, "recent": self.recent, "last_time": self.last_time}
 

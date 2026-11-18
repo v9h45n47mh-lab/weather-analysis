@@ -1,6 +1,6 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.5.0**, HA UI Kit **1.8.0** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.6.0**, HA UI Kit **1.8.0** lokal eingebunden.
 
 ## Funktionen
 
@@ -10,7 +10,7 @@ Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Tempera
 - Zwei Kacheln über dem Chart: Aktuell mit Veränderung in 1 Std. sowie Minimum/Maximum.
 - Durchschnittslinie mit Wert direkt im Chart; keine Durchschnitts- oder Spannenkachel.
 - Helligkeit ohne Nachkommastellen in allen Messwerten, Trends und Chartdetails; Berechnungen bleiben unverändert präzise.
-- Mit **+** einen zweiten vorausgewählten Sensor vergleichen: zwei farbige Kurven mit gemeinsamer Messwertskala, Namenslegende und Vergleichstabelle. **×** beendet den Vergleich. Der zweite Verlauf ist zusätzlich gestrichelt.
+- Mit **+** einen zweiten vorausgewählten Sensor vergleichen: zwei durchgezogene farbige Kurven mit gemeinsamer Messwertskala, Namenslegende und Vergleichstabelle. **×** beendet den Vergleich. Beide Verläufe verwenden durchgezogene Linien in unterschiedlichen Farben.
 - Geöffnete und geschlossene Bereiche bleiben bei Tag-/Wochen-/Monatswechsel, Sensorwechsel und Nachladen erhalten; jede Karte und Ansicht merkt ihre eigenen Zustände.
 - Eine Integration für alle Sensoren. Auswahl ausschließlich in den Einstellungen der Karte, keine einzelne Integration je Thermometer.
 - Aktueller Messwert, zeitlich gewichteter Durchschnitt sowie Minimum und Maximum.
@@ -19,7 +19,9 @@ Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Tempera
 - Weitere Kennzahlen, Vergleiche und Rekorde sind aufklappbar. Doppelte Monats- und Tageswerttabellen entfallen.
 - Temperatur: Froststunden, Stunden ab 25/30 °C sowie nachgewiesene Frost-/Warm-/Heißtage.
 - Wind: aktueller Wert und Kennzahlen in km/h. Sensoren in m/s, km/h, mph, Knoten und ft/s werden umgerechnet. Ein Sensor-Höchstwert ist keine separat gemessene Böe. Alternative Einheitenschreibweisen und leere Geräteklassen werden unterstützt.
-- **Tag, Kalenderwoche und Monat** mit Links-/Rechtspfeilen und Rückkehr zum aktuellen Zeitraum. Auch die Tastaturpfeile links/rechts funktionieren bei fokussierter Karte; Eingabefelder bleiben unabhängig. Vergangene Wochen und Monate werden vollständig gezeigt, aktuelle nur bis jetzt. Zukünftige Zeiträume sind gesperrt. Freier Zeitraum bis 366 Kalendertage.
+- **Tag:** Aktuell zeigt die letzten 24 Stunden minutengenau. Um 06:40 reicht die Sicht von gestern 06:41 bis heute 06:40. Zurück zeigt den vollständigen Vortag; vorwärts zurück auf heute den vollständigen Tag 00:00–23:59. Erst **Aktuell** kehrt zur rollierenden Sicht zurück.
+- **Woche:** Aktuell zeigt heute plus die letzten sieben Kalendertage. Zurück wechselt zur vollständigen vorherigen Kalenderwoche Montag–Sonntag. Vorwärts zeigt die aktuelle Kalenderwoche vollständig; Aktuell kehrt zur rollierenden Sicht zurück.
+- **Monat:** voller Kalendermonat. In Kalenderansichten bleibt die vollständige Zeitachse sichtbar; Messwerte reichen höchstens bis jetzt. Zukünftige Zeiträume sind gesperrt. Links-/Rechtspfeile der Tastatur funktionieren bei fokussierter Karte, unabhängig von Eingabefeldern. Freier Zeitraum bis 366 Kalendertage.
 - **Helligkeit:** separate Lux-Sensoren, aktueller Wert, Verlauf, Mittelwert, Extremwerte und Vergleiche.
 - **Historie übernehmen** in den Einstellungen zum erneuten Import; bereits archivierte Detailwerte bleiben erhalten.
 - Vorhandene Detailhistorie wird bei der ersten Sensorwahl importiert und sofort ausgewertet; ältere HA-Langzeitstatistik ergänzt verfügbare Zeiträume.
@@ -48,7 +50,7 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Sensoren und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.5.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.6.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
 
 ## Historie und Genauigkeit
 
@@ -84,6 +86,6 @@ npm run test:browser
 npm run package
 ```
 
-Automatisierte Browserprüfungen nutzen synthetische Daten und prüfen alle drei Ansichten, unabhängige Karten, Vorauswahl und eigene Sensornamen, Vergleich zweier Sensoren aller drei Messarten, Maus-/Touchdetails und Messlücken, Kalenderpfeile, Auflösungen sowie Ziehsortierung und einklappbare Auswahl, erhaltene Klappzustände, Rechte, schmale Bildschirme und beide Themes. Der HA-Test läuft im offiziellen Container und prüft insbesondere die native Recorder-Historie vor der ersten Sensorwahl.
+Automatisierte Browserprüfungen nutzen synthetische Daten und prüfen alle drei Ansichten, unabhängige Karten, Vorauswahl und eigene Sensornamen, Vergleich zweier Sensoren aller drei Messarten, Maus-/Touchdetails und Messlücken, Kalenderpfeile, rollierende und vollständige Zeitfenster einschließlich 06:40-Beispiel, Auflösungen sowie Ziehsortierung und einklappbare Auswahl, erhaltene Klappzustände, Rechte, schmale Bildschirme und beide Themes. Der HA-Test läuft im offiziellen Container und prüft insbesondere die native Recorder-Historie vor der ersten Sensorwahl.
 
 MIT-Lizenz. Der gemeinsame UI-Baukasten wird unverändert mit eigener Lizenz ausgeliefert.

@@ -353,6 +353,57 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         for key in ("entities","wind_entities","illuminance_entities"):
             self.assertEqual(saved[key],message[key])
 
+    async def test_live_day_matches_0641_to_0640_and_clips_real_values(self):
+        reference=datetime(2026,11,18,5,40,25,tzinfo=timezone.utc)
+        first=datetime(2026,11,17,5,41,tzinfo=timezone.utc).timestamp()
+        raw=backend.Archive();raw.start(first-3600,100);raw.change(first,0);raw.change(first+3600,10);raw.advance(reference.timestamp())
+        self.history_read.return_value=raw
+        with patch.object(backend.dt_util,"utcnow",return_value=reference):
+            await self.manager.load()
+            data=await self.manager.analyse({"start_date":"2026-11-17","end_date":"2026-11-18","chart_interval":900,"window":"day","as_of":reference.timestamp()})
+        self.assertEqual(data["start"],first)
+        self.assertEqual(data["display_end"],datetime(2026,11,18,5,41,tzinfo=timezone.utc).timestamp())
+        self.assertEqual(data["display_end"]-data["start"],86400)
+        self.assertEqual(data["end"],reference.timestamp())
+        self.assertAlmostEqual(data["summary"]["mean"],10*(data["end"]-first-3600)/(data["end"]-first))
+        self.assertEqual(data["summary"]["max"],10)
+        self.assertEqual(data["summary"]["hot_hours"],0)
+        self.assertEqual(data["chart"][0]["start"],first)
+        self.assertTrue(all(first<=point["start"]<point["end"]<=reference.timestamp() for point in data["chart"]))
+
+    async def test_live_week_contains_today_and_seven_previous_days(self):
+        reference=datetime(2026,11,18,5,40,25,tzinfo=timezone.utc)
+        with patch.object(backend.dt_util,"utcnow",return_value=reference):
+            await self.manager.load()
+            data=await self.manager.analyse({"start_date":"2026-11-11","end_date":"2026-11-18","chart_interval":3600,"window":"week","as_of":reference.timestamp()})
+        self.assertEqual(data["start"],datetime(2026,11,10,23,tzinfo=timezone.utc).timestamp())
+        self.assertEqual(data["display_end"],datetime(2026,11,18,5,41,tzinfo=timezone.utc).timestamp())
+        self.assertEqual(data["window"],"week")
+
+    async def test_full_calendar_axes_preserve_today_week_and_month_without_future_values(self):
+        reference=datetime(2026,11,18,5,40,25,tzinfo=timezone.utc)
+        with patch.object(backend.dt_util,"utcnow",return_value=reference):
+            await self.manager.load()
+            for first,last,expected in [("2026-11-18","2026-11-18",datetime(2026,11,18,23,tzinfo=timezone.utc)),("2026-11-16","2026-11-22",datetime(2026,11,22,23,tzinfo=timezone.utc)),("2026-11-01","2026-11-30",datetime(2026,11,30,23,tzinfo=timezone.utc))]:
+                data=await self.manager.analyse({"start_date":first,"end_date":last,"chart_interval":900})
+                self.assertEqual(data["display_end"],expected.timestamp())
+                self.assertEqual(data["end"],reference.timestamp())
+                self.assertTrue(all(point["end"]<=reference.timestamp() for point in data["chart"]))
+                self.assertIsNone(data["window"])
+
+    async def test_live_day_remains_24_hours_across_dst(self):
+        for reference in [datetime(2026,3,29,5,40,25,tzinfo=timezone.utc),datetime(2026,10,25,5,40,25,tzinfo=timezone.utc)]:
+            with patch.object(backend.dt_util,"utcnow",return_value=reference):
+                await self.manager.load()
+                key=reference.date().isoformat()
+                data=await self.manager.analyse({"start_date":key,"end_date":key,"chart_interval":900,"window":"day","as_of":reference.timestamp()})
+                self.assertEqual(data["display_end"]-data["start"],86400)
+
+    async def test_invalid_live_window_parameters_are_rejected(self):
+        for extra in [{"window":"year"},{"window":"day","as_of":float("nan")},{"window":"day","as_of":now.timestamp()+3600},{"window":"day","as_of":-1}]:
+            with self.assertRaises(ValueError):
+                await self.manager.analyse({"start_date":"2026-11-17","end_date":"2026-11-17",**extra})
+
     async def test_invalid_ranges_rejected(self):
         for first, last in [("2025-01-01","2026-11-17"),("2027-01-01","2027-01-01"),("2026-11-17","2026-11-16")]:
             with self.assertRaises(ValueError):

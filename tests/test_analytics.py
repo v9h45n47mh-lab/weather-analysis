@@ -148,6 +148,25 @@ class ResolutionTests(unittest.TestCase):
         self.assertEqual(chart[0]["resolution"],3600)
         self.assertEqual(chart[0]["mean"],10)
 
+    def test_window_edges_use_transitions_without_leaking_bucket_extremes(self):
+        archive=Archive();archive.start(0,100);archive.change(600,0);archive.change(1200,10);archive.change(2400,None);archive.change(3000,20);archive.advance(3600)
+        original=archive.dump()
+        clipped=merge([],archive.buckets_between("hours",660,3300),660,3300)
+        summary=summarize(clipped,660,3300,"UTC")
+        self.assertEqual(summary["min"],0)
+        self.assertEqual(summary["max"],20)
+        self.assertEqual(summary["seconds"],2040)
+        self.assertAlmostEqual(summary["mean"],18000/2040)
+        self.assertEqual(summary["hot_hours"],0)
+        self.assertEqual(archive.dump(),original)
+        quarters=merge([],archive.buckets_between("quarters",660,3300),660,3300)
+        self.assertAlmostEqual(summarize(quarters,660,3300,"UTC")["mean"],summary["mean"])
+
+    def test_old_bucket_without_transitions_is_not_fractionally_invented(self):
+        archive=Archive();archive.start(0,10);archive.advance(3600);archive.recent=[]
+        self.assertEqual(archive.buckets_between("hours",660,3300),{})
+        self.assertTrue(archive.buckets_between("hours",0,3600))
+
     def test_six_hour_bins_use_time_weighted_hours(self):
         archive=Archive();archive.start(0,10);archive.change(3600,20);archive.advance(5400)
         point=self.chart(archive,21600,0,5400)[0]

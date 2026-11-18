@@ -2,7 +2,7 @@ import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, select
   field, notice, versionInfo, bindUI, escapeHtml as esc, accountTile, accountTiles,
   statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle} from './family-ui/1.8.0/family-ui.js';
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['custom','Zeitraum']];
 const SENSOR_TYPES={temperature:{list:'entities',single:'entity',source:'_sensors',id:'wa-sensors',label:'Thermometer',title:'Temperatur'},wind:{list:'wind_entities',single:'wind_entity',source:'_windSensors',id:'wa-wind-sensors',label:'Windsensoren',title:'Wind'},illuminance:{list:'illuminance_entities',single:'illuminance_entity',source:'_illuminanceSensors',id:'wa-illuminance-sensors',label:'Helligkeitssensoren',title:'Helligkeit'}};
 const num = (value, digits=1) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('de-DE',{minimumFractionDigits:digits, maximumFractionDigits:digits});
@@ -13,11 +13,13 @@ const dateKey = (date, timezone) => {
 export function shiftDay(key, days) { const d=new Date(key+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10); }
 export function shiftMonth(key, months) {const d=new Date(key.slice(0,7)+'-01T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+months);return d.toISOString().slice(0,10);}
 export function periodStart(period,key){if(period==='month')return key.slice(0,7)+'-01';if(period==='week'){const dow=new Date(key+'T12:00:00Z').getUTCDay();return shiftDay(key,-((dow+6)%7));}return key;}
-export function calendarDates(period,key,today){const start=periodStart(period,key),next=period==='week'?shiftDay(start,7):shiftMonth(start,1);return [start,[shiftDay(next,-1),today].sort()[0]];}
+export function calendarDates(period,key,today){const start=periodStart(period,key),next=period==='week'?shiftDay(start,7):shiftMonth(start,1);return [start,shiftDay(next,-1)];}
 export function periodDates(period, timezone, now=new Date()) {
   const today=dateKey(now,timezone);
   if(period==='yesterday')return [shiftDay(today,-1),shiftDay(today,-1)];
-  return ['week','month'].includes(period)?calendarDates(period,today,today):[today,today];
+  if(period==='day')return [dateKey(new Date((Math.floor(now.getTime()/60000)+1)*60000-86400000),timezone),today];
+  if(period==='week')return [shiftDay(today,-7),today];
+  return period==='month'?calendarDates('month',today,today):[today,today];
 }
 
 const CSS = `
@@ -25,7 +27,7 @@ const CSS = `
 .wa-header-controls{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-width:0;max-width:100%;margin-right:auto}
 .wa-sensor-select{flex:0 1 150px;width:150px;max-width:150px;min-width:80px}.wa-sensor-select .field{margin:0}.wa-sensor-select select{min-width:0;max-width:100%}
 .wa-alias-list{display:grid;gap:8px}.wa-alias-item{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px;align-items:center}.wa-alias-list>*{min-width:0}
-.wa-chart .wa-series-secondary .wa-line{stroke:var(--warning-color,#ff9800);stroke-dasharray:7 3}.wa-chart .wa-series-secondary .wa-band{fill:var(--warning-color,#ff9800);opacity:.08}
+.wa-chart .wa-series-secondary .wa-line{stroke:var(--warning-color,#ff9800)}.wa-chart .wa-series-secondary .wa-band{fill:var(--warning-color,#ff9800);opacity:.08}
 .wa-chart .wa-series-secondary .wa-point{fill:var(--warning-color,#ff9800)}.wa-swatch.secondary{background:var(--warning-color,#ff9800)}
 .wa-periods{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
 .wa-date-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -123,20 +125,24 @@ class WeatherAnalysisCard extends HTMLElement {
     }catch(error){this._error='Weather Analysis ist noch nicht eingerichtet oder konnte nicht geladen werden. Bitte die Integration einmal unter Geräte & Dienste hinzufügen. '+(error.message||'');this.render();}
     finally{this._initializing=false;}
   }
-  _dates(){
-    const today=dateKey(new Date(),this.timezone||'Europe/Berlin');
-    if(this.period==='day'){const day=this._day||today;return [day,day];}
+  _isRolling(period=this.period){return period==='day'?!this._day:period==='week'?!this._periodStarts.week:false;}
+  get _chartEnd(){return this._data?.display_end??this._data?.end;}
+  _dates(now=new Date()){
+    const today=dateKey(now,this.timezone||'Europe/Berlin');
+    if(this._isRolling())return periodDates(this.period,this.timezone||'Europe/Berlin',now);
+    if(this.period==='day')return [this._day,this._day];
     if(['week','month'].includes(this.period))return calendarDates(this.period,this._periodStarts[this.period]||today,today);
     return this._custom||[today,today];
   }
   async _fetch(){
     if(!this._ready||!this.activeEntity||!this._hass)return;
-    const request=++this._request,[start_date,end_date]=this._dates();
+    const now=new Date(),request=++this._request,[start_date,end_date]=this._dates(now);
+    const window=this._isRolling()?{window:this.period,as_of:now.getTime()/1000}:{};
     const entity=this.activeEntity,compare=this.compareEntity;
     this._busy=true;
     if(!this._data)this.render();
     try{
-      const query=entity_id=>this._hass.callWS({type:'weather_analysis/analyse',entity_id,start_date,end_date,...({day:900,week:3600,month:21600}[this.period]?{chart_interval:{day:900,week:3600,month:21600}[this.period]}:{})});
+      const query=entity_id=>this._hass.callWS({type:'weather_analysis/analyse',entity_id,start_date,end_date,...window,...({day:900,week:3600,month:21600}[this.period]?{chart_interval:{day:900,week:3600,month:21600}[this.period]}:{})});
       const responses=await Promise.allSettled([query(entity),...(compare?[query(compare)]:[])]);
       if(request!==this._request)return;
       if(responses[0].status==='rejected')throw responses[0].reason;
@@ -173,15 +179,15 @@ class WeatherAnalysisCard extends HTMLElement {
       try{await this._initialize();}finally{this._refreshing=false;this.render();}return;
     }
     if(['previous-period','next-period','current-period'].includes(action)&&['week','month'].includes(this.period)){
-      const today=dateKey(new Date(),this.timezone||'Europe/Berlin'),current=periodStart(this.period,today),start=this._dates()[0];
+      const today=dateKey(new Date(),this.timezone||'Europe/Berlin'),current=periodStart(this.period,today),start=this._periodStarts[this.period]||current;
       const direction=action==='previous-period'?-1:1;
       const target=action==='current-period'?current:this.period==='week'?shiftDay(start,direction*7):shiftMonth(start,direction);
-      if(target>current)return;this._periodStarts[this.period]=target;this._request++;this._data=null;this._busy=false;this._error=null;this.render();await this._fetch();return;
+      if(target>current)return;this._periodStarts[this.period]=action==='current-period'&&this.period==='week'?null:target;this._request++;this._data=null;this._busy=false;this._error=null;this.render();await this._fetch();return;
     }
     if(['previous-day','next-day','today'].includes(action)){
       const today=dateKey(new Date(),this.timezone||'Europe/Berlin');
-      const target=action==='today'?today:shiftDay(this._dates()[0],action==='previous-day'?-1:1);
-      if(target>today)return;this._day=target;this._request++;this._data=null;this._busy=false;this._error=null;this.render();await this._fetch();return;
+      const target=action==='today'?null:shiftDay(this._day||today,action==='previous-day'?-1:1);
+      if(target&&target>today)return;this._day=target;this._request++;this._data=null;this._busy=false;this._error=null;this.render();await this._fetch();return;
     }
     if(action==='import-history'&&this._admin&&!this._importing){
       this._importing=true;const slot=this.shadowRoot.getElementById('wa-settings-error');const button=this.shadowRoot.querySelector('[data-action="import-history"]');if(button)button.disabled=true;
@@ -278,9 +284,18 @@ class WeatherAnalysisCard extends HTMLElement {
   _periodControls(){
     const [start,end]=this._dates();
     return `<div class="wa-periods" role="group" aria-label="Auswertungszeitraum">${PERIODS.map(([id,label])=>filterButton({label,action:'period',selected:this.period===id,data:{period:id}})).join('')}</div>
-      ${this.period==='day'?dateNavigation({label:this._dateLabel(start),previousLabel:'Vorheriger Tag',nextLabel:'Nächster Tag',previousAction:'previous-day',nextAction:'next-day',nextDisabled:start>=dateKey(new Date(),this.timezone||'Europe/Berlin')}):['week','month'].includes(this.period)?dateNavigation({label:this._periodLabel(start),previousLabel:this.period==='week'?'Vorherige Woche':'Vorheriger Monat',nextLabel:this.period==='week'?'Nächste Woche':'Nächster Monat',todayLabel:'Aktuell',todayAction:'current-period',nextDisabled:start>=periodStart(this.period,dateKey(new Date(),this.timezone||'Europe/Berlin'))}):''}
+      ${this.period==='day'?dateNavigation({label:this._isRolling()?'24 Stunden':this._dateLabel(start),todayLabel:'Aktuell',previousLabel:'Vorheriger Tag',nextLabel:'Nächster Tag',previousAction:'previous-day',nextAction:'next-day',nextDisabled:this._isRolling()||start>=dateKey(new Date(),this.timezone||'Europe/Berlin')}):['week','month'].includes(this.period)?dateNavigation({label:this._isRolling()?'7 Tage + heute':this._periodLabel(start),previousLabel:this.period==='week'?'Vorherige Woche':'Vorheriger Monat',nextLabel:this.period==='week'?'Nächste Woche':'Nächster Monat',todayLabel:'Aktuell',todayAction:'current-period',nextDisabled:this._isRolling()||start>=periodStart(this.period,dateKey(new Date(),this.timezone||'Europe/Berlin'))}):''}
       ${this.period==='custom'?`<div class="wa-date-fields">${field({id:'wa-from',label:'Von',type:'date',value:start})}${field({id:'wa-to',label:'Bis',type:'date',value:end,min:start})}</div><div class="toolbar">${button({label:'Anzeigen',action:'custom-apply',variant:'primary'})}</div>`:''}
-      <p class="hint wa-range">${esc(this._dateLabel(start))}${start!==end?' – '+esc(this._dateLabel(end)):''}${this._data?.partial?' · bisher':''}</p>`;
+      <p class="hint wa-range">${esc(this._rangeLabel(start,end))}</p>`;
+  }
+  _rangeLabel(start,end){
+    if(this.period==='day'&&this._isRolling()){
+      const stop=this._data?.display_end??(Math.floor(Date.now()/60000)+1)*60,first=this._data?.start??stop-86400;
+      return this._formatTime(first,true)+' – '+this._formatTime(stop-60,true);
+    }
+    const range=this._dateLabel(start)+(start!==end?' – '+this._dateLabel(end):'');
+    if(this.period==='day')return range+' · 00:00–23:59'+(this._data?.partial?' · bisher':'');
+    return range+(this._isRolling()?' · bis jetzt':this._data?.partial?' · bisher':'');
   }
   _periodLabel(start){
     const d=new Date(start+'T12:00:00Z');
@@ -296,12 +311,12 @@ class WeatherAnalysisCard extends HTMLElement {
     return series;
   }
   _chart(){
-    const d=this._data,series=this._chartSeries(),points=series.flatMap(s=>s.data.chart);
+    const d=this._data,end=this._chartEnd,series=this._chartSeries(),points=series.flatMap(s=>s.data.chart);
     if(!points.length)return notice('Für diesen Zeitraum sind noch keine Messwerte vorhanden.');
     const W=640,H=240,L=48,R=18,T=18,B=34;
     let low=Math.min(...points.map(p=>p.min??p.mean),...series.map(s=>s.data.summary.mean).filter(Number.isFinite)),high=Math.max(...points.map(p=>p.max??p.mean),...series.map(s=>s.data.summary.mean).filter(Number.isFinite));
     const pad=Math.max(1,(high-low)*.15);low-=pad;high+=pad;
-    const x=t=>L+(t-d.start)/Math.max(1,d.end-d.start)*(W-L-R),y=v=>T+(high-v)/(high-low)*(H-T-B);
+    const x=t=>L+(t-d.start)/Math.max(1,end-d.start)*(W-L-R),y=v=>T+(high-v)/(high-low)*(H-T-B);
     this._chartGeometry={W,H,L,R,T,B,low,high};
     const plotted=series.map((series,seriesIndex)=>{
       const groups=[];let group=[];const interval=series.data.chart_interval||(series.data.chart_daily?86400:3600);
@@ -309,9 +324,9 @@ class WeatherAnalysisCard extends HTMLElement {
       const paths=groups.map(g=>{
         const line=g.map((p,i)=>`${i?'L':'M'}${x(p.start).toFixed(2)},${y(p.mean).toFixed(2)}`).join(' ');
         const band=[...g.map(p=>[x(p.start),y(p.max??p.mean)]),...g.toReversed().map(p=>[x(p.start),y(p.min??p.mean)])].map(([a,b],i)=>`${i?'L':'M'}${a.toFixed(2)},${b.toFixed(2)}`).join(' ')+' Z';
-        return `<path class="wa-band" d="${band}"/><path class="wa-line" d="${line}"/>`;
+        return `<path class="wa-band" d="${band}"/><path class="wa-line" d="${line}"/>${g.length===1?`<circle class="wa-point" cx="${x(g[0].start)}" cy="${y(g[0].mean)}" r="4"/>`:""}`;
       }).join('');
-      return `<g class="wa-series ${seriesIndex?'wa-series-secondary':'wa-series-primary'}" data-series-entity="${esc(series.entity)}">${paths}${series.data.chart.map((p,i)=>`<circle class="wa-point" cx="${x(p.start)}" cy="${y(p.mean)}" r="${series.data.chart.length===1?4:2}"/><circle class="wa-hit" data-series="${seriesIndex}" data-point="${i}" tabindex="0" role="img" aria-label="${esc(this._pointText(p,series.entity))}" cx="${x(p.start)}" cy="${y(p.mean)}" r="9"><title>${esc(this._pointText(p,series.entity))}</title></circle>`).join('')}</g>`;
+      return `<g class="wa-series ${seriesIndex?'wa-series-secondary':'wa-series-primary'}" data-series-entity="${esc(series.entity)}">${paths}${series.data.chart.map((p,i)=>`<circle class="wa-hit" data-series="${seriesIndex}" data-point="${i}" tabindex="0" role="img" aria-label="${esc(this._pointText(p,series.entity))}" cx="${x(p.start)}" cy="${y(p.mean)}" r="9"><title>${esc(this._pointText(p,series.entity))}</title></circle>`).join('')}</g>`;
     }).join('');
     let previousMeanLabel=null;
     const averages=series.map((entry,index)=>{
@@ -321,12 +336,12 @@ class WeatherAnalysisCard extends HTMLElement {
       previousMeanLabel=labelY;
       return `<g class="${index?'wa-series-secondary':'wa-series-primary'}"><path class="wa-average-line" d="M${L},${at} H${W-R}"/><text class="wa-average-label" x="${W-R-4}" y="${labelY}" text-anchor="end"><title>Durchschnitt im gewählten Zeitraum · ${esc(this._sensorName(entry.entity))}</title>Ø ${esc(this._num(mean))} ${esc(this.unit)}</text></g>`;
     }).join('');
-    return `<div class="wa-chart-wrap"><div class="wa-chart-details" style="--wa-detail-rows:${series.length}"><div class="wa-chart-tooltip" id="wa-chart-tooltip" role="tooltip" hidden></div><p class="hint" id="wa-chart-prompt">Maus oder Finger über den Verlauf bewegen, um die Werte zu sehen.</p></div><svg class="wa-chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${this.view==='wind'?'Windverlauf in Kilometer pro Stunde':this.view==='illuminance'?'Helligkeitsverlauf in Lux':'Temperaturverlauf in Grad Celsius'}"><title>${this.view==='wind'?'Windverlauf':this.view==='illuminance'?'Helligkeitsverlauf':'Temperaturverlauf'}</title><desc>${series.length>1?'Zwei Sensoren mit gemeinsamer Messwertskala. Die zweite Linie ist zusätzlich gestrichelt.':'Linie: Durchschnitt. Band: Minimum bis Maximum.'} Maus oder Finger über den Verlauf bewegen, um Intervallwerte zu sehen. Messpunkte lassen sich mit Tab auswählen.</desc>
+    return `<div class="wa-chart-wrap"><div class="wa-chart-details" style="--wa-detail-rows:${series.length}"><div class="wa-chart-tooltip" id="wa-chart-tooltip" role="tooltip" hidden></div><p class="hint" id="wa-chart-prompt">Maus oder Finger über den Verlauf bewegen, um die Werte zu sehen.</p></div><svg class="wa-chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${this.view==='wind'?'Windverlauf in Kilometer pro Stunde':this.view==='illuminance'?'Helligkeitsverlauf in Lux':'Temperaturverlauf in Grad Celsius'}"><title>${this.view==='wind'?'Windverlauf':this.view==='illuminance'?'Helligkeitsverlauf':'Temperaturverlauf'}</title><desc>${series.length>1?'Zwei durchgezogene Linien mit gemeinsamer Messwertskala und verschiedenen Farben.':'Linie: Durchschnitt. Band: Minimum bis Maximum.'} Maus oder Finger über den Verlauf bewegen, um Intervallwerte zu sehen. Messpunkte lassen sich mit Tab auswählen.</desc>
       ${Array.from({length:5},(_,i)=>{const value=low+(high-low)*i/4;return `<path class="wa-grid" d="M${L},${y(value)} H${W-R}"/><text text-anchor="end" x="${L-8}" y="${y(value)+4}">${this._num(value,0)}${this.view==='temperature'?'°':''}</text>`;}).join('')}
       ${plotted}${averages}
       <rect class="wa-chart-surface" x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}"/>
       <g class="wa-cursor" id="wa-cursor" hidden><path class="wa-crosshair" id="wa-crosshair"/>${series.map((entry,index)=>`<circle class="wa-cursor-point ${index?'secondary':''}" data-cursor-series="${index}" r="4" visibility="hidden"/>`).join('')}</g>
-      ${[0,.5,1].map((fraction,i)=>`<text x="${L+fraction*(W-L-R)}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${esc(new Intl.DateTimeFormat('de-DE',{timeZone:this.timezone,...(this.period!=='day'?{day:'2-digit',month:'2-digit'}:{hour:'2-digit',minute:'2-digit'})}).format(new Date((d.start+fraction*(d.end-d.start))*1000)))}</text>`).join('')}</svg></div>
+      ${[0,.5,1].map((fraction,i)=>`<text x="${L+fraction*(W-L-R)}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${esc(new Intl.DateTimeFormat('de-DE',{timeZone:this.timezone,...(this.period!=='day'?{day:'2-digit',month:'2-digit'}:{hour:'2-digit',minute:'2-digit'})}).format(new Date((fraction===1?end-(this.period==='day'?60:1):d.start+fraction*(end-d.start))*1000)))}</text>`).join('')}</svg></div>
       <div class="wa-legend hint">${series.length>1?series.map((s,i)=>`<span><i class="wa-swatch ${i?'secondary':''}"></i>${esc(this._sensorName(s.entity))}</span>`).join(''):'<span><i class="wa-swatch"></i>Durchschnitt</span><span><i class="wa-swatch band"></i>Minimum / Maximum</span>'}</div><p class="hint wa-inspector" id="wa-inspector" aria-live="polite">${esc(this._resolutionLabel()+' · Maus oder Finger für Details bewegen'+(d.chart_fallback?' · ältere Abschnitte nur stündlich':''))}</p>`;
   }
   _pointText(p,entity=this.activeEntity){return `${this._sensorName(entity)} · ${this._formatTime(p.start,true)} · ${this._resolutionLabel(p.resolution||this._data?.chart_interval)} · Ø ${this._num(p.mean)} ${this.unit} · Min ${this._num(p.min)} ${this.unit} · Max ${this._num(p.max)} ${this.unit}`;}
@@ -341,20 +356,20 @@ class WeatherAnalysisCard extends HTMLElement {
     const x=(event.clientX-rect.left)/rect.width*g.W,y=(event.clientY-rect.top)/rect.height*g.H;
     if(this._chartPointer==null&&(x<g.L||x>g.W-g.R||y<g.T||y>g.H-g.B)){this._hideChartCursor();return;}
     const fraction=Math.max(0,Math.min(1,(x-g.L)/(g.W-g.L-g.R)));
-    this._showChartCursor(this._data.start+fraction*(this._data.end-this._data.start));
+    this._showChartCursor(this._data.start+fraction*(this._chartEnd-this._data.start));
   }
   _showChartCursor(time){
     const svg=this.shadowRoot.querySelector('.wa-chart'),tooltip=this.shadowRoot.getElementById('wa-chart-tooltip'),cursor=this.shadowRoot.getElementById('wa-cursor');
     if(!svg||!tooltip||!cursor||!this._data||!this._chartGeometry)return;
-    const target=Math.max(this._data.start,Math.min(time,this._data.end-.001)),series=this._chartSeries();
+    const target=Math.max(this._data.start,Math.min(time,this._chartEnd-.001)),series=this._chartSeries();
     const readings=series.map(entry=>({...entry,point:entry.data.chart.find(point=>point.start<=target&&target<(point.end??point.start+(point.resolution||entry.data.chart_interval||(entry.data.chart_daily?86400:3600))))}));
     const at=readings.find(entry=>entry.point)?.point.start??target,g=this._chartGeometry;
-    const x=g.L+(at-this._data.start)/Math.max(1,this._data.end-this._data.start)*(g.W-g.L-g.R);
+    const x=g.L+(at-this._data.start)/Math.max(1,this._chartEnd-this._data.start)*(g.W-g.L-g.R);
     cursor.removeAttribute('hidden');this.shadowRoot.getElementById('wa-crosshair').setAttribute('d',`M${x},${g.T} V${g.H-g.B}`);
     for(const [index,entry] of readings.entries()){
       const dot=cursor.querySelector('[data-cursor-series="'+index+'"]');if(!dot)continue;
       if(!entry.point){dot.setAttribute('visibility','hidden');continue;}
-      dot.removeAttribute('visibility');dot.setAttribute('cx',String(g.L+(entry.point.start-this._data.start)/Math.max(1,this._data.end-this._data.start)*(g.W-g.L-g.R)));dot.setAttribute('cy',String(g.T+(g.high-entry.point.mean)/(g.high-g.low)*(g.H-g.T-g.B)));
+      dot.removeAttribute('visibility');dot.setAttribute('cx',String(g.L+(entry.point.start-this._data.start)/Math.max(1,this._chartEnd-this._data.start)*(g.W-g.L-g.R)));dot.setAttribute('cy',String(g.T+(g.high-entry.point.mean)/(g.high-g.low)*(g.H-g.T-g.B)));
     }
     tooltip.innerHTML=`<strong class="wa-tooltip-time">${esc(this._formatTime(at,true))}</strong><dl class="wa-tooltip-values">`+readings.map((entry,index)=>`<dt title="${esc(this._sensorName(entry.entity))}"><i class="wa-swatch ${index?'secondary':''}"></i>${esc(this._sensorName(entry.entity))}</dt><dd data-value-entity="${esc(entry.entity)}"${entry.point?'':' title="Keine Messwerte in diesem Intervall"'}>${esc(entry.point?this._num(entry.point.mean)+' '+this.unit:'—')}</dd>`).join('')+'</dl>';
     tooltip.hidden=false;const prompt=this.shadowRoot.getElementById('wa-chart-prompt');if(prompt)prompt.hidden=true;
@@ -415,7 +430,7 @@ class WeatherAnalysisCard extends HTMLElement {
     row({title:'Datenqualität',description:'≈ kennzeichnet Mittelwerte aus verdichteten HA-Statistiken. Grenzwertdauern und genaue Extremzeiten stammen aus vorhandener Detailhistorie und eigener Aufzeichnung. Fehlende Detaildaten werden nicht erfunden.'})+
     row({title:'Messlücken',description:'Unavailable/unknown und bekannte HA-Ausfallzeiten bleiben Lücken. Vergleiche sind nur bei ähnlicher Datenabdeckung aussagekräftig.'})+
     row({title:'Wind',description:'Windgeschwindigkeit wird einheitlich in km/h angezeigt. Unterstützt werden auch m/s, mph, Knoten und ft/s. Der höchste Sensorwert ist keine separat gemessene Windböe.'})+
-    row({title:'Zeitraum und Zeitzone',description:'Tag zeigt 15-Minuten-Mittel, Woche Stundenmittel und Monat 6-Stunden-Mittel. Die Pfeile wechseln Tag, Kalenderwoche oder Kalendermonat. Aktuelle Zeiträume reichen bis jetzt. Tagesgrenzen und Uhrzeiten folgen der HA-Zeitzone. Freie Zeiträume dürfen höchstens ein Jahr umfassen.'})});}
+    row({title:'Zeitraum und Zeitzone',description:'Tag zeigt 15-Minuten-Mittel, Woche Stundenmittel und Monat 6-Stunden-Mittel. Aktuell zeigt bei Tag die letzten 24 Stunden und bei Woche heute plus die letzten sieben Tage. Die Pfeile wechseln zu vollständigen Kalendertagen oder Kalenderwochen (Montag bis Sonntag); vorwärts auf heute bleibt der volle Tag. Aktuell kehrt zur rollierenden Sicht zurück. Monat bleibt der Kalendermonat. Zukünftige Abschnitte der Zeitachse enthalten keine Messwerte. Tagesgrenzen und Uhrzeiten folgen der HA-Zeitzone. Freie Zeiträume dürfen höchstens ein Jahr umfassen.'})});}
   render(){
     if(!this.config)return;
     this._rememberSections();

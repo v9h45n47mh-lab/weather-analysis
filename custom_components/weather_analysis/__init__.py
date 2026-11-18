@@ -8,6 +8,7 @@ from functools import partial
 from hashlib import sha256
 from types import SimpleNamespace
 import logging
+import math
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -34,7 +35,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -223,7 +224,7 @@ class Manager:
         start_local = datetime.fromisoformat(msg["start_date"]).replace(tzinfo=tz)
         last_local = datetime.fromisoformat(msg["end_date"]).replace(tzinfo=tz)
         # Date-only strings avoid browser/HA timezone differences and DST errors.
-        if len(msg["start_date"]) != 10 or len(msg["end_date"]) != 10:
+        if len(msg["start_date"]) != 10 or len(msg["end_date"]) != 10 or start_local.date() > last_local.date():
             raise ValueError("Bitte gültige Kalendertage auswählen.")
         requested_end = (last_local + timedelta(days=1)).timestamp()
         interval = msg.get("chart_interval", 3600 if (last_local-start_local).days <= 3 else 86400)
@@ -231,14 +232,34 @@ class Manager:
             raise ValueError("Bitte eine gültige Chartauflösung auswählen.")
         start = start_local.timestamp()
         now = dt_util.utcnow().timestamp()
+        window = msg.get("window")
+        if window is not None:
+            if window not in ("day","week"):
+                raise ValueError("Bitte eine gültige aktuelle Sicht auswählen.")
+            as_of = msg.get("as_of",now)
+            if not isinstance(as_of,(int,float)) or not math.isfinite(as_of) or as_of < 0 or as_of > now+300:
+                raise ValueError("Bitte einen gültigen Zeitpunkt auswählen.")
+            reference = min(as_of,now)
+            requested_end = math.floor(reference/60)*60+60
+            if window == "day":
+                start = requested_end-86400
+            else:
+                local = datetime.fromtimestamp(reference,tz)
+                start = (local.replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=7)).timestamp()
+            start_local = datetime.fromtimestamp(start,tz)
         end = min(now, requested_end)
-        if start >= end or requested_end <= start or (last_local.date()-start_local.date()).days > 365:
+        if start >= end or requested_end <= start or requested_end-start > 367*86400 or (last_local.date()-datetime.fromisoformat(msg["start_date"]).date()).days > 365:
             raise ValueError("Der Zeitraum muss in der Vergangenheit beginnen und darf höchstens ein Jahr umfassen.")
         await self.import_history()
         self.archive.advance(now)
         archive_hours = combine_hours(self.history.hours, self.archive.hours)
-        prior_start = (start_local - (last_local + timedelta(days=1) - start_local)).timestamp()
-        prior_end = prior_start + (end - start)
+        def measured(field,first,last):
+            return combine_hours(self.history.buckets_between(field,first,last),self.archive.buckets_between(field,first,last))
+        if window:
+            prior_start = start-(requested_end-start)
+        else:
+            prior_start = (start_local - (last_local + timedelta(days=1) - start_local)).timestamp()
+        prior_end = prior_start + (end-start)
         year_start_local = start_local.replace(year=start_local.year - 1, day=min(start_local.day, 28)) if start_local.month == 2 and start_local.day == 29 else start_local.replace(year=start_local.year - 1)
         year_start = year_start_local.timestamp()
         async with self.semaphore:
@@ -246,14 +267,14 @@ class Manager:
                 self.statistics(start, end), self.statistics(prior_start, prior_end),
                 self.statistics(year_start, year_start + end - start),
                 self.statistics(0, now, "year"))
-        rows = merge_hours(stats, archive_hours, start, end)
+        rows = merge_hours(stats, measured("hours",start,end), start, end)
         summary = summarize(rows, start, end, tz_name)
-        quarters = merge_hours([], combine_hours(self.history.quarters,self.archive.quarters),start,end) if interval == 900 else []
+        quarters = merge_hours([], measured("quarters",start,end),start,end) if interval == 900 else []
         chart = resolution_chart(rows,quarters,interval,tz_name)
         comparisons = {}
         for label, data, first, last in (("previous", prior, prior_start, prior_end),
                                          ("year", year, year_start, year_start + end - start)):
-            other = summarize(merge_hours(data, archive_hours, first, last), first, last, tz_name)
+            other = summarize(merge_hours(data, measured("hours",first,last), first, last), first, last, tz_name)
             comparisons[label] = {"mean": other["mean"], "coverage": other["coverage"],
                                   "delta": summary["mean"] - other["mean"] if summary["mean"] is not None and other["mean"] is not None else None}
         state = self.hass.states.get(self.entity)
@@ -278,7 +299,7 @@ class Manager:
         return {"version": VERSION, "kind": self.kind, "unit": {"temperature": "°C", "wind": "km/h", "illuminance": "lx"}[self.kind], "entity_id": self.entity, "name": state.name if state else self.entity,
                 "timezone": tz_name, "current": current,
                 "last_updated": state.last_updated.timestamp() if state else None,
-                "start": start, "end": end, "partial": end < requested_end,
+                "start": start, "end": end, "display_end": requested_end, "window": window, "partial": end < requested_end,
                 "summary": summary, "chart": chart, "chart_interval": interval,
                 "chart_daily": interval == 86400, "chart_fallback": any(point["resolution"] > interval for point in chart),
                 "comparisons": comparisons, "trends": trend, "records": record,
@@ -360,6 +381,8 @@ async def ws_save_card(hass, connection, msg):
     vol.Required("start_date"): str,
     vol.Required("end_date"): str,
     vol.Optional("chart_interval"): vol.All(vol.Coerce(int),vol.Range(min=900,max=86400)),
+    vol.Optional("window"): str,
+    vol.Optional("as_of"): vol.Coerce(float),
 })
 @websocket_api.async_response
 async def ws_analyse(hass, connection, msg):

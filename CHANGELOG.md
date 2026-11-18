@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.0
+
+- Durchgezogene Verlaufslinien für beide Sensoren, ohne dauerhaft sichtbare Messpunktkreise. Zwei Farben bleiben erhalten; bekannte Messlücken werden weiterhin erkennbar dargestellt.
+- Tag startet mit der rollierenden 24-Stunden-Sicht. Um 06:40: gestern 06:41 bis heute 06:40.
+- Zurück zeigt den vollständigen Vortag. Vorwärts zurück auf heute zeigt 00:00–23:59; Aktuell kehrt ausdrücklich zur rollierenden Sicht zurück.
+- Woche startet mit heute plus den letzten sieben Tagen. Pfeile navigieren vollständige Kalenderwochen Montag–Sonntag; Aktuell stellt die rollierende Sicht wieder her.
+- Monat bleibt der vollständige Kalendermonat. Vollständige Kalenderachsen werden bis zum Periodenende gezeigt, Messwerte ausschließlich bis jetzt.
+- Zeitgewichtete Kennzahlen und 15-Minuten-Werte werden an rollierenden Fenstergrenzen aus tatsächlichen Zustandswechseln zugeschnitten. Alte Stundenmittel werden nicht künstlich auf Teilintervalle verteilt.
+- Beide Vergleichssensoren erhalten denselben Zeitpunkt für die rollierende Abfrage. UI Kit 1.8.0 bleibt unverändert eingebunden.
+
 ## 1.5.0
 
 - Chartauflösung für alle Messarten und beide Vergleichssensoren: Tag 15 Minuten, Woche 1 Stunde und Monat 6 Stunden. Mittelwerte bleiben zeitlich gewichtet.
