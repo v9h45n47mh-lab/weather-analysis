@@ -126,7 +126,7 @@ class WeatherAnalysisCard extends HTMLElement {
     finally{this._initializing=false;}
   }
   _isRolling(period=this.period){return period==='day'?!this._day:period==='week'?!this._periodStarts.week:false;}
-  get _chartEnd(){return this._data?.display_end??this._data?.end;}
+  get _chartLimit(){return this._data?.display_end??this._data?.end;}
   _dates(now=new Date()){
     const today=dateKey(now,this.timezone||'Europe/Berlin');
     if(this._isRolling())return periodDates(this.period,this.timezone||'Europe/Berlin',now);
@@ -311,7 +311,7 @@ class WeatherAnalysisCard extends HTMLElement {
     return series;
   }
   _chart(){
-    const d=this._data,end=this._chartEnd,series=this._chartSeries(),points=series.flatMap(s=>s.data.chart);
+    const d=this._data,end=this._chartLimit,series=this._chartSeries(),points=series.flatMap(s=>s.data.chart);
     if(!points.length)return notice('Für diesen Zeitraum sind noch keine Messwerte vorhanden.');
     const W=640,H=240,L=48,R=18,T=18,B=34;
     let low=Math.min(...points.map(p=>p.min??p.mean),...series.map(s=>s.data.summary.mean).filter(Number.isFinite)),high=Math.max(...points.map(p=>p.max??p.mean),...series.map(s=>s.data.summary.mean).filter(Number.isFinite));
@@ -356,20 +356,20 @@ class WeatherAnalysisCard extends HTMLElement {
     const x=(event.clientX-rect.left)/rect.width*g.W,y=(event.clientY-rect.top)/rect.height*g.H;
     if(this._chartPointer==null&&(x<g.L||x>g.W-g.R||y<g.T||y>g.H-g.B)){this._hideChartCursor();return;}
     const fraction=Math.max(0,Math.min(1,(x-g.L)/(g.W-g.L-g.R)));
-    this._showChartCursor(this._data.start+fraction*(this._chartEnd-this._data.start));
+    this._showChartCursor(this._data.start+fraction*(this._chartLimit-this._data.start));
   }
   _showChartCursor(time){
     const svg=this.shadowRoot.querySelector('.wa-chart'),tooltip=this.shadowRoot.getElementById('wa-chart-tooltip'),cursor=this.shadowRoot.getElementById('wa-cursor');
     if(!svg||!tooltip||!cursor||!this._data||!this._chartGeometry)return;
-    const target=Math.max(this._data.start,Math.min(time,this._chartEnd-.001)),series=this._chartSeries();
+    const target=Math.max(this._data.start,Math.min(time,this._chartLimit-.001)),series=this._chartSeries();
     const readings=series.map(entry=>({...entry,point:entry.data.chart.find(point=>point.start<=target&&target<(point.end??point.start+(point.resolution||entry.data.chart_interval||(entry.data.chart_daily?86400:3600))))}));
     const at=readings.find(entry=>entry.point)?.point.start??target,g=this._chartGeometry;
-    const x=g.L+(at-this._data.start)/Math.max(1,this._chartEnd-this._data.start)*(g.W-g.L-g.R);
+    const x=g.L+(at-this._data.start)/Math.max(1,this._chartLimit-this._data.start)*(g.W-g.L-g.R);
     cursor.removeAttribute('hidden');this.shadowRoot.getElementById('wa-crosshair').setAttribute('d',`M${x},${g.T} V${g.H-g.B}`);
     for(const [index,entry] of readings.entries()){
       const dot=cursor.querySelector('[data-cursor-series="'+index+'"]');if(!dot)continue;
       if(!entry.point){dot.setAttribute('visibility','hidden');continue;}
-      dot.removeAttribute('visibility');dot.setAttribute('cx',String(g.L+(entry.point.start-this._data.start)/Math.max(1,this._chartEnd-this._data.start)*(g.W-g.L-g.R)));dot.setAttribute('cy',String(g.T+(g.high-entry.point.mean)/(g.high-g.low)*(g.H-g.T-g.B)));
+      dot.removeAttribute('visibility');dot.setAttribute('cx',String(g.L+(entry.point.start-this._data.start)/Math.max(1,this._chartLimit-this._data.start)*(g.W-g.L-g.R)));dot.setAttribute('cy',String(g.T+(g.high-entry.point.mean)/(g.high-g.low)*(g.H-g.T-g.B)));
     }
     tooltip.innerHTML=`<strong class="wa-tooltip-time">${esc(this._formatTime(at,true))}</strong><dl class="wa-tooltip-values">`+readings.map((entry,index)=>`<dt title="${esc(this._sensorName(entry.entity))}"><i class="wa-swatch ${index?'secondary':''}"></i>${esc(this._sensorName(entry.entity))}</dt><dd data-value-entity="${esc(entry.entity)}"${entry.point?'':' title="Keine Messwerte in diesem Intervall"'}>${esc(entry.point?this._num(entry.point.mean)+' '+this.unit:'—')}</dd>`).join('')+'</dl>';
     tooltip.hidden=false;const prompt=this.shadowRoot.getElementById('wa-chart-prompt');if(prompt)prompt.hidden=true;

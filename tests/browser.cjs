@@ -14,6 +14,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   const card=()=>page.locator('weather-analysis-card').first(),action=name=>card().locator('[data-action="'+name+'"]');
   const openSelections=async()=>{for(const kind of ['temperature','wind','illuminance']){const control=card().locator('[aria-controls="wa-sensor-selection-'+kind+'-content"]');if(await control.getAttribute('aria-expanded')==='false')await control.click();}};
   await card().locator('#wa-current').waitFor();
+  assert.deepEqual(errors,[]);
   assert.equal(await page.evaluate(()=>demo.card._data.chart_interval),900);
   assert.match(await card().locator('#wa-current').innerText(),/11,4/);
   assert.equal(await card().locator('.wa-current .fui-account-tile').count(),2);
@@ -227,7 +228,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await card().locator('[data-page="temperature"]').click();await page.waitForFunction(()=>demo.card._data?.entity_id==='sensor.north'&&demo.card._comparisonData&&!demo.card._busy);
   const gapTime=await page.evaluate(()=>{const point=demo.card._data.chart[6];demo.gapEntity=demo.card.activeEntity;return (point.start+point.end)/2;});
   await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing&&demo.card._data&&demo.card._comparisonData);
-  const gapPosition=await card().evaluate((el,time)=>{const rect=el.shadowRoot.querySelector('.wa-chart').getBoundingClientRect(),g=el._chartGeometry;return {x:rect.left+(g.L+(time-el._data.start)/(el._chartEnd-el._data.start)*(g.W-g.L-g.R))/g.W*rect.width,y:rect.top+rect.height*.5};},gapTime);
+  const gapPosition=await card().evaluate((el,time)=>{const rect=el.shadowRoot.querySelector('.wa-chart').getBoundingClientRect(),g=el._chartGeometry;return {x:rect.left+(g.L+(time-el._data.start)/(el._chartLimit-el._data.start)*(g.W-g.L-g.R))/g.W*rect.width,y:rect.top+rect.height*.5};},gapTime);
   await page.mouse.move(gapPosition.x,gapPosition.y);
   assert.match(await card().locator('#wa-inspector').innerText(),/Keine Messwerte/);
   assert.equal(await card().locator('#wa-chart-tooltip [title="Keine Messwerte in diesem Intervall"]').count(),1);
