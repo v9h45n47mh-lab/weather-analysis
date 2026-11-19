@@ -1,3 +1,11 @@
+## 1.10.0
+
+- Wetter ist der Startreiter der Karte.
+- Die Wetterzeiträume stehen als kompakte, anschauliche Zeilen untereinander; keine horizontale Wetterliste mehr.
+- Aktuelle Temperatur, Wind, Helligkeit und Temperatur-Min/Max heute stehen direkt als erste Ist-Zeile in der Übersicht.
+- Ist lässt sich zuklappen. Der Zustand bleibt beim Aktualisieren und beim Wechsel der Reiter erhalten; die Vorhersage bleibt sichtbar.
+- Gemeinsame responsive Wetterliste aus HA UI Kit 1.11.0 lokal eingebunden.
+
 ## 1.9.0
 
 - Wetter zeigt anschauliche 3-Stunden-Spalten mit großen Wettersymbolen, Temperaturen, Min/Max und verständlichen Symbolzeilen statt technischer Datenlisten.
