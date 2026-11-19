@@ -735,7 +735,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   const imageTransfers=()=>radarPage.evaluate(()=>demo.calls.filter(c=>c.type==='weather_analysis/radar_image').length);
   const loadedTransfers=await imageTransfers();await radarPage.evaluate(()=>demo.card._fetchRadar());await radarPage.waitForTimeout(50);
   assert.equal(await imageTransfers(),loadedTransfers,'Refresh reuses all existing images');
-  await radarCard.locator('[data-page="wind"]').click();await radarCard.locator('#wa-current').waitFor();await radarCard.locator('[data-page="radar"]').click();
+  await radarCard.locator('[data-page="temperature"]').click();await radarCard.locator('#wa-current').waitFor();await radarCard.locator('[data-page="radar"]').click();
   await radarPage.waitForFunction(()=>demo.card._radarImage&&!demo.card._busy);assert.equal(await imageTransfers(),loadedTransfers,'Reopening does not repeat image transfers');
   assert.equal(await radarCard.locator('.fui-radar-marker').getAttribute('aria-label'),'Dein Standort');
   const slider=radarCard.getByRole('slider',{name:'Radarzeitpunkt'});await slider.focus();await slider.press('End');
