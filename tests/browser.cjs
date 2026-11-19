@@ -355,7 +355,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
       assert.equal(await card().locator('[data-weather-kind="forecast"]').first().evaluate(el=>getComputedStyle(el).color),'rgb(0, 0, 0)');
       assert.equal(await card().locator('[data-weather-kind="forecast"] small').first().evaluate(el=>getComputedStyle(el).color),'rgb(0, 0, 0)');
       assert.equal(await card().locator('.fui-weather-list').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');assert.equal(await card().locator('#wa-forecast-1-content .fui-weather-period').count(),8);}
-    if(view==='radar'){await page.waitForFunction(()=>demo.card._radar?.status==='ok'&&!demo.card._busy&&demo.card._radarBase&&demo.card._radarImage);assert.match(await card().locator('.fui-radar-time').innerText(),/Messung/);assert.equal(await card().locator('.fui-radar-marker').count(),1);}
+    if(view==='radar'){await page.waitForFunction(()=>demo.card._radar?.status==='ok'&&!demo.card._busy&&demo.card._radarBase&&demo.card._radarImage);assert.match(await card().locator('.fui-radar-time').innerText(),/Messung/);assert.equal(await card().locator('.fui-radar-marker').count(),1);assert(await card().evaluate(el=>getComputedStyle(el.shadowRoot.querySelector('.wa-forecast-source a')).color===getComputedStyle(el.shadowRoot.querySelector('[data-page="radar"]')).color));}
     if(view==='warnings'){await page.waitForFunction(()=>demo.card._warnings&&!demo.card._busy);assert.match(await card().locator('main').innerText(),/Sturmböen.*Dauerregen/s);}
     await page.mouse.move(0,0);
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
