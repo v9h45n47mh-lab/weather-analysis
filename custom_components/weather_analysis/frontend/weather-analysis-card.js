@@ -146,7 +146,7 @@ class WeatherAnalysisCard extends RadarController(HTMLElement) {
     const trackers=people.flatMap(p=>[...(Array.isArray(p.attributes.device_trackers)?p.attributes.device_trackers:[]),p.attributes.source].filter(Boolean)).map(id=>states[id]).filter(s=>s?.attributes?.source_type==='gps'&&!['unknown','unavailable'].includes(s.state)&&Number.isFinite(s.attributes.latitude)&&Number.isFinite(s.attributes.longitude)).sort((a,b)=>Date.parse(b.last_updated||0)-Date.parse(a.last_updated||0));
     const point=trackers[0]||people.find(p=>!['unknown','unavailable'].includes(p.state)&&Number.isFinite(p.attributes.latitude)&&Number.isFinite(p.attributes.longitude));
     const networks=[...people.flatMap(p=>[...(Array.isArray(p.attributes.device_trackers)?p.attributes.device_trackers:[]),p.attributes.source]),...this._wifiSensors.map(s=>s.entity_id)].filter(Boolean).map(id=>[id,states[id]?.state,states[id]?.attributes?.source_type]);
-    return JSON.stringify([user,this._browserCoordinates||[point?.attributes.latitude,point?.attributes.longitude],networks,this._homeSsids||[]]);
+    return JSON.stringify([user,this._homeWifi===true?'home-wifi-67459':this._browserCoordinates||[point?.attributes.latitude,point?.attributes.longitude],networks,this._homeSsids||[]]);
   }
   _invalidateLocation(){this._clearRadar();if(this._isWeatherPage){this._request++;this._busy=false;}this._location=null;this._locationError=null;this._dashboard=null;this._forecast=null;this._forecastError=null;this._warnings=null;this._warningsError=null;}
   _locationStorageKey(){return this._sessionUser&&this.config?'weather-analysis:location:'+JSON.stringify([this._sessionUser,this.config.card_id]):null;}

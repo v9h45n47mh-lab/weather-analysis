@@ -629,6 +629,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
     assert.equal(await gpsPage.evaluate(()=>testGeo.watches),0,'Home Wi-Fi never starts browser GPS: '+permission);
     assert.doesNotMatch(await gpsCard.locator('main').innerText(),/Standortfreigabe muss am Gerät erneuert/);
   }
+  assert(await gpsPage.evaluate(()=>{const card=demo.card,location=card._location,request=card._request;Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:49.381,longitude:8.304});card.hass=demo.hass;clearTimeout(card._debounce);return card._location===location&&card._request===request;}),'GPS changes in home Wi-Fi do not discard the fixed home location or image cache');
   await gpsCard.locator('[data-page="settings"]').click();
   assert(await gpsCard.locator('[data-action="device-location"]').isDisabled());
   assert.match(await gpsCard.locator('#wa-location-settings-content').innerText(),/Geräte-Standortfreigabe wird hier nicht abgefragt/);

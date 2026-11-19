@@ -1,5 +1,7 @@
 ## 1.15.1
 
+- Im Heim-WLAN lösen GPS-Schwankungen kein erneutes Laden des festen Heimstandorts mehr aus.
+
 - Ruhige, deutlich reduzierte Radar-Hintergrundkarte in hellen Grautönen. Standortmarker, Niederschlag, Zeitregler und Zoom bleiben erhalten.
 - DWD-Metadaten nur für die benötigte Radarebene statt für den gesamten Dienst abrufen. Die vereinfachte BKG-Karte wird als kompaktes PNG geladen.
 - Bereits geladene Messbilder, Hintergrund und Legende bleiben bei Aktualisierungen und Reiterwechseln im Speicher. Neue Vorhersageläufe werden weiterhin neu geladen.
