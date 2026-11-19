@@ -426,7 +426,7 @@ class WeatherAnalysisCard extends HTMLElement {
   _dashboardView(){
     const d=this._dashboard,s=d?.sensors||{},temperature=s.temperature||{},wind=s.wind||{},light=s.illuminance||{};
     const description=(kind,data)=>d?.errors?.[kind]||(data.entity_id?this._sensorName(data.entity_id)+(data.current==null?' · Sensor nicht verfügbar':''):'In Einstellungen auswählen');
-    const tile=(id,label,data,kind,unit,digits=1)=>accountTile({id,label,state:kind==='temperature'?'active':'',metrics:[{value:num(data.current,digits),unit,description:description(kind,data)}]});
+    const tile=(id,label,data,kind,unit,digits=1)=>accountTile({id,label,state:kind==='temperature'?'active':'neutral',metrics:[{value:num(data.current,digits),unit,description:description(kind,data)}]});
     const readings=accountTiles({label:'Wetter heute auf einen Blick',content:
       tile('wa-dashboard-temperature','Aktuelle Temperatur',temperature,'temperature','°C')+
       accountTile({id:'wa-dashboard-extrema',label:'Temperatur heute',metrics:[

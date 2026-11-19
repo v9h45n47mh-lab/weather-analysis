@@ -166,6 +166,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   for(const [,field,entities] of selectedKinds)assert.deepEqual(await page.evaluate(field=>demo.saved.get('test-garden')[field],field),entities);
   await page.evaluate(()=>demo.forecastDelay=500);
   await card().locator('[data-page="dashboard"]').click();
+  assert.deepEqual(errors,[]);
   await card().locator('#wa-dashboard-temperature').waitFor();
   await page.waitForFunction(()=>demo.card._dashboard?.sensors?.temperature);
   assert.match(await card().locator('#wa-dashboard-temperature').innerText(),/11,4/);
