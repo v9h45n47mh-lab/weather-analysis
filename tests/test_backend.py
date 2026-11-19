@@ -439,6 +439,31 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["intervals"][-1]["end"],now.timestamp())
         self.assertTrue(data["intervals"][-1]["partial"])
         self.assertTrue(all(slot["end"]<=data["as_of"] for slot in data["intervals"]))
+        self.assertEqual([hour["temperature"] for hour in first_slot["hours"]],[0,12,12])
+        self.assertEqual([hour["wind_speed"] for hour in first_slot["hours"]],[0,18,18])
+        self.assertTrue(all(hour["start"]>=slot["start"] and hour["end"]<=slot["end"] and hour["end"]-hour["start"]<=3600 for slot in data["intervals"] for hour in slot["hours"]))
+
+    async def test_weather_hourly_details_preserve_missing_hours_and_snapshot(self):
+        first=datetime(2026,11,16,23,tzinfo=timezone.utc).timestamp()
+        raw=backend.Archive();raw.start(first,3);raw.change(first+3600,None);raw.change(first+7200,15);raw.advance(now.timestamp())
+        self.history_read.return_value=raw
+        connection=Connection()
+        await backend.ws_dashboard(self.hass,connection,{"id":1,"temperature_entity":"sensor.test","as_of":now.timestamp()})
+        slots=connection.results[-1][1]["intervals"]
+        self.assertEqual([hour["temperature"] for hour in slots[0]["hours"]],[3,None,15])
+        self.assertEqual(slots[-1]["hours"][-1]["end"],now.timestamp())
+        self.assertEqual(self.history_read.call_count,1,"Hourly detail reuses the same history read")
+
+    async def test_weather_hourly_details_cover_dst_days_in_real_hours(self):
+        for reference,day_hours in [(datetime(2026,3,29,21,59,59,tzinfo=timezone.utc),23),(datetime(2026,10,25,22,59,59,tzinfo=timezone.utc),25)]:
+            self.manager.history_imported=True
+            self.manager.history=backend.Archive();self.manager.archive=backend.Archive()
+            with patch.object(backend.dt_util,"utcnow",return_value=reference):
+                connection=Connection();await backend.ws_dashboard(self.hass,connection,{"id":1,"temperature_entity":"sensor.test","as_of":reference.timestamp()})
+            hours=[hour for slot in connection.results[-1][1]["intervals"] for hour in slot["hours"]]
+            self.assertEqual(len(hours),day_hours)
+            self.assertTrue(all(0<h["end"]-h["start"]<=3600 for h in hours))
+            self.assertTrue(all(a["end"]==b["start"] for a,b in zip(hours,hours[1:])))
 
     async def test_weather_snapshot_excludes_changes_after_the_requested_boundary(self):
         first=datetime(2026,11,16,23,tzinfo=timezone.utc).timestamp();snapshot=now.timestamp()-60
@@ -451,6 +476,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["sensors"]["temperature"]["max"],10)
         self.assertEqual(data["intervals"][-1]["end"],snapshot)
         self.assertEqual(data["intervals"][-1]["temperature"],10)
+        self.assertTrue(all(hour["end"]<=snapshot for slot in data["intervals"] for hour in slot["hours"]))
 
     async def test_weather_rejects_invalid_snapshot_without_querying_history(self):
         for value in (float("nan"),now.timestamp()+3600,-1,True):

@@ -37,7 +37,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.10.1"
+VERSION = "1.11.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -220,7 +220,7 @@ class Manager:
         self.cache[key] = (now, rows)
         return rows
 
-    async def analyse(self, msg):
+    async def analyse(self, msg, *, include_hourly=False):
         tz_name = self.hass.config.time_zone
         tz = ZoneInfo(tz_name)
         start_local = datetime.fromisoformat(msg["start_date"]).replace(tzinfo=tz)
@@ -305,6 +305,7 @@ class Manager:
                 "last_updated": state.last_updated.timestamp() if state else None,
                 "start": start, "end": end, "display_end": requested_end, "window": window, "partial": end < requested_end,
                 "summary": summary, "chart": chart, "chart_interval": interval,
+                **({"hourly_chart":resolution_chart(rows,[],3600,tz_name)} if include_hourly else {}),
                 "chart_daily": interval == 86400, "chart_fallback": any(point["resolution"] > interval for point in chart),
                 "comparisons": comparisons, "trends": trend, "records": record,
                 "archive_since": min((r.get("observed_start", r["start"]) for r in archive_hours.values()), default=now)}
@@ -458,7 +459,7 @@ async def ws_dashboard(hass, connection, msg):
     snapshot = min(snapshot,now)
     local = datetime.fromtimestamp(snapshot,ZoneInfo(hass.config.time_zone))
     today = local.date().isoformat()
-    sensors, errors = {}, {}
+    sensors, errors, hourly_sensors = {}, {}, {}
 
     async def reading(kind):
         entity = msg.get(kind+"_entity", "")
@@ -476,9 +477,10 @@ async def ws_dashboard(hass, connection, msg):
             manager = manager or await ensure_manager(hass,entity,kind)
             data = {"entity_id":entity,"current":manager.state_value(),"unit":{"temperature":"°C","wind":"km/h","illuminance":"lx"}[kind],
                 "updated_at":state.last_updated.timestamp() if state is not None else None}
-            analysis = await manager.analyse({"start_date":today,"end_date":today,"chart_interval":10800,"window":"day","as_of":snapshot})
+            analysis = await manager.analyse({"start_date":today,"end_date":today,"chart_interval":10800,"window":"day","as_of":snapshot},include_hourly=True)
             data.update({key:analysis["summary"].get(key) for key in ("min","max","min_at","max_at")})
             data["chart"] = analysis["chart"]
+            hourly_sensors[kind] = {point["start"]:point for point in analysis["hourly_chart"]}
             sensors[kind] = data
         except Exception:
             _LOGGER.exception("Dashboard reading failed for %s",entity)
@@ -498,6 +500,16 @@ async def ws_dashboard(hass, connection, msg):
             "temperature":temperature.get("mean"),"temperature_min":temperature.get("min"),"temperature_max":temperature.get("max"),
             "wind_speed":wind.get("mean"),"wind_max":wind.get("max"),"illuminance":light.get("mean"),
             "estimated":any(point.get("estimated",False) for point in points.values())})
+        hours = []
+        for hour_start in range(int(start),math.ceil(end),3600):
+            hour_end = min(hour_start+3600,end)
+            points = {kind:chart.get(hour_start,{}) for kind,chart in hourly_sensors.items()}
+            temperature,wind,light = (points.get(kind,{}) for kind in SENSOR_FIELDS)
+            hours.append({"start":hour_start,"end":hour_end,"partial":hour_end<hour_start+3600,
+                "temperature":temperature.get("mean"),"temperature_min":temperature.get("min"),"temperature_max":temperature.get("max"),
+                "wind_speed":wind.get("mean"),"wind_max":wind.get("max"),"illuminance":light.get("mean"),
+                "estimated":any(point.get("estimated",False) for point in points.values())})
+        intervals[-1]["hours"] = hours
     connection.send_result(msg["id"],{"version":VERSION,"date":today,"timezone":hass.config.time_zone,"as_of":snapshot,
         "sensors":sensors,"errors":errors,"intervals":intervals})
 

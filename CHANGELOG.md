@@ -1,3 +1,11 @@
+## 1.11.0
+
+- Jeder 3-Stunden-Zeitraum in Wetter lässt sich in seine Stundenwerte aufklappen, sowohl Ist als auch Vorhersage.
+- Stundenwerte verwenden echte stündliche Sensorintegrale beziehungsweise stündliche Vorhersagedaten mit eigenen Temperaturen, Wind- und Wetterwerten.
+- Angebrochene Stunden, Messlücken und Zeitumstellung werden berücksichtigt. Niederschlag wird für jeden Abschnitt getrennt berechnet.
+- Stundenwerte sind initial zugeklappt und behalten ihren Faltzustand beim Aktualisieren und Reiterwechsel. Forecast-IDs bleiben auch beim laufenden ersten Abschnitt stabil.
+- Gemeinsame aufklappbare Wetterzeilen aus HA UI Kit 1.12.0 lokal eingebunden; die Messspalten bleiben ausgerichtet.
+
 ## 1.10.1
 
 - Heute zeigt die Reihenfolge Ist → Aktuell → Vorhersage; aktuelle Messwerte stehen zwischen den gemessenen Zeiträumen und der Vorhersage.

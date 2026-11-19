@@ -1,0 +1,877 @@
+/* HA UI Kit 1.12.0 | MIT | Source priority: Shutter, Light, Essensplaner, Haushalt, Spuelmaschine, Access */
+export const UI_VERSION = "1.12.0";
+export const UI_CSS = ":host{--fui-font-body:14px;--fui-icon:21px;--fui-touch:40px;--fui-section-padding:10px;--fui-row-padding:4px}\n/* Shared ShadowRoot styles. Values follow Shutter Manager 1.4.0. */\n:host{display:block;color:var(--primary-text-color,#212121);font-family:var(--ha-font-family-body,Roboto,Arial,sans-serif);font-size:var(--fui-font-body);line-height:1.4}\n*{box-sizing:border-box}\nha-card,.ui-card{display:block;background:var(--ha-card-background,var(--card-background-color,#fff));border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color,#e0e0e0));border-radius:var(--ha-card-border-radius,12px);box-shadow:var(--ha-card-box-shadow,none);overflow:hidden}\nh3,h4,p{margin:0}h3{font-size:16px;font-weight:500}small,.hint{font-size:12px;line-height:1.5;color:var(--secondary-text-color,#727272)}\nbutton,input,select,textarea{font:inherit}\nbutton{color:var(--primary-color,#03a9f4);border:0;background:transparent;border-radius:var(--ha-button-border-radius,20px);padding:9px 14px;cursor:pointer;line-height:1.35;font-weight:500}\nbutton:hover{background:color-mix(in srgb,var(--primary-color,#03a9f4) 8%,transparent)}\nbutton:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--primary-color,#03a9f4);outline-offset:2px}\nbutton:disabled{opacity:.45;cursor:default}button:disabled:hover{background:transparent}\nbutton.primary{background:var(--primary-color,#03a9f4);color:var(--text-primary-color,#fff)}button.danger{color:var(--error-color,#db4437)}\nbutton>.ui-icon+span{margin-left:6px}\nbutton.compact{padding:7px 8px;min-height:var(--fui-touch)}\nbutton.compact>.ui-icon{width:16px;height:16px}\nbutton.compact>.ui-icon+span{margin-left:4px}\n.ui-icon{width:var(--fui-icon);height:var(--fui-icon);flex-shrink:0;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}\n.ui-icon.filled{fill:currentColor;stroke:none}.chevron{width:20px;height:20px;transform:rotate(-90deg);transition:transform .15s}.chevron.expanded{transform:rotate(0)}\n.card-top{display:flex;align-items:stretch;border-bottom:1px solid var(--divider-color,#e0e0e0);min-height:52px}\nnav{display:flex;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;padding:0 8px}nav::-webkit-scrollbar{display:none}\nnav button{flex-shrink:0;border-radius:0;border-bottom:2px solid transparent;color:var(--secondary-text-color,#727272);padding:16px 14px;white-space:nowrap;font-size:14px}\nnav button.selected{border-bottom-color:var(--primary-color,#03a9f4);color:var(--primary-color,#03a9f4)}\n.icon-tab{display:grid;place-items:center;width:48px;padding:10px!important}.icon-tab .ui-icon{width:24px;height:24px}\n.settings-button{width:48px;flex-shrink:0;display:grid;place-items:center;padding:12px;border-radius:0;color:var(--secondary-text-color,#727272)}\n.settings-button.selected{color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 8%,transparent)}.settings-button svg{width:24px;height:24px}\nmain{padding:8px 16px 16px}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.page-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0}.page-actions button{font-size:13px}\n.program-add{font-size:13px}\n.program-order{display:flex;gap:0}.program-order button{width:30px;height:34px;padding:4px;color:var(--primary-color,#03a9f4);font-size:18px;line-height:1}\n.filter-button{margin-right:auto;border:1px solid var(--divider-color,#e0e0e0);padding:6px 12px;align-self:center}\n.filter-button[aria-pressed=\"true\"]{background:var(--primary-color,#03a9f4);color:var(--text-primary-color,#fff);border-color:var(--primary-color,#03a9f4)}\n.edit-button{display:inline-flex;align-items:center;justify-content:center;min-width:var(--fui-touch);min-height:var(--fui-touch);padding:8px}.edit-button .ui-icon{width:20px;height:20px}\n.settings-group{padding:var(--fui-section-padding) 0;border-bottom:1px solid var(--divider-color,#e0e0e0)}.settings-group:last-child{border-bottom:0}\n.settings-heading-row{display:flex;align-items:center;justify-content:space-between;gap:16px}.settings-heading-row .settings-fold{flex:1;min-width:0}.settings-heading-row>button{flex-shrink:0;font-size:13px}\n.settings-fold{display:flex;align-items:center;gap:6px;width:100%;padding:0;color:var(--primary-text-color,#212121);text-align:left}.settings-fold span{font-size:14px;font-weight:500;overflow-wrap:anywhere}\n.setting-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:var(--fui-touch);padding:var(--fui-row-padding) 0;border-bottom:1px solid var(--divider-color,#e0e0e0)}.setting-row:last-child{border-bottom:0}\n.row-text{flex:1;min-width:0;overflow-wrap:anywhere}.row-text strong{font-size:13px;font-weight:500;line-height:1.35}.row-text small{display:block}.setting-row>.toolbar{gap:0;flex-shrink:0}\n.toggle{display:inline-flex;align-items:center;gap:9px;padding:6px 0;color:var(--primary-text-color,#212121);font-size:12px;font-weight:400;white-space:nowrap;min-height:40px}.toggle:hover{background:transparent}\n.switch-track{display:inline-flex;align-items:center;width:36px;height:20px;border-radius:12px;background:var(--switch-unchecked-track-color,#9e9e9e);padding:2px;flex-shrink:0}.switch-thumb{display:block;width:16px;height:16px;border-radius:50%;background:var(--switch-unchecked-button-color,#fff);box-shadow:0 1px 3px #0003;transition:transform .15s}\n.toggle.on .switch-track{background:color-mix(in srgb,var(--primary-color,#03a9f4) 50%,transparent)}.toggle.on .switch-thumb{transform:translateX(16px);background:var(--primary-color,#03a9f4)}\n.setting-row .toggle>span:last-child,.toggle.icon-only>span:last-child{display:none}\n.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.full{grid-column:1/-1}.field{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:12px}.field>span{color:var(--secondary-text-color,#727272)}\ninput:not([type=checkbox]):not([type=range]),select,textarea{width:100%;min-width:0;border:1px solid var(--divider-color,#bdbdbd);border-radius:4px;padding:11px 10px;color:var(--primary-text-color,#212121);background:var(--input-fill-color,var(--secondary-background-color,#f5f5f5))}\ninput[type=checkbox]{width:18px;height:18px;accent-color:var(--primary-color,#03a9f4)}\n.modal{padding:0;width:800px;max-width:calc(100% - 48px);max-height:90vh;border:0;background:var(--ha-card-background,var(--card-background-color,#fff));color:var(--primary-text-color,#212121);border-radius:var(--ha-dialog-border-radius,12px);box-shadow:0 8px 32px #0004}\n.modal[open]{display:flex;flex-direction:column}.modal::backdrop{background:#0006}\n.modal-head,footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 24px;flex-shrink:0}.modal-head{border-bottom:1px solid var(--divider-color,#e0e0e0)}.modal-head h3{font-size:20px;font-weight:400;overflow-wrap:anywhere}.modal-head button{color:var(--secondary-text-color,#727272)}.modal-body{padding:20px 24px;overflow-y:auto}footer{border-top:1px solid var(--divider-color,#e0e0e0);justify-content:flex-end;flex-wrap:wrap}\n.notice,.error{padding:12px 16px;font-size:13px}.notice{color:var(--secondary-text-color,#727272)}.error{color:var(--error-color,#db4437);background:color-mix(in srgb,var(--error-color,#db4437) 8%,transparent)}\n.version-info{font-size:12px;color:var(--secondary-text-color,#727272);margin-top:16px;overflow-wrap:anywhere}\n[hidden]{display:none!important}\n@media(max-width:600px){.card-top{min-height:48px}nav{padding:0 4px}nav button{padding:14px 8px;font-size:13px}.settings-button{width:42px;padding:9px}main{padding:4px 12px 12px}.settings-heading-row{gap:8px}.desktop-only{display:none!important}.modal{max-width:calc(100% - 16px);max-height:96vh;max-height:96dvh}.modal-head,footer{padding:12px 16px}.modal-head h3{font-size:18px}.modal-body{padding:16px}.grid{grid-template-columns:minmax(0,1fr)}.full{grid-column:auto}}\n@media(prefers-reduced-motion:reduce){.chevron,.switch-thumb{transition:none}}\n\n/* Mouse, touch and keyboard ordering; applications own persistence. */\n.fui-order-handle,.program-order .fui-order-handle{width:40px;height:40px;min-width:40px;padding:8px;color:var(--primary-color,#03a9f4);cursor:grab;touch-action:none;user-select:none;flex-shrink:0}\n.fui-order-handle[aria-grabbed=\"true\"]{cursor:grabbing}\n.fui-order-handle:disabled{cursor:default}\n.fui-order-dragging{opacity:.55}\n.fui-order-before{box-shadow:inset 0 3px var(--primary-color,#03a9f4)}\n.fui-order-after{box-shadow:inset 0 -3px var(--primary-color,#03a9f4)}\n\n.fui-navigation-actions{display:flex;align-items:center;flex-shrink:0}\n\n/* Geometry follows the source priority documented in COMPONENTS.md. */\n.fui-account-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}\n.fui-account-tile{aspect-ratio:1/1;min-width:0;min-height:0;position:relative;display:block;padding:16px;border:1px solid var(--divider-color,#e0e0e0);border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color,#fff));overflow:hidden}\n.fui-account-label{font-size:13px;font-weight:500;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}\n.fui-account-balance{position:absolute;inset:0;padding:16px;min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--primary-text-color,#212121);pointer-events:none}\n.fui-account-value{max-width:100%;font-size:clamp(28px,7vw,48px);font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}\n.fui-account-unit{font-size:12px;line-height:1.5}\n.fui-account-description{position:absolute;left:16px;right:16px;bottom:16px;font-size:11px;line-height:1.35;color:var(--secondary-text-color,#727272);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.fui-account-tile.active .fui-account-balance{color:var(--primary-color,#03a9f4)}.fui-account-tile.success .fui-account-balance{color:var(--success-color,#2e7d32)}.fui-account-tile.warning .fui-account-balance{color:var(--warning-color,#f9a825)}.fui-account-tile.error .fui-account-balance{color:var(--error-color,#db4437)}\n@media(max-width:600px){.fui-account-tiles{gap:12px}.fui-account-tile,.fui-account-balance{padding:12px}.fui-account-description{left:12px;right:12px;bottom:12px}}\nfieldset{border:0;padding:0;margin:0;min-width:0}legend,.field-label{font-size:12px;color:var(--secondary-text-color,#727272);margin-bottom:6px}\n.field-error,.modal-save-error{color:var(--error-color,#db4437);font-size:13px;line-height:1.5}.fui-presets{margin-top:8px}.field-unit{align-self:flex-end}\n.check{display:flex;align-items:center;gap:8px;font-size:13px;min-height:32px}.check input{margin:0;flex-shrink:0}.fui-checks{display:flex;gap:8px 16px;flex-wrap:wrap}.fui-check-group{margin:8px 0}\n.fui-check-group .days{display:flex;flex-wrap:wrap;gap:6px}.fui-check-group .days label{position:relative;cursor:pointer}.fui-check-group .days input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.fui-check-group .days span{pointer-events:none;display:block;padding:8px 11px;border:1px solid var(--divider-color,#e0e0e0);border-radius:16px;font-size:12px}.fui-check-group .days input:checked+span{color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,transparent);border-color:transparent}.fui-check-group .days input:focus-visible+span{outline:2px solid var(--primary-color,#03a9f4)}.fui-check-group .days input:disabled+span{opacity:.45}\n.fui-combobox{position:relative}.fui-combobox .field input{padding-right:48px}.fui-combo-toggle{position:absolute;right:1px;top:22px}.fui-options{border:1px solid var(--divider-color,#bdbdbd);border-radius:4px;margin-top:4px;max-height:336px;overflow-y:auto;overscroll-behavior:contain}.fui-option{display:flex;flex-direction:column;align-items:flex-start;text-align:left;width:100%;height:56px;padding:8px 10px;border-radius:0;border-bottom:1px solid var(--divider-color,#e0e0e0)}.fui-option:last-of-type{border-bottom:0}.fui-option strong,.fui-option small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fui-option.active,.fui-option[aria-selected=true]{background:color-mix(in srgb,var(--primary-color,#03a9f4) 8%,transparent)}.fui-options-empty{padding:12px;font-size:13px}\n.import-toolbar{margin:12px 0}.fui-multi>label{margin-top:12px}.fui-selection-list{margin-top:8px;max-height:400px;overflow-y:auto}.fui-selection-group h4{font-size:14px;font-weight:500;margin:12px 0 6px}.cover-option{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--divider-color,#e0e0e0);cursor:pointer}.cover-option>span{min-width:0;display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere}.cover-option strong{font-size:14px;font-weight:500}.cover-option:has(input:disabled){opacity:.6;cursor:default}\n.position-control{min-width:0;padding:6px 0}.slider-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;font-size:13px}.slider-head label{color:var(--secondary-text-color,#727272)}.slider-head output{font-size:14px;font-weight:500;font-variant-numeric:tabular-nums}.position-control input[type=range]{appearance:none;-webkit-appearance:none;width:100%;display:block;height:4px;border:0;padding:0;margin:16px 0;border-radius:2px;cursor:pointer;accent-color:var(--primary-color,#03a9f4);background:linear-gradient(to right,var(--primary-color,#03a9f4) 0,var(--primary-color,#03a9f4) var(--range-percent),var(--divider-color,#ddd) var(--range-percent),var(--divider-color,#ddd) 100%)}.position-control input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;border-radius:50%;background:var(--primary-color,#03a9f4)}.position-control input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--primary-color,#03a9f4)}.slider-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--secondary-text-color,#727272);font-size:11px}.keep-value{font-size:11px;padding:4px 8px}.keep-value.selected{background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,transparent)}.position-control input:disabled{opacity:.45;cursor:default}\n.white-labels{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}.white-control input[type=range]{background:linear-gradient(90deg,#d7e8ff,#fff6d7,#ffc77a)}\n.colour-control{display:flex;flex-direction:column;gap:10px}.colour-wheel{width:min(100%,340px);aspect-ratio:1;border-radius:50%;position:relative;touch-action:none;cursor:crosshair;background:radial-gradient(circle closest-side,#fff 0%,#ffffff00 100%),conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);flex-shrink:0}.colour-wheel:focus-visible{outline:2px solid var(--primary-color,#03a9f4);outline-offset:4px}.colour-wheel[aria-disabled=true]{opacity:.45;cursor:default}.colour-marker{position:absolute;width:18px;height:18px;border:2px solid white;box-shadow:0 0 0 1px #0009;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}.colour-preview{display:flex;align-items:center;gap:8px;font-size:13px}.colour-preview>span{width:26px;height:26px;border:1px solid var(--divider-color,#ddd);border-radius:4px}\n.season-box{padding:8px 0}.season-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:360px;margin:10px 0}.recurrence-controls{display:grid;gap:16px;margin-top:12px}.repeat-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.repeat-line input{max-width:80px}.repeat-line select{max-width:120px}\n.program-group{border-bottom:1px solid var(--divider-color,#e0e0e0)}.program-group-head{display:flex;width:100%;align-items:center;gap:8px;padding:12px 0;color:var(--primary-text-color,#212121);text-align:left;border-radius:4px}.program-group-head strong{font-size:16px;font-weight:500}.program-group-head>span:last-child{margin-left:auto;color:var(--secondary-text-color,#727272);font-size:12px}.program{padding:10px 0;border-bottom:1px solid var(--divider-color,#e0e0e0)}.program-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.program-heading{flex:1;min-width:0}.program-title{display:flex;align-items:center;gap:8px;padding:0;color:var(--primary-text-color,#212121);font-size:15px;text-align:left}.program-title span{overflow-wrap:anywhere}.program-title>.ui-icon+span{margin-left:0}.tags{display:flex;flex-wrap:wrap;gap:4px 10px;margin:6px 0 0 28px}.tags span{font-size:12px;color:var(--secondary-text-color,#727272)}.muted>.program-head,.muted>.ride-info{opacity:.55}.ride{display:flex;justify-content:space-between;gap:16px;padding:8px 0;margin-left:28px;border-top:1px solid var(--divider-color,#e0e0e0)}.ride-info{display:flex;flex-direction:column;gap:3px;min-width:0;overflow-wrap:anywhere}.ride-info strong{font-size:14px;font-weight:500}.ride-info>span{font-size:13px}.ride-actions{align-self:center}.subpanel{border:1px solid var(--divider-color,#e0e0e0);border-radius:8px;padding:16px;margin:12px 0}.ride-editor-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.ride-fold{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:4px 0;text-align:left;color:var(--primary-text-color,#212121);border-radius:4px}.ride-fold-text{display:flex;flex-direction:column;gap:5px;min-width:0;overflow-wrap:anywhere}.ride-fold-text strong{font-size:14px;font-weight:500}.ride-fold-text>span{font-size:12px;line-height:1.5;color:var(--secondary-text-color,#727272)}.ride-editor-body{margin-top:16px;padding-top:16px;border-top:1px solid var(--divider-color,#e0e0e0)}\n.overview-panel{border-bottom:1px solid var(--divider-color,#e0e0e0)}.overview-toggle{display:flex;align-items:center;gap:6px;padding:10px 16px;color:var(--secondary-text-color,#727272);font-size:12px;border-radius:0}.overview{padding:0 16px 14px}.sun-row{display:flex;align-items:center;gap:28px;padding:4px 0 12px}.sun-value{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-variant-numeric:tabular-nums}.sun-value .ui-icon{color:var(--primary-color,#03a9f4)}.overview-group+.overview-group{margin-top:14px}.overview-group h4{font-size:11px;font-weight:500;color:var(--secondary-text-color,#727272);margin:0 0 8px}.sensor-grid{display:flex;flex-wrap:wrap;align-items:center;gap:9px 24px}.sensor-value{display:inline-flex;max-width:100%;align-items:center;gap:8px;min-width:0;font-size:13px;line-height:1.5}.sensor-label{min-width:0;overflow-wrap:anywhere}.sensor-state{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;font-variant-numeric:tabular-nums}.sensor-state .ui-icon{width:18px;height:18px;color:var(--secondary-text-color,#727272)}\n.daily-history-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:start;gap:10px;padding:10px 0;border-bottom:1px solid var(--divider-color,#e0e0e0);font-size:12px}.daily-history-row:last-child{border-bottom:0}.daily-history-row time{font-variant-numeric:tabular-nums}.daily-command{display:flex;flex-direction:column;gap:3px;min-width:0;overflow-wrap:anywhere}.daily-command strong{font-weight:500;font-size:13px}.daily-command small{font-size:12px}.command-result{display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:11px}.command-result .ui-icon{width:16px;height:16px}.completed .command-result{color:var(--success-color,#2e7d32)}.failed .command-result{color:var(--error-color,#db4437)}.pending .command-result{color:var(--secondary-text-color,#727272)}.failure-reason{overflow-wrap:anywhere}.fui-history-month{margin-left:8px}\n.fui-status-tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--secondary-text-color,#727272);margin-right:10px}.fui-status-tag.active{color:var(--primary-color,#03a9f4)}.fui-status-tag.success{color:var(--success-color,#2e7d32)}.fui-status-tag.error{color:var(--error-color,#db4437)}.fui-status-tag.warning{color:var(--warning-color,#f9a825)}.fui-status-tag .ui-icon{width:16px;height:16px}.fui-counter{font-size:12px;color:var(--secondary-text-color,#727272);white-space:nowrap}\n.fui-statistics{overflow-x:auto}.fui-statistics table{width:100%;border-collapse:collapse;font-size:13px}.fui-statistics th,.fui-statistics td{padding:var(--fui-row-padding) 0;border-bottom:1px solid var(--divider-color,#e0e0e0);text-align:left;overflow-wrap:anywhere}.fui-statistics .numeric{text-align:right}.fui-statistics tfoot{font-weight:500}\n.week{display:flex;align-items:center;gap:8px;margin:8px 0}.week strong{flex:1;min-width:0;text-align:center;font-size:14px}.calendar-row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;align-items:center;border-bottom:1px solid var(--divider-color,#e0e0e0);padding:4px 0}.day-date{display:grid;text-align:center}.calendar-content{min-width:0}.calendar-content .setting-row{border:0}.meal-link{display:inline-block;color:var(--primary-color,#03a9f4);margin-bottom:4px}.calendar-row.empty{line-height:inherit}.calendar-row.empty .row-text strong{color:var(--secondary-text-color,#727272)}.fui-calendar.fui-check-group .days{display:block}.checks{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.assignee{font-size:12px;color:var(--secondary-text-color,#727272)}.complete{display:grid;place-items:center;min-width:40px;min-height:40px;cursor:pointer}.completed .row-text strong,.assignee.completed{text-decoration:line-through;color:var(--secondary-text-color,#727272)}\n.language-picker{display:flex;gap:8px}.language-picker button{min-width:70px;border:1px solid var(--divider-color,#e0e0e0);color:var(--primary-text-color,#212121);border-radius:var(--ha-button-border-radius,20px)}.language-picker button[aria-pressed=true]{border-color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,transparent);color:var(--primary-color,#03a9f4)}.language-picker button span{font-size:12px;font-weight:600}.backup-actions{margin-top:12px}\n.howto{line-height:1.6;font-size:14px;padding:12px 0}.howto h2{font-size:20px;font-weight:400;margin:0 0 14px}.howto h3{font-size:16px;margin:24px 0 10px}.howto p{margin:10px 0}.howto ul,.howto ol{padding-left:22px;margin:10px 0}.howto li{margin:8px 0}.howto table{width:100%;border-collapse:collapse;font-size:13px}.howto th,.howto td{padding:10px 8px;border-bottom:1px solid var(--divider-color,#e0e0e0);text-align:left;vertical-align:top}\n.fui-panel-header{min-height:64px;background:var(--ha-card-background,var(--card-background-color,#fff));border-bottom:1px solid var(--divider-color,#e0e0e0);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:5;flex-wrap:wrap}.fui-panel-header strong{font-size:20px;font-weight:500}.fui-panel-header .grow{flex:1}\n.fui-feedback{padding:12px 16px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}.fui-feedback.info{color:var(--secondary-text-color,#727272)}.fui-feedback.error{color:var(--error-color,#db4437);background:color-mix(in srgb,var(--error-color,#db4437) 8%,transparent)}.fui-feedback.warning{color:var(--primary-text-color,#212121);border-left:4px solid var(--warning-color,#f9a825);background:color-mix(in srgb,var(--warning-color,#f9a825) 8%,transparent)}.fui-feedback.success{color:var(--success-color,#2e7d32)}.empty:not(.calendar-row){padding:24px 0;color:var(--secondary-text-color,#727272);line-height:1.6}.modal-save-error{margin:0 0 4px}.gm-photo-box{display:grid;gap:8px}.photo-preview{display:block;max-width:100%;max-height:300px;object-fit:contain;margin:auto}.gm-photo-large{display:block;width:100%;max-height:70dvh;object-fit:contain}\n.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}\n@media(max-width:600px){.fui-check-group .days{gap:5px}.fui-check-group .days span{padding:8px 10px}.program-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 8px}.program-heading{display:contents}.program-title{grid-column:1;grid-row:1;min-width:0}.program-head>.toolbar{grid-column:2;grid-row:1;justify-self:end;gap:4px;flex-wrap:nowrap}.program-head .tags{grid-column:1/-1;grid-row:2;margin-top:0}.ride{gap:10px}.ride-editor-head{align-items:flex-start;flex-wrap:wrap;gap:8px}.ride-fold{flex-basis:100%}.ride-editor-actions{margin-left:28px;justify-content:flex-end;flex:1}.subpanel{padding:12px}.ride-editor-body{margin-top:12px;padding-top:12px}.fui-panel-header{padding:8px 12px;gap:8px}.fui-panel-header strong{font-size:17px}.fui-panel-header>button{font-size:12px;padding:9px}.week{gap:4px}.week strong{font-size:13px}}\n@media(max-width:380px){.daily-history-row{gap:6px;grid-template-columns:36px minmax(0,1fr) auto}.command-result{font-size:10px}}\n\n.ride-actions.inline-actions{flex-wrap:nowrap;flex-shrink:0}\n\n/* Skipped occurrence: theme-owned muted text; controls remain fully usable. */\n.ride.skipped>.ride-info{color:var(--disabled-text-color,#9e9e9e)}\n.ride.skipped>.ride-info small{color:inherit}\n.fui-user-access{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,240px) 40px;gap:8px 16px;padding:10px 0}\n.fui-user-access-role,.fui-user-access-toggle{min-width:0}\n.fui-user-access-toggle{min-width:40px;display:flex;align-items:center;justify-content:flex-end}\n.fui-user-access-admin{grid-column:2/-1;justify-self:end}\n@media(max-width:600px){.fui-user-access{grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:8px 0}.fui-user-access-role{grid-column:1/-1;grid-row:2}.fui-user-access-toggle{grid-column:2;grid-row:1}.fui-user-access-admin{grid-column:2;grid-row:1}}\n\n/* Optional paired readings; existing square account tiles keep their geometry. */\n.fui-account-tile.has-metrics{aspect-ratio:auto;min-height:180px;display:flex;flex-direction:column;gap:12px}\n.has-metrics .fui-account-label{white-space:normal;overflow-wrap:anywhere}\n.fui-account-metrics{display:grid;gap:12px;flex:1;align-content:space-evenly;min-width:0}\n.fui-account-metric{display:grid;gap:3px;min-width:0}\n.fui-account-metric-label{font-size:12px;line-height:1.35;color:var(--secondary-text-color,#727272);overflow-wrap:anywhere}\n.fui-account-metric-reading{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;min-width:0}\n.fui-account-metric-value{font-size:clamp(20px,4vw,28px);font-weight:500;line-height:1.15;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;min-width:0}\n.fui-account-metric-description{font-size:11px;line-height:1.35;color:var(--secondary-text-color,#727272);overflow-wrap:anywhere}\n.active .fui-account-metric-reading{color:var(--primary-color,#03a9f4)}\n\n/* Energy displays: shared theme tokens, geometry and chart interaction. */\n.fui-energy-flow,.fui-series-chart{--energy-solar:var(--warning-color,#ff9800);--energy-grid:var(--primary-color,#03a9f4);--energy-home:var(--energy-home-color,#26a69a);--energy-battery:var(--success-color,#43a047);--energy-export:var(--energy-export-color,#9575cd);--energy-charge:var(--energy-charge-color,#ec407a)}\n.fui-energy-flow{position:relative;width:100%;max-width:620px;margin:0 auto 16px;aspect-ratio:500/390}.fui-energy-flow>svg{display:block;width:100%;height:100%}\n.fui-flow-track{fill:none;stroke:var(--divider-color,#e0e0e0);stroke-width:1.2}.fui-flow-line{fill:none;stroke:var(--series-color);stroke-width:2.5}\n.fui-flow-line.animated{\n  stroke-linecap:round;\n  stroke-width:5;\n  stroke-dasharray:.01 calc(var(--fui-flow-dot-step) - .01);\n  animation:fui-energy-move var(--fui-flow-dot-duration) linear infinite;\n}\n.fui-flow-line.reverse{animation-direction:reverse}\n@keyframes fui-energy-move{\n  from{stroke-dashoffset:var(--fui-flow-dot-start)}\n  to{stroke-dashoffset:var(--fui-flow-dot-end)}\n}\n.fui-energy-solar{--series-color:var(--energy-solar)}.fui-energy-grid{--series-color:var(--energy-grid)}.fui-energy-home{--series-color:var(--energy-home)}.fui-energy-battery{--series-color:var(--energy-battery)}.fui-energy-export{--series-color:var(--energy-export)}.fui-energy-charge{--series-color:var(--energy-charge)}\n.fui-energy-node{position:absolute;left:var(--node-x);top:var(--node-y);transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;padding:0;color:var(--primary-text-color,#212121);background:transparent;border-radius:50%;width:22%;max-width:110px;min-width:70px;gap:4px;font-weight:400}\n.fui-energy-circle{width:100%;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid var(--series-color);border-radius:50%;background:var(--ha-card-background,var(--card-background-color,#fff));gap:1px}.fui-energy-circle strong{font-weight:500;white-space:nowrap;font-size:14px}.fui-energy-circle small{font-size:12px}.fui-energy-circle .ui-icon{width:24px;height:24px}.fui-energy-label{color:var(--secondary-text-color,#727272);font-size:12px}.fui-energy-node.fui-energy-home .fui-energy-circle{border-width:3px}\n.fui-series-chart{margin:16px 0 0;min-width:0}.fui-chart-svg{width:100%;display:block;overflow:visible;touch-action:pan-y}.fui-chart-svg text{font:inherit;font-size:12px;fill:var(--secondary-text-color,#727272)}.fui-chart-grid{stroke:var(--divider-color,#e0e0e0);stroke-dasharray:3 4}.fui-chart-line{fill:none;stroke:var(--series-color);stroke-width:2;stroke-linejoin:round}.fui-chart-dot,.fui-chart-bar{fill:var(--series-color)}.fui-chart-hit{fill:transparent;cursor:crosshair}.fui-chart-cursor{stroke:var(--secondary-text-color,#727272);stroke-dasharray:3 3;pointer-events:none}\n.fui-chart-legend{display:flex;flex-wrap:wrap;gap:4px 16px;margin:8px 0;color:var(--secondary-text-color,#727272);font-size:12px}.fui-chart-legend i{display:inline-block;width:16px;height:3px;background:var(--series-color);vertical-align:middle;margin-right:6px}.fui-chart-inspector{border:1px solid var(--divider-color,#e0e0e0);border-radius:var(--ha-card-border-radius,12px);padding:8px;min-height:calc(32px + var(--chart-rows,1)*18px);overflow-wrap:anywhere;font-size:12px}.fui-chart-values{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px}.fui-chart-values>span:nth-child(2n){text-align:right;white-space:nowrap}\n@media(prefers-reduced-motion:reduce){.fui-flow-line.animated{animation:none;stroke-dasharray:none;stroke-width:2.5}}\n@media(max-width:360px){.fui-energy-circle .ui-icon{width:20px;height:20px}.fui-energy-circle strong{font-size:12px}.fui-energy-circle small{font-size:10px}}\n\n.fui-chart-line.fui-energy-grid{stroke-dasharray:6 3}\n.fui-chart-zero{stroke:var(--secondary-text-color,#727272);stroke-opacity:.65}\n\n.fui-chart-legend-interactive{gap:6px}\n.fui-chart-legend-button{\n  display:inline-flex;\n  align-items:center;\n  gap:6px;\n  min-height:40px;\n  padding:5px 8px;\n  border:1px solid var(--divider-color,#e0e0e0);\n  border-radius:var(--ha-button-border-radius,12px);\n  color:var(--secondary-text-color,#727272);\n  font:inherit;\n  text-align:left;\n}\n.fui-chart-legend-button i{flex:none;width:8px;height:8px;margin:0;border-radius:50%}\n.fui-chart-legend-button small{display:block;color:inherit}\n.fui-chart-legend-button[aria-pressed=\"true\"]{\n  border-color:var(--series-color);\n  background:color-mix(in srgb,var(--series-color) 12%,transparent);\n  color:var(--primary-text-color,#212121);\n}\n.fui-chart-legend-button[aria-pressed=\"false\"] i{background:transparent;border:1px solid var(--series-color)}\n\n/* Weather Analysis: explicit blue measurements / black forecast on a white reading surface. */\n.fui-weather-strip{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;border-radius:var(--ha-card-border-radius,12px);background:#fff;color:#000;color-scheme:light;scrollbar-color:#aebfc9 #eff4f7;scrollbar-width:thin;padding:16px 0 12px}\n.fui-weather-strip:focus-visible{outline:2px solid var(--primary-color,#03a9f4);outline-offset:2px}\n.fui-weather-periods{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(172px,1fr);list-style:none;margin:0;padding:0;min-width:100%;align-items:stretch}\n:is(.fui-weather-period,.fui-weather-hour){display:flex;flex-direction:column;align-items:center;padding:0 16px 12px;min-width:0;scroll-snap-align:start;border-right:1px solid #dbe4e9;line-height:1.45;text-align:center}\n:is(.fui-weather-period,.fui-weather-hour):last-child{border-right:0}\n:is(.fui-weather-period,.fui-weather-hour).is-actual,.fui-weather-now.is-actual{color:#0277bd}\n:is(.fui-weather-period,.fui-weather-hour).is-forecast{color:#000}\n:is(.fui-weather-period,.fui-weather-hour) small,.fui-weather-now small{color:inherit}\n.fui-weather-time{font-size:14px;font-weight:500;white-space:nowrap}\n.fui-weather-source{font-size:11px;margin:4px 0 8px}\n.fui-weather-graphic{display:block;width:96px;height:80px;flex-shrink:0;margin:4px auto 10px}\n.fui-weather-temperature{font-size:32px;line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}\n.fui-weather-temperature strong{font-weight:400}\n.fui-weather-temperature-label{font-size:11px;min-height:17px;margin-top:2px}\n.fui-weather-range{font-size:12px;min-height:20px;line-height:1.5}\n.fui-weather-condition{font-size:13px;line-height:1.45;min-height:57px;max-width:100%;margin:10px 0 16px;overflow-wrap:anywhere}\n.fui-weather-metrics{display:flex;flex-direction:column;gap:14px;margin:0;width:100%;font-size:13px;text-align:left}\n.fui-weather-metrics>div{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;align-items:start}\n.fui-weather-metrics dt{position:relative;display:flex;align-items:center;margin:0;min-width:0}\n.fui-weather-metrics dt span{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}\n.fui-weather-metrics dd{margin:0;overflow-wrap:anywhere}\n.fui-weather-metrics dd small{display:block;font-size:11px;line-height:1.5}\n.fui-weather-metric-icon{width:18px;height:18px;display:block;flex-shrink:0}\n.fui-weather-now{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:center;padding:16px;background:#fff;border-radius:var(--ha-card-border-radius,12px);color-scheme:light}\n.fui-weather-now>div{display:flex;flex-direction:column;gap:4px;min-width:0}\n.fui-weather-now>div>span{font-size:13px;font-weight:500}\n.fui-weather-now>div>strong{font-size:40px;line-height:1.15;font-weight:400;font-variant-numeric:tabular-nums}\n.fui-weather-now .fui-weather-metrics{width:auto;flex:1;min-width:140px;gap:10px}\n@media(max-width:600px){.fui-weather-periods{grid-auto-columns:minmax(152px,1fr)}:is(.fui-weather-period,.fui-weather-hour){padding-right:12px;padding-left:12px}.fui-weather-strip{padding-top:12px}.fui-weather-temperature{font-size:30px}.fui-weather-now{padding:12px;gap:12px 24px}}\n@media(prefers-reduced-motion:reduce){.fui-weather-strip{scroll-behavior:auto;scroll-snap-type:none}}\n\n/* Optional vertical layout; a narrow HA card uses the mobile layout even on desktop. */\n.fui-weather-list{container-type:inline-size;container-name:fui-weather-list;max-width:100%;border-radius:var(--ha-card-border-radius,12px);background:#fff;color:#000;color-scheme:light}\n.fui-weather-list-items{list-style:none;margin:0;padding:0}\n.fui-weather-list :is(.fui-weather-period,.fui-weather-hour){display:grid;grid-template-columns:110px 80px minmax(100px,1fr) minmax(180px,1.5fr);grid-template-areas:\"time graphic temperature metrics\" \"source graphic label metrics\" \". graphic range metrics\" \". . condition metrics\";gap:2px 12px;align-items:center;text-align:left;padding:16px;border-right:0;border-bottom:1px solid #dbe4e9;scroll-snap-align:none}\n.fui-weather-list :is(.fui-weather-period,.fui-weather-hour):last-child{border-bottom:0}\n.fui-weather-list .fui-weather-time{grid-area:time;white-space:normal;align-self:end}\n.fui-weather-list .fui-weather-source{grid-area:source;margin:0;align-self:start}\n.fui-weather-list .fui-weather-graphic{grid-area:graphic;width:80px;height:67px;margin:0}\n.fui-weather-list .fui-weather-temperature{grid-area:temperature;font-size:28px}\n.fui-weather-list .fui-weather-temperature-label{grid-area:label;min-height:0;margin:0}\n.fui-weather-list .fui-weather-range{grid-area:range;min-height:0}\n.fui-weather-list .fui-weather-condition{grid-area:condition;min-height:0;margin:4px 0 0}\n.fui-weather-list .fui-weather-metrics{grid-area:metrics;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;align-self:center}\n@container fui-weather-list (max-width:620px){\n  .fui-weather-list :is(.fui-weather-period,.fui-weather-hour){grid-template-columns:80px minmax(0,1fr);grid-template-areas:\"time time\" \"source source\" \"graphic temperature\" \"graphic label\" \"graphic range\" \"condition condition\" \"metrics metrics\";gap:4px 12px;padding:12px}\n  .fui-weather-list .fui-weather-source{margin-bottom:4px}\n  .fui-weather-list .fui-weather-metrics{margin-top:8px}\n}\n\n/* Hourly details retain the parent columns and use the standard fold controller. */\n.fui-weather-period-toggle{display:flex;align-items:center;gap:4px;width:100%;min-height:40px;padding:0;color:inherit;text-align:left;font:inherit;border-radius:4px}\n.fui-weather-period-toggle>.ui-icon{width:20px;height:20px}\n.fui-weather-period-toggle>.ui-icon+span{margin-left:0;min-width:0}\n.fui-weather-period-toggle:hover{background:color-mix(in srgb,currentColor 5%,transparent)}\n.fui-weather-hours{grid-column:1/-1;grid-row:5;margin:8px -16px -16px;background:#f7fafc;box-shadow:inset 3px 0 0 #dbe4e9}\n.fui-weather-hour-list{list-style:none;margin:0;padding:0}\n.fui-weather-hours-label{padding:12px 16px 0;font-size:12px;font-weight:500}\n.fui-weather-hour .fui-weather-graphic{width:64px;height:54px}\n.fui-weather-hour .fui-weather-temperature{font-size:23px}\n.fui-weather-hour .fui-weather-metrics{font-size:12px}\n@container fui-weather-list (max-width:620px){.fui-weather-hours{grid-row:8;margin:8px -12px -12px}.fui-weather-hours-label{padding-left:12px;padding-right:12px}}\n";
+// Source paths: Shutter Manager 1.4.0. See docs/PROVENANCE.json.
+const ICON_PATHS = Object.freeze({
+  "energy-solar": '<path d="M4 10h16l2 10H2l2-10Zm1 5h14M9 10l-1 10m7-10 1 10M12 2v3M5 4l2 2m12-2-2 2M9 7a3 3 0 0 1 6 0"/>',
+  "energy-grid": '<path d="M9 3h6l4 18M9 3 5 21M7 11h10M6 16h12M5 7h14M9 11l8 5m-2-5-8 5"/>',
+  "energy-home": '<path d="m3 11 9-8 9 8M5 10v11h14V10M10 21v-7h4v7"/>',
+  "energy-battery": '<rect x="6" y="4" width="12" height="18" rx="2"/><path d="M10 2h4M10 10h4m-2-2v4m-2 5h4"/>',
+
+  "drag": "<path d=\"M8 4h2v2H8zm6 0h2v2h-2zM8 9h2v2H8zm6 0h2v2h-2zM8 14h2v2H8zm6 0h2v2h-2zM8 19h2v2H8zm6 0h2v2h-2z\"/>",
+  "sunrise": "<path d=\"M2 17h20M5 21h14M7 17a5 5 0 0 1 10 0M4 12l-2-2m18 2 2-2M12 9V2m-3 3 3-3 3 3\"/>",
+  "sunset": "<path d=\"M2 17h20M5 21h14M7 17a5 5 0 0 1 10 0M4 12l-2-2m18 2 2-2M12 2v7m-3-3 3 3 3-3\"/>",
+  "lock": "<rect x=\"5\" y=\"10\" width=\"14\" height=\"11\" rx=\"2\"/><path d=\"M8 10V6a4 4 0 0 1 8 0v4m-4 5v2\"/>",
+  "unlock": "<rect x=\"5\" y=\"10\" width=\"14\" height=\"11\" rx=\"2\"/><path d=\"M8 10V6a4 4 0 0 1 7.5-2M12 15v2\"/>",
+  "temperature": "<path d=\"M9 14.5V5a3 3 0 0 1 6 0v9.5a5 5 0 1 1-6 0M12 8v10\"/><circle cx=\"12\" cy=\"18\" r=\"1\"/>",
+  "illuminance": "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5\"/>",
+  "skip-once": "<path d=\"m6 5 10 7-10 7V5ZM19 5v14\"/>",
+  "restore-schedule": "<path d=\"M3 11a9 9 0 1 1 3 8M3 4v7h7M12 7v5l3 2\"/>" ,
+  "reschedule": "<circle cx=\"10\" cy=\"10\" r=\"7\"/><path d=\"M10 6v4l3 2m1 6h7m-3-3 3 3-3 3\"/>",
+  "schedule": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 6v6l4 2\"/>",
+  "sensors": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M6.3 6.3a8 8 0 0 0 0 11.4m11.4-11.4a8 8 0 0 1 0 11.4M3.5 3.5a12 12 0 0 0 0 17m17-17a12 12 0 0 1 0 17\"/>",
+  "success": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"m7 12 3 3 7-7\"/>",
+  "failure": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v6m0 4h.01\"/>",
+  "trash": "<path d=\"M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6\"/>",
+  "move": "<path d=\"M14 4H4v16h10M10 12h12m-4-4 4 4-4 4\"/>",
+  "copy": "<rect x=\"8\" y=\"8\" width=\"13\" height=\"13\" rx=\"2\"/><path d=\"M16 8V3H3v13h5\"/>",
+  "edit": "<path d=\"M4 16l12-12 4 4L8 20H4v-4M14 6l4 4\"/>",
+  "unknown": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M10 8a2 2 0 1 1 3 2c-1 .5-1 1-1 2m0 4h.01\"/>",
+  "settings": "<path d=\"M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.63l-1.92-3.32a.49.49 0 0 0-.6-.22l-2.39.96a7.1 7.1 0 0 0-1.62-.94l-.36-2.54a.49.49 0 0 0-.49-.42h-3.84a.49.49 0 0 0-.49.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 0 0-.6.22L2.68 8.85a.49.49 0 0 0 .12.63l2.03 1.58a7.3 7.3 0 0 0 0 1.88L2.8 14.52a.49.49 0 0 0-.12.63l1.92 3.32c.12.22.38.31.6.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.24.42.49.42h3.84c.25 0 .45-.18.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.09.48 0 .6-.22l1.92-3.32a.49.49 0 0 0-.12-.63zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z\"/>",
+  "help": "<path d=\"M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-1-3h2v-2h-2v2zm1-11a4 4 0 0 0-4 4h2a2 2 0 1 1 4 0c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5a4 4 0 0 0-4-4z\"/>",
+  "chevron": "<path d=\"M4 6l4 4 4-4\"/>",
+  "add": "<path d=\"M12 5v14M5 12h14\"/>",
+  "refresh": "<path d=\"M20 7v5h-5M19.1 16a8 8 0 1 1-.7-9.6L20 8\"/>",
+  "close": "<path d=\"m6 6 12 12M6 18 18 6\"/>",
+  "save": "<path d=\"M5 3h12l4 4v14H3V3h2M7 3v6h10V3M7 21v-8h10v8\"/>",
+  "up": "<path d=\"m5 15 7-7 7 7\"/>",
+  "left": "<g transform=\"rotate(-90 12 12)\"><path d=\"m5 15 7-7 7 7\"/></g>",
+  "right": "<g transform=\"rotate(90 12 12)\"><path d=\"m5 15 7-7 7 7\"/></g>",
+  "menu": "<path d=\"M4 6h16M4 12h16M4 18h16\"/>",
+  "down": "<path d=\"m5 9 7 7 7-7\"/>",
+  "media-alarmFilled": "<path fill-rule=\"evenodd\" d=\"M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm-1 3h2v4.4l3 1.8-1 1.7-4-2.4V7ZM3.5 1.8l1.3 1.5-3.4 2.9L.1 4.7l3.4-2.9Zm17 0 3.4 2.9-1.3 1.5-3.4-2.9 1.3-1.5Z\"/>",
+  "media-alarm": "<path fill-rule=\"evenodd\" d=\"M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Zm-1 1h2v5.4l3 1.8-1 1.7-4-2.4V7ZM3.5 1.8l1.3 1.5-3.4 2.9L.1 4.7l3.4-2.9Zm17 0 3.4 2.9-1.3 1.5-3.4-2.9 1.3-1.5Z\"/>",
+  "media-previous": "<path fill-rule=\"evenodd\" d=\"M6 5h2v14H6zM18 5v14l-9-7z\"/>",
+  "media-next": "<path fill-rule=\"evenodd\" d=\"M16 5h2v14h-2zM6 5l9 7-9 7z\"/>",
+  "media-play": "<path fill-rule=\"evenodd\" d=\"M8 5v14l11-7z\"/>",
+  "media-pause": "<path fill-rule=\"evenodd\" d=\"M6 5h4v14H6zM14 5h4v14h-4z\"/>",
+  "media-stop": "<path fill-rule=\"evenodd\" d=\"M6 6h12v12H6z\"/>",
+  "media-star": "<path fill-rule=\"evenodd\" d=\"m12 2.5 2.9 5.9 6.5 1-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5-4.7-4.6 6.5-1z\"/>",
+  "media-radio": "<path fill-rule=\"evenodd\" d=\"M4 7h16v13H4zM6 3l13-2v2L6 5zM6 9v3h12V9zM7 14h5v4H7zM15 14h3v2h-3z\"/>",
+  "media-shuffle": "<path fill-rule=\"evenodd\" d=\"m16 3 5 4-5 4V8h-2l-4 5-4 5H3v-2h2l4-5 4-5h3V3ZM3 6h3l3 4-1.3 1.6L5 8H3V6Zm9 7.4 2 2.6h2v-3l5 4-5 4v-3h-3l-2.3-3 1.3-1.6Z\"/>",
+  "media-music": "<path fill-rule=\"evenodd\" d=\"M16 3v11.6a4 4 0 1 0 2 3.4V7h4V3h-6ZM8 6H2v2h6V6Zm0 5H2v2h6v-2Zm-2 5H2v2h4v-2Z\"/>"
+});
+export const ICON_NAMES = Object.freeze(Object.keys(ICON_PATHS));
+export function icon(name, {expanded = false} = {}) {
+  if (!Object.hasOwn(ICON_PATHS, name)) throw new TypeError(`Unknown icon: ${name}`);
+  const filled = name === 'settings' || name === 'help' || name.startsWith('media-');
+  const chevron = name === 'chevron';
+  return `<svg class="ui-icon${filled ? ' filled' : ''}${chevron ? ' chevron' : ''}${chevron && expanded ? ' expanded' : ''}" data-icon="${name}" viewBox="0 0 ${chevron ? '16 16' : '24 24'}" aria-hidden="true" focusable="false">${ICON_PATHS[name]}</svg>`;
+}
+
+export const MUSIC_PLAYER_CSS = "\n  :host{min-width:0}\n  .music-stack,.music-browser,.music-editor{display:grid;gap:16px;min-width:0}\n  .music-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;min-width:0;padding-bottom:12px;border-bottom:1px solid var(--divider-color,#e0e0e0)}\n  .music-now-playing{flex:1;min-width:0}\n  .music-title{margin:0;font-size:22px;font-weight:600;line-height:1.25;color:var(--primary-text-color,#212121);overflow-wrap:anywhere}\n  .music-detail{margin-top:6px;font-size:13px;line-height:1.4;color:var(--secondary-text-color,#727272);overflow-wrap:anywhere}\n  .music-box{flex:0 1 auto;min-width:0;max-width:38%;text-align:end;font-size:13px;font-weight:500;line-height:1.4;color:var(--secondary-text-color,#727272);overflow-wrap:anywhere}\n  .music-controls{display:grid;gap:12px;min-width:0}\n  .music-transport{display:flex;gap:12px}\n  .music-transport button{flex:1;min-width:0;height:44px;display:grid;place-items:center;padding:0;border-radius:12px;background:var(--secondary-background-color,#f2f2f2);color:var(--primary-text-color,#212121)}\n  .music-transport button:disabled{color:var(--disabled-text-color,#bdbdbd);opacity:1}\n  .music-transport button:hover:enabled{background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,var(--secondary-background-color,#f2f2f2))}\n  .music-icon{width:20px;height:20px;fill:currentColor;vertical-align:middle}\n  .music-volume{min-width:0}\n  .music-volume ha-control-slider{display:block;width:100%}\n  .music-apple-playback{display:grid;gap:8px;min-width:0}\n  .music-transport [data-action=\"shuffle\"][aria-pressed=\"true\"]{color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 14%,transparent)}\n  #music-seek-control .slider-head label{display:none}\n  #music-seek-control .slider-head{justify-content:flex-end}\n  .music-favorites:empty,#music-favorite-status:empty,#music-player-status:empty{display:none}\n  .music-apple-results [aria-pressed=\"false\"] .music-icon,#music-radio-results [aria-pressed=\"false\"] .music-icon{fill:none;stroke:currentColor;stroke-width:1.7}\n  .music-favorites{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:12px;min-width:0}\n  .music-favorite{display:grid;gap:6px;align-content:start;justify-items:center;min-width:0;min-height:80px;padding:8px;border-radius:12px;background:var(--secondary-background-color,#f2f2f2)}\n  .music-favorite>span:last-child{max-width:100%;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}\n  .music-station-logo{position:relative;display:grid;place-items:center;width:48px;height:48px;flex-shrink:0;border-radius:8px;background:var(--card-background-color,#fff);color:var(--secondary-text-color,#727272);overflow:hidden}\n  .music-station-logo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--card-background-color,#fff)}\n  .music-station-row{display:flex;align-items:center;gap:12px;min-width:0}\n  .music-station-row>.setting-row{flex:1;min-width:0}\n  .music-favorite-actions{display:flex;align-items:center;gap:4px;flex-wrap:nowrap}\n  .music-apple-logo{display:block;width:48px;height:48px;flex-shrink:0;border-radius:10px}\n  .music-apple-results .setting-row{min-width:0}\n  .music-results{min-width:0;display:grid;gap:12px}\n  .music-search-line{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}\n  .music-library-nav,.music-manage-nav{display:grid;gap:8px;min-width:0}\n  .music-library-nav{grid-template-columns:repeat(3,minmax(0,1fr))}\n  .music-manage-nav{grid-template-columns:repeat(2,minmax(0,1fr))}\n  .music-library-nav button{border:1px solid var(--divider-color,#ddd)}\n  .music-library-nav button[aria-pressed=\"true\"]{background:var(--primary-color,#03a9f4);color:var(--text-primary-color,#fff);border-color:var(--primary-color,#03a9f4)}\n  .music-catalog-item{display:grid;gap:12px;padding:12px;border:1px solid var(--divider-color,#ddd);border-radius:12px;min-width:0}\n  .music-result-actions{display:grid;grid-template-columns:44px 44px minmax(0,1fr);gap:8px;align-items:stretch}\n  .music-result-actions.is-container{grid-template-columns:44px minmax(0,1fr) minmax(0,1fr)}\n  .music-result-actions.is-radio{grid-template-columns:44px minmax(0,1fr)}\n  .music-result-actions button{padding:8px;min-width:0}\n  .music-result-actions .music-icon{width:22px;height:22px}\n  .music-result-actions [data-action=\"apple-alarm-song\"] .music-icon{fill:currentColor;stroke:none}\n  .music-song-actions{display:flex;justify-content:flex-end}\n  .music-song-actions button{min-width:100px}\n  #music-apple-account:empty,#music-apple-status:empty{display:none}\n  #music-alarm-song-tools{display:grid;gap:12px}\n  .music-source-actions button{min-height:44px}\n  @media(max-width:600px){\n    .music-source-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}\n    .music-source-actions button{border:1px solid var(--divider-color,#ddd);padding:8px}\n    .music-favorites{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px}\n    .music-favorite{min-height:104px}\n    .music-transport{gap:8px}\n    .music-transport button{height:48px}\n    .music-browser{gap:12px}\n    .music-manage-nav button{padding:8px}\n    #music-search-form>.toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}\n    #music-search-form [data-action=\"manage-favorites\"]{grid-column:1/-1}\n    .music-favorite-actions{flex-wrap:wrap}\n    .music-favorite-actions .program-order button{width:44px;height:44px}\n    .music-favorite-actions .check{min-height:44px;min-width:44px;display:grid;place-items:center}\n  }\n\n  .modal{max-height:90dvh}\n  .modal .modal-body{min-height:0;flex:1;overscroll-behavior:contain}\n  .modal footer:empty{display:none}\n  .modal button{min-height:44px}\n  .modal .modal-head .edit-button{min-width:44px}\n  .modal .row-text{min-width:0;overflow-wrap:anywhere}\n  @media(max-width:600px){\n    .modal{inset:0;margin:0;width:100%;max-width:100%;height:100dvh;max-height:100dvh;border-radius:0}\n    .modal .modal-head{padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px 16px}\n    .modal .modal-body{padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px))}\n    .modal input:not([type=range]):not([type=checkbox]){font-size:16px;min-height:44px}\n  }\n\n/* Canonical music player presentation. Applications do not override these rules. */\n.fui-player-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}\n.fui-player-speaker{width:190px;max-width:calc(100% - 64px);min-width:0}\n.fui-player-speaker select{width:100%;min-width:0}\n.fui-player-name{min-width:0;overflow-wrap:anywhere;color:var(--secondary-text-color,#727272)}\n.fui-player-settings{width:48px;height:48px;flex-shrink:0;border-radius:50%;padding:12px;color:var(--secondary-text-color,#727272)}\n.fui-player-settings .ui-icon{width:24px;height:24px}\n.fui-player-heading{display:grid;grid-template-columns:80px minmax(0,1fr);align-items:center;gap:16px;padding:8px 0 16px;border-bottom:1px solid var(--divider-color,#ddd)}\n.fui-player-heading h3{font-size:20px;font-weight:500;line-height:1.3;overflow-wrap:anywhere}\n.fui-player-heading small{display:block;margin-top:6px;overflow-wrap:anywhere}\n.fui-music-artwork{position:relative;display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border-radius:8px;overflow:hidden;background:var(--secondary-background-color,#f2f2f2);color:var(--primary-color,#03a9f4)}\n.fui-music-artwork img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}\n.fui-player-heading .fui-music-artwork{width:80px;height:80px;border-radius:12px}\n.fui-player-heading .fui-music-artwork .ui-icon{width:40px;height:40px}\n.fui-music-transport{display:flex;align-items:center;justify-content:center;gap:12px}\n.fui-music-transport button{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;padding:12px;border-radius:50%}\n.fui-music-transport .fui-music-play{flex-basis:56px;width:56px;height:56px;padding:16px;background:var(--primary-color,#03a9f4);color:var(--text-primary-color,#fff)}\n.fui-music-transport .fui-music-play:hover:enabled{background:var(--primary-color,#03a9f4)}\n.fui-music-transport [aria-pressed=\"true\"]{background:color-mix(in srgb,var(--primary-color,#03a9f4) 14%,transparent)}\n.music-favorites{display:grid;grid-template-columns:repeat(auto-fill,64px);gap:10px}\n.music-favorites .fui-music-favorite{display:grid;place-items:center;width:64px;height:64px;min-width:64px;min-height:64px;padding:8px;border-radius:12px;background:var(--secondary-background-color,#f2f2f2)}\n.music-manage-nav{grid-template-columns:minmax(0,1fr)}\n.music-apple-results.no-alarm-songs .music-result-actions:not(.is-container){grid-template-columns:44px minmax(0,1fr)}\n.fui-player-navigation-status:empty{display:none}\n.fui-player-song-tools{display:grid;gap:12px}\n.fui-player-song-list{display:grid;gap:8px;min-width:0}\n.fui-player-settings-list{display:grid;gap:0}\n@media(max-width:360px){.fui-player-heading{grid-template-columns:64px minmax(0,1fr);gap:12px}.fui-player-heading .fui-music-artwork{width:64px;height:64px}.fui-music-transport{gap:8px}}\n\n.modal .edit-button{width:44px;height:44px;min-width:44px;border-radius:50%}\n\n.fui-player-speaker-compact{width:150px}\n";
+/** Pointer/touch/keyboard ordering. The application owns persistence and permissions. */
+export function bindOrdering(root, onAction = () => {}) {
+  let drag = null, frame = null;
+  const handleOf = event => event.target.closest?.('[data-ui="order"]');
+  const itemOf = handle => handle.closest('.program,.setting-row,.music-catalog-item,.music-favorite-row,.fui-order-item') || handle.parentElement;
+  const peers = handle => [...root.querySelectorAll('[data-ui="order"]')].filter(el =>
+    el.dataset.action === handle.dataset.action && el.dataset.orderGroup === handle.dataset.orderGroup &&
+    el.closest('.program-group') === handle.closest('.program-group') && !el.disabled && el.getClientRects().length);
+  const clear = () => {
+    if (!drag) return;
+    clearTimeout(drag.timer); cancelAnimationFrame(frame); frame = null;
+    itemOf(drag.handle)?.classList.remove('fui-order-dragging');
+    for (const handle of drag.items) itemOf(handle)?.classList.remove('fui-order-before','fui-order-after');
+    drag.handle.setAttribute('aria-grabbed','false');
+    try { drag.handle.releasePointerCapture(drag.pointer); } catch {}
+    drag = null;
+  };
+  const commit = (handle, items, from, to, originalEvent) => {
+    if (from === to || !items[to] || !root.contains(handle) || handle.disabled) return;
+    Object.assign(handle.dataset,{offset:String(to-from),direction:to<from?'up':'down',fromIndex:String(from),toIndex:String(to)});
+    const result=onAction({action:handle.dataset.action,data:{...handle.dataset},element:handle,originalEvent});
+    const focus=()=>[...root.querySelectorAll('[data-ui="order"]')].find(el=>el.dataset.action===handle.dataset.action&&el.dataset.program===handle.dataset.program&&el.dataset.orderGroup===handle.dataset.orderGroup)?.focus({preventScroll:true});
+    Promise.resolve(result).then(focus,focus);
+  };
+  const update = () => {
+    if (!drag?.active) return;
+    if (!root.contains(drag.handle) || peers(drag.handle).map(el=>el.dataset.program).join('\0') !== drag.ids) { clear(); return; }
+    for (const handle of drag.items) itemOf(handle)?.classList.remove('fui-order-before','fui-order-after');
+    const group=drag.handle.closest('.program-group'),bounds=group?.getBoundingClientRect();
+    if(bounds&&(drag.x<bounds.left||drag.x>bounds.right||drag.y<bounds.top||drag.y>bounds.bottom)){drag.to=drag.from;return;}
+    let distance=Infinity,target=drag.from;
+    drag.items.forEach((handle,index)=>{const box=handle.getBoundingClientRect();const d=Math.hypot(drag.x-(box.left+box.width/2),drag.y-(box.top+box.height/2));if(d<distance){distance=d;target=index;}});
+    drag.to=target;
+    if(target!==drag.from)itemOf(drag.items[target])?.classList.add(target<drag.from?'fui-order-before':'fui-order-after');
+  };
+  const scrollFrame = () => {
+    if (!drag?.active) return;
+    let parent=drag.handle.parentElement;
+    while(parent){const style=getComputedStyle(parent);if(/auto|scroll/.test(style.overflowY)&&parent.scrollHeight>parent.clientHeight)break;parent=parent.parentElement||parent.getRootNode()?.host;}
+    const box=parent?.getBoundingClientRect()||{top:0,bottom:innerHeight};
+    const top=Math.max(0,box.top),bottom=Math.min(innerHeight,box.bottom);
+    const step=drag.y<top+36?-14:drag.y>bottom-36?14:0;
+    if(step){if(parent)parent.scrollBy(0,step);else window.scrollBy(0,step);update();}
+    frame=requestAnimationFrame(scrollFrame);
+  };
+  const down = event => {
+    const handle=handleOf(event);
+    if(!handle||handle.disabled||event.button!==0||!root.contains(handle))return;
+    const items=peers(handle);if(items.length<2)return;
+    clear();event.preventDefault();
+    drag={handle,items,ids:items.map(el=>el.dataset.program).join('\0'),from:items.indexOf(handle),to:items.indexOf(handle),pointer:event.pointerId,x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,active:false};
+    try{handle.setPointerCapture(event.pointerId);}catch{}
+    drag.timer=setTimeout(()=>{if(!drag)return;drag.active=true;handle.setAttribute('aria-grabbed','true');itemOf(handle)?.classList.add('fui-order-dragging');update();frame=requestAnimationFrame(scrollFrame);},180);
+  };
+  const move = event => {
+    if(!drag||event.pointerId!==drag.pointer)return;
+    drag.x=event.clientX;drag.y=event.clientY;
+    if(!drag.active){if(Math.hypot(drag.x-drag.startX,drag.y-drag.startY)>10)clear();return;}
+    event.preventDefault();update();
+  };
+  const up = event => {
+    if(!drag||event.pointerId!==drag.pointer)return;
+    const current=drag,valid=current.active&&peers(current.handle).map(el=>el.dataset.program).join('\0')===current.ids;
+    clear();if(valid)commit(current.handle,current.items,current.from,current.to,event);
+  };
+  const cancel = () => clear();
+  const click = event => {if(handleOf(event)){event.preventDefault();event.stopImmediatePropagation();}};
+  const key = event => {
+    if(event.key==='Escape'&&drag){event.preventDefault();clear();return;}
+    const handle=handleOf(event);if(!handle||handle.disabled)return;
+    const items=peers(handle),from=items.indexOf(handle);
+    const to=event.key==='ArrowUp'?from-1:event.key==='ArrowDown'?from+1:event.key==='Home'?0:event.key==='End'?items.length-1:null;
+    if(to===null)return;
+    event.preventDefault();event.stopImmediatePropagation();commit(handle,items,from,to,event);
+  };
+  root.addEventListener('pointerdown',down);root.addEventListener('pointermove',move);root.addEventListener('pointerup',up);root.addEventListener('pointercancel',cancel);
+  root.addEventListener('click',click,true);root.addEventListener('keydown',key,true);
+  return ()=>{clear();root.removeEventListener('pointerdown',down);root.removeEventListener('pointermove',move);root.removeEventListener('pointerup',up);root.removeEventListener('pointercancel',cancel);root.removeEventListener('click',click,true);root.removeEventListener('keydown',key,true);};
+}
+
+
+/** Text/attribute escaping; content parameters explicitly accept trusted application markup. */
+export function escapeHtml(value = '') {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function dataAttrs(data = {}) {
+  return Object.entries(data).map(([key, value]) => {
+    if (!/^[a-z][a-z0-9-]*$/.test(key)) throw new TypeError(`Invalid data attribute: ${key}`);
+    return ` data-${key}="${escapeHtml(value)}"`;
+  }).join('');
+}
+
+function actionAttrs(action, data) {
+  if (Object.hasOwn(data || {}, 'action')) throw new TypeError('Use the action argument for data-action');
+  return ` data-action="${escapeHtml(action)}"${dataAttrs(data)}`;
+}
+
+export function button({label, action, icon: name, variant = 'text', disabled = false, compact = false, data = {}}) {
+  if (!['text', 'primary', 'danger'].includes(variant)) throw new TypeError('Unknown button variant');
+  return `<button type="button" class="${[variant === 'text' ? '' : variant,compact?'compact':''].filter(Boolean).join(' ')}"${actionAttrs(action, data)}${disabled ? ' disabled' : ''}>${name ? icon(name) : ''}<span>${escapeHtml(label)}</span></button>`;
+}
+
+/** Shutter Manager's text plus is intentional: do not substitute the generic add SVG. */
+export function programAddButton({label = 'Programm', action = 'new-program', disabled = false, data = {}} = {}) {
+  return `<button type="button" class="primary program-add"${actionAttrs(action, data)}${disabled ? ' disabled' : ''}>+ ${escapeHtml(label)}</button>`;
+}
+
+/** One shared drag handle; indices refer to the sortable group. */
+export function orderHandle({id,index,count,action='move-program',group='',disabled=false,label='Reihenfolge ändern',data={}}) {
+  if(typeof id!=='string'||!id)throw new TypeError('Ordering requires an ID');
+  if(!Number.isInteger(index)||!Number.isInteger(count)||count<1||index<0||index>=count)throw new RangeError('Ordering requires 0 <= index < count');
+  return `<button type="button" class="fui-order-handle" data-ui="order"${actionAttrs(action,{...data,program:id,'order-group':group})} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" aria-keyshortcuts="ArrowUp ArrowDown Home End" aria-grabbed="false"${disabled||count<2?' disabled':''}>${icon('drag')}</button>`;
+}
+
+/** Compatibility export: arrows are replaced by a mouse/touch/keyboard handle. */
+export function programOrderButtons({programId,index,count,action='move-program',disabled=false,group='',dragLabel='Reihenfolge ändern'}) {
+  return `<div class="program-order">${orderHandle({id:programId,index,count,action,disabled,group,label:dragLabel})}</div>`;
+}
+
+export function iconButton({icon: name, label, action, disabled = false, danger = false, data = {}, desktopOnly = false}) {
+  if (!label) throw new TypeError('Icon buttons require a label');
+  return `<button type="button" class="edit-button${danger ? ' danger' : ''}${desktopOnly ? ' desktop-only' : ''}"${actionAttrs(action, data)} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${disabled ? ' disabled' : ''}>${icon(name)}</button>`;
+}
+
+export function navigation({label, items, active, settings = true, help = true, settingsLabel = 'Einstellungen', helpLabel = 'Anleitung', actions = []}) {
+  const navButton = (item, cls = '') => `<button type="button" class="${cls}${item.id === active ? ' selected' : ''}"${actionAttrs('navigate', {page:item.id})} aria-current="${item.id === active ? 'page' : 'false'}"${item.icon ? ` aria-label="${escapeHtml(item.label)}" title="${escapeHtml(item.label)}"` : ''}>${item.icon ? icon(item.icon) : escapeHtml(item.label)}</button>`;
+  return `<div class="card-top"><nav aria-label="${escapeHtml(label)}">${items.map(item => navButton(item, item.icon ? 'icon-tab' : '')).join('')}</nav>${actions.length?`<div class="fui-navigation-actions">${actions.map(action=>iconButton(action)).join('')}</div>`:''}${help ? navButton({id:'help', label:helpLabel, icon:'help'}, 'settings-button') : ''}${settings ? navButton({id:'settings', label:settingsLabel, icon:'settings'}, 'settings-button') : ''}</div>`;
+}
+
+export function toggle({label, action, checked = false, disabled = false, data = {}, iconOnly = false}) {
+  return `<button type="button" class="toggle${checked ? ' on' : ''}${iconOnly ? ' icon-only' : ''}" role="switch" aria-checked="${Boolean(checked)}" aria-label="${escapeHtml(label)}"${actionAttrs(action, data)}${disabled ? ' disabled' : ''}><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span><span>${escapeHtml(label)}</span></button>`;
+}
+
+export function filterButton({label, action, selected = false, data = {}}) {
+  return `<button type="button" class="filter-button"${actionAttrs(action, data)} aria-pressed="${Boolean(selected)}">${escapeHtml(label)}</button>`;
+}
+
+/** id must be unique within the card's ShadowRoot. trailing/content are trusted markup. */
+export function section({id, title, content = '', trailing = '', expanded = true}) {
+  if (!id || /\s/.test(id)) throw new TypeError('Section requires a nonempty ID without whitespace');
+  return `<section class="settings-group" data-settings="${escapeHtml(id)}"><div class="settings-heading-row"><button type="button" class="settings-fold" data-ui="collapse" aria-expanded="${Boolean(expanded)}" aria-controls="${escapeHtml(id)}-content">${icon('chevron', {expanded})}<span>${escapeHtml(title)}</span></button>${trailing}</div><div id="${escapeHtml(id)}-content"${expanded ? '' : ' hidden'}>${content}</div></section>`;
+}
+
+export function row({title, description = '', trailing = ''}) {
+  return `<div class="setting-row"><div class="row-text"><strong>${escapeHtml(title)}</strong>${description ? `<small>${escapeHtml(description)}</small>` : ''}</div><div class="toolbar">${trailing}</div></div>`;
+}
+
+export function field({id, label, value = '', type = 'text', required = false, disabled = false, name, min, max, step, placeholder, maxLength, inputMode, autocomplete, unit = '', hint = '', error = ''}) {
+  if (!['text','number','time','date','email','search','url'].includes(type)) throw new TypeError('Unsupported field type');
+  const attrs = Object.entries({name,min,max,step,placeholder,maxlength:maxLength,inputmode:inputMode,autocomplete}).filter(([,v])=>v!==undefined).map(([k,v])=>` ${k}="${escapeHtml(v)}"`).join('');
+  const described = [hint && id+'-hint',error && id+'-error'].filter(Boolean).join(' ');
+  return `<label class="field" for="${escapeHtml(id)}"><span>${escapeHtml(label)}</span><input id="${escapeHtml(id)}" type="${type}" value="${escapeHtml(value)}"${attrs}${required ? ' required' : ''}${disabled ? ' disabled' : ''}${error ? ' aria-invalid="true"' : ''}${described ? ` aria-describedby="${escapeHtml(described)}"` : ''}>${unit?`<small class="field-unit">${escapeHtml(unit)}</small>`:''}${hint?`<small id="${escapeHtml(id)}-hint">${escapeHtml(hint)}</small>`:''}${error?`<small class="field-error" id="${escapeHtml(id)}-error" role="alert">${escapeHtml(error)}</small>`:''}</label>`;
+}
+
+export function selectField({id, label, value = '', options, disabled = false, name, required = false, hint = '', error = '', hideLabel = false}) {
+  const render = option => option.options ? `<optgroup label="${escapeHtml(option.label)}">${option.options.map(render).join('')}</optgroup>` : `<option value="${escapeHtml(option.value)}"${String(option.value) === String(value) ? ' selected' : ''}${option.disabled?' disabled':''}>${escapeHtml(option.label)}</option>`;
+  return `<label class="field" for="${escapeHtml(id)}"><span${hideLabel?' class="visually-hidden"':''}>${escapeHtml(label)}</span><select id="${escapeHtml(id)}"${name?` name="${escapeHtml(name)}"`:''}${disabled ? ' disabled' : ''}${required?' required':''}${error?' aria-invalid="true"':''}${hint||error?` aria-describedby="${escapeHtml(id)}-help"`:''}>${options.map(render).join('')}</select>${hint||error?`<small id="${escapeHtml(id)}-help" class="${error?'field-error':''}"${error?' role="alert"':''}>${escapeHtml(error||hint)}</small>`:''}</label>`;
+}
+
+/** A native modal: call showModal() after inserting it. Escape and focus stay native. */
+export function dialog({id, title, content, actions = '', closeLabel = 'Schließen'}) {
+  return `<dialog id="${escapeHtml(id)}" class="modal" aria-labelledby="${escapeHtml(id)}-title"><div class="modal-head"><h3 id="${escapeHtml(id)}-title">${escapeHtml(title)}</h3><button type="button" class="edit-button" data-ui="close-dialog" aria-label="${escapeHtml(closeLabel)}" title="${escapeHtml(closeLabel)}">${icon('close')}</button></div><div class="modal-body">${content}</div><footer>${actions}</footer></dialog>`;
+}
+
+export function notice(message, {error = false} = {}) {
+  return `<div class="${error ? 'error' : 'notice'}" role="${error ? 'alert' : 'status'}">${escapeHtml(message)}</div>`;
+}
+
+export function versionInfo({frontend, backend, ui, label = 'Oberfläche', backendLabel = 'Integration'}) {
+  return `<p class="version-info">${escapeHtml(label)} ${escapeHtml(frontend)}${backend ? ` · ${escapeHtml(backendLabel)} ${escapeHtml(backend)}` : ''}${ui ? ` · UI ${escapeHtml(ui)}` : ''}</p>`;
+}
+
+/** Bind once per ShadowRoot; the returned function removes the listener on disconnect. */
+export function bindUI(root, onAction = () => {}) {
+  const unbindObjects = bindObjects(root, onAction);
+  const unbindOrdering = bindOrdering(root, onAction);
+  const handleClick = event => {
+    const target = event.target.closest?.('button');
+    if (!target || !root.contains(target) || target.disabled) return;
+    if (target.dataset.ui === 'collapse') {
+      const content = root.getElementById(target.getAttribute('aria-controls'));
+      if (!content) return;
+      const expanded = target.getAttribute('aria-expanded') !== 'true';
+      target.setAttribute('aria-expanded', String(expanded));
+      content.hidden = !expanded;
+      target.querySelector('.chevron')?.classList.toggle('expanded', expanded);
+      return;
+    }
+    if (target.dataset.ui === 'close-dialog') {
+      target.closest('dialog')?.close();
+      return;
+    }
+    if (!target.hasAttribute('data-action')) return;
+    // Controlled components: the integration decides whether to commit the change.
+    const checked = target.getAttribute('role') === 'switch' ? target.getAttribute('aria-checked') !== 'true' : undefined;
+    onAction({action:target.dataset.action, data:{...target.dataset}, checked, element:target, originalEvent:event});
+  };
+  root.addEventListener('click', handleClick);
+  const handleKeydown = event => {
+    if (event.key !== 'Tab') return;
+    const modal = event.target.closest?.('dialog[open]');
+    if (!modal) return;
+    const controls = [...modal.querySelectorAll('button,input,select,textarea,a[href],[tabindex]')].filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey && event.target === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && event.target === last) { event.preventDefault(); first?.focus(); }
+  };
+  root.addEventListener('keydown', handleKeydown);
+  return () => { unbindOrdering(); unbindObjects(); root.removeEventListener('click', handleClick); root.removeEventListener('keydown', handleKeydown); };
+}
+
+
+// Content/actions/body/cell-renderers accept trusted application markup, all data text is escaped.
+function objectId(id) { if (typeof id !== 'string' || !id || /\s/.test(id)) throw new TypeError('A unique ID without whitespace is required'); return escapeHtml(id); }
+function objectAction(action) { return `data-control-action="${escapeHtml(action)}"`; }
+
+/** Native role changes carry data-user; enabled changes use the controlled toggle. */
+export function userAccessRow({id,title,description='',value='',options=[],enabled=false,admin=false,disabled=false,toggleAction='user-enabled',toggleLabel='Zugriff für '+title,roleLabel='Rolle für '+title,adminLabel='Vollzugriff'}) {
+  objectId(id);
+  const name=`<div class="row-text"><strong>${escapeHtml(title)}</strong>${description?`<small>${escapeHtml(description)}</small>`:''}</div>`;
+  if(admin)return `<div class="setting-row fui-user-access" data-access-user="${escapeHtml(id)}">${name}<div class="fui-user-access-admin">${statusBadge({label:adminLabel,state:'neutral',icon:'lock'})}</div></div>`;
+  const role=selectField({id:'access-role-'+id,label:roleLabel,value,options,disabled,hideLabel:true}).replace('<select ',`<select data-user="${escapeHtml(id)}" `);
+  const control=toggle({label:toggleLabel,action:toggleAction,checked:enabled,disabled,iconOnly:true,data:{user:id}});
+  return `<div class="setting-row fui-user-access" data-access-user="${escapeHtml(id)}">${name}<div class="fui-user-access-role">${role}</div><div class="fui-user-access-toggle">${control}</div></div>`;
+}
+
+export function textareaField({id,label,value='',name,rows=3,maxLength,required=false,disabled=false,hint='',error=''}) {
+  objectId(id);
+  return `<label class="field" for="${escapeHtml(id)}"><span>${escapeHtml(label)}</span><textarea id="${escapeHtml(id)}" rows="${Math.max(1,Number(rows)||3)}"${name?` name="${escapeHtml(name)}"`:''}${maxLength!==undefined?` maxlength="${escapeHtml(maxLength)}"`:''}${required?' required':''}${disabled?' disabled':''}${error?' aria-invalid="true"':''}${hint||error?` aria-describedby="${escapeHtml(id)}-help"`:''}>${escapeHtml(value)}</textarea>${hint||error?`<small id="${escapeHtml(id)}-help" class="${error?'field-error':''}"${error?' role="alert"':''}>${escapeHtml(error||hint)}</small>`:''}</label>`;
+}
+
+export function numberControl({id,label,value='',presets=[],action='number-change',...options}) {
+  objectId(id);
+  return `<div class="fui-number" ${objectAction(action)}>${field({id,label,value,type:'number',...options})}${presets.length?`<div class="toolbar fui-presets" role="group" aria-label="${escapeHtml(label)} – Schnellwerte">${presets.map(p=>`<button type="button" data-ui-preset="${escapeHtml(typeof p==='object'?p.value:p)}"${options.disabled?' disabled':''}>${escapeHtml(typeof p==='object'?p.label:p)}</button>`).join('')}</div>`:''}</div>`;
+}
+
+export function checkboxGroup({id,label,items,values=[],action='selection-change',disabled=false,days=false}) {
+  objectId(id);const selected=new Set(values.map(String));
+  return `<fieldset class="fui-check-group" id="${escapeHtml(id)}" data-ui-checks ${objectAction(action)}><legend>${escapeHtml(label)}</legend><div class="${days?'days':'fui-checks'}">${items.map((item,i)=>`<label class="${days?'':'check'}"${item.description?` title="${escapeHtml(item.description)}"`:''}><input type="checkbox" value="${escapeHtml(item.value??item.id)}" aria-label="${escapeHtml(item.description||item.label)}"${selected.has(String(item.value??item.id))?' checked':''}${disabled||item.disabled?' disabled':''}><span>${escapeHtml(item.label)}</span></label>`).join('')}</div></fieldset>`;
+}
+
+export function weekdayPicker({id,label='Wochentage',values=[],action='weekdays-change',disabled=false,labels=['Mo','Di','Mi','Do','Fr','Sa','So']}={}) {
+  return checkboxGroup({id,label,values,action,disabled,days:true,items:labels.map((label,value)=>({value,label}))}).replace('data-ui-checks','data-ui-checks data-value-type="number"');
+}
+
+export function combobox({id,label,items,value='',selected='',action='combobox-select',placeholder='Suchen …',required=false,disabled=false,emptyLabel='Keine passenden Einträge gefunden.'}) {
+  objectId(id);
+  return `<div class="fui-combobox" id="${escapeHtml(id)}-control" data-ui-combobox data-selected="${escapeHtml(selected)}" ${objectAction(action)}>${field({id,label,value,placeholder,required,disabled,autocomplete:'off'}).replace('<input ',`<input role="combobox" aria-autocomplete="list" aria-controls="${escapeHtml(id)}-options" aria-expanded="false" `)}<button type="button" class="edit-button fui-combo-toggle" data-ui-combo-toggle aria-label="${escapeHtml(label)} aufklappen"${disabled?' disabled':''}>${icon('down')}</button><div class="fui-options" id="${escapeHtml(id)}-options" role="listbox" aria-label="${escapeHtml(label)}" hidden>${items.map((item,i)=>`<button type="button" class="fui-option" role="option" tabindex="-1" id="${escapeHtml(id)}-option-${i}" data-ui-option data-value="${escapeHtml(item.value??item.id)}" data-label="${escapeHtml(item.label)}" aria-selected="${String(String(item.value??item.id)===String(selected))}"${item.disabled?' disabled':''}><strong>${escapeHtml(item.label)}</strong>${item.description?`<small>${escapeHtml(item.description)}</small>`:''}</button>`).join('')}<div class="fui-options-empty" role="status" hidden>${escapeHtml(emptyLabel)}</div></div></div>`;
+}
+
+export function multiSelect({id,label='Auswahl',items,values=[],action='selection-change',search=true,all=true,selectedFirst=false,disabled=false,searchLabel='Name oder Entität suchen',allLabel='Alle sichtbaren auswählen',clearLabel='Auswahl aufheben',emptyLabel='Keine Treffer für diese Auswahl.'}) {
+  objectId(id);const selected=new Set(values.map(String)),groups=[...new Set(items.map(i=>i.group||''))];
+  return `<fieldset class="fui-multi" id="${escapeHtml(id)}" data-ui-multi ${objectAction(action)} data-selected-first="${selectedFirst}"><legend>${escapeHtml(label)}</legend>${search?field({id:id+'-search',label:searchLabel,type:'search',disabled}):''}${all?`<div class="toolbar import-toolbar"><button type="button" data-ui-select-all${disabled?' disabled':''}>${escapeHtml(allLabel)}</button><button type="button" data-ui-select-none${disabled?' disabled':''}>${escapeHtml(clearLabel)}</button></div>`:''}<div class="fui-selection-list">${groups.map(group=>`<section class="fui-selection-group" data-selection-group>${group?`<h4>${escapeHtml(group)}</h4>`:''}${items.filter(i=>(i.group||'')===group).sort((a,b)=>selectedFirst?Number(selected.has(String(b.value??b.id)))-Number(selected.has(String(a.value??a.id))):0).map(item=>`<label class="cover-option" data-selection-row data-search="${escapeHtml([item.label,item.description,item.value??item.id].filter(Boolean).join(' ').toLocaleLowerCase())}"><input type="checkbox" value="${escapeHtml(item.value??item.id)}"${selected.has(String(item.value??item.id))?' checked':''}${disabled||item.disabled?' disabled':''}><span><strong>${escapeHtml(item.label)}</strong>${item.description?`<small>${escapeHtml(item.description)}</small>`:''}${item.hint?`<small>${escapeHtml(item.hint)}</small>`:''}</span></label>`).join('')}</section>`).join('')}</div><p class="hint fui-selection-empty" role="status"${items.length?' hidden':''}>${escapeHtml(emptyLabel)}</p><small data-selection-count aria-live="polite">${items.filter(i=>selected.has(String(i.value??i.id))).length} ausgewählt</small></fieldset>`;
+}
+
+export function rangeControl({id,label,value=0,min=0,max=100,step=1,unit='%',action='range-change',keepLabel='Unverändert',allowKeep=true,disabled=false,reverse=false}) {
+  objectId(id);if(!Number.isFinite(min)||!Number.isFinite(max)||max<=min||!Number.isFinite(step)||step<=0)throw new RangeError('Invalid range');
+  const keep=value===null,n=keep?min:Math.max(min,Math.min(max,Number(value)));if(!Number.isFinite(n))throw new TypeError('Invalid range value');
+  const position=reverse?max-n+min:n,percent=(position-min)/(max-min)*100;
+  return `<div class="position-control" data-ui-range id="${escapeHtml(id)}-control" ${objectAction(action)} data-unit="${escapeHtml(unit)}" data-keep="${keep}" data-keep-label="${escapeHtml(keepLabel)}" data-reverse="${reverse}"><div class="slider-head"><label for="${escapeHtml(id)}">${escapeHtml(label)}</label><output for="${escapeHtml(id)}">${escapeHtml(keep?keepLabel:n+(unit?' '+unit:''))}</output></div><input id="${escapeHtml(id)}" type="range" min="${min}" max="${max}" step="${step}" value="${position}" aria-label="${escapeHtml(label)}" aria-valuetext="${escapeHtml(keep?keepLabel:n+(unit?' '+unit:''))}" style="--range-percent:${percent}%"${disabled?' disabled':''}>${allowKeep?`<div class="slider-foot"><button type="button" class="keep-value${keep?' selected':''}" data-ui-keep aria-pressed="${keep}"${disabled?' disabled':''}>${escapeHtml(keepLabel)}</button></div>`:''}</div>`;
+}
+
+export function whiteTemperatureControl({id,label='Weißtöne',value=4000,min=2000,max=6500,action='temperature-change',disabled=false,coldLabel='Kaltweiß',warmLabel='Warmweiß'}) {
+  return `<div class="white-control"><div class="white-labels"><span>${escapeHtml(coldLabel)}</span><span>${escapeHtml(warmLabel)}</span></div>${rangeControl({id,label,value,min,max,step:1,unit:'K',action,allowKeep:false,disabled,reverse:true})}<div class="white-labels hint"><span>${max} K</span><span>${min} K</span></div></div>`;
+}
+
+export function parseColour(value) {
+  if(Array.isArray(value)&&value.length===3&&value.every(n=>Number.isFinite(n)&&n>=0&&n<=255))return value.map(Math.round);
+  if(typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value))return [1,3,5].map(i=>parseInt(value.slice(i,i+2),16));
+  throw new TypeError('Colour requires #RRGGBB or three RGB numbers');
+}
+export function rgbToHSV(rgb) { const [r,g,b]=parseColour(rgb).map(n=>n/255),max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;let h=0;if(d)h=max===r?((g-b)/d)%6:max===g?(b-r)/d+2:(r-g)/d+4;return {h:(h*60+360)%360,s:max?d/max:0,v:max}; }
+export function hsvToRGB(h,s,v=1) { if(![h,s,v].every(Number.isFinite)||s<0||s>1||v<0||v>1)throw new RangeError('Invalid HSV colour');h=((h%360)+360)%360;const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;return (h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x]).map(n=>Math.round((n+m)*255)); }
+export function colourPicker({id,label='Farbe',value='#FF7000',action='colour-change',disabled=false}) {
+  objectId(id);const rgb=parseColour(value),{h,s}=rgbToHSV(rgb),a=h*Math.PI/180,hex='#'+rgb.map(n=>n.toString(16).padStart(2,'0')).join('');
+  return `<div class="colour-control" id="${escapeHtml(id)}" data-ui-colour ${objectAction(action)} data-rgb="${rgb.join(',')}"><span class="field-label">${escapeHtml(label)}</span><div class="colour-wheel" tabindex="${disabled?-1:0}" role="group" aria-label="${escapeHtml(label)}: Pfeiltasten zum Wählen, Pos1 für Weiß" aria-disabled="${disabled}" aria-describedby="${escapeHtml(id)}-value"><span class="colour-marker" style="left:${50+Math.sin(a)*s*50}%;top:${50-Math.cos(a)*s*50}%;background:${hex}"></span></div><div class="colour-preview"><span data-colour-swatch style="background:${hex}"></span><output id="${escapeHtml(id)}-value" aria-live="polite">${hex.toUpperCase()}</output></div></div>`;
+}
+
+export function timeWindow({id,label='Zeitfenster',start='00:00',end='00:00',action='time-window-change',disabled=false,startLabel='Von',endLabel='Bis'}) {
+  objectId(id);return `<fieldset class="fui-time-window" id="${escapeHtml(id)}" data-ui-time-window ${objectAction(action)}><legend>${escapeHtml(label)}</legend><div class="grid">${field({id:id+'-start',name:'start',label:startLabel,value:start,type:'time',required:true,disabled})}${field({id:id+'-end',name:'end',label:endLabel,value:end,type:'time',required:true,disabled})}</div><small>Gleiche Uhrzeit = ganztägig. Zeitfenster über Mitternacht sind möglich.</small></fieldset>`;
+}
+export function parseMonthDay(value) {
+  const m=String(value).match(/^(\d{1,2})\.(\d{1,2})\.?$/);if(!m)return null;
+  const day=Number(m[1]),month=Number(m[2]),date=new Date(Date.UTC(2000,month-1,day));
+  return date.getUTCMonth()===month-1&&date.getUTCDate()===day?`${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`:null;
+}
+export function seasonPicker({id,label='Gültigkeitszeitraum',enabled=false,start='04-01',end='10-31',action='season-change',disabled=false}) {
+  objectId(id);const display=s=>/^\d{2}-\d{2}$/.test(s)?s.slice(3)+'.'+s.slice(0,2):s;
+  return `<fieldset class="season-box" id="${escapeHtml(id)}" data-ui-season ${objectAction(action)}><legend>${escapeHtml(label)}</legend><label class="check"><input type="checkbox" data-season-enabled${enabled?' checked':''}${disabled?' disabled':''}>Saison einschränken</label><div class="season-dates"${enabled?'':' hidden'}>${field({id:id+'-start',name:'start',label:'Von (TT.MM.)',value:display(start),placeholder:'01.04.',maxLength:6,inputMode:'numeric',disabled:disabled||!enabled})}${field({id:id+'-end',name:'end',label:'Bis (TT.MM.)',value:display(end),placeholder:'31.10.',maxLength:6,inputMode:'numeric',disabled:disabled||!enabled})}</div><small>Der Zeitraum darf über den Jahreswechsel reichen.</small></fieldset>`;
+}
+
+export function dateRange({id,label='Zeitraum',start='',end='',action='date-range-change',disabled=false,optionalEnd=true}) {
+  objectId(id);return `<fieldset id="${escapeHtml(id)}" data-ui-date-range ${objectAction(action)}><legend>${escapeHtml(label)}</legend><div class="grid">${field({id:id+'-start',name:'start',label:'Von',value:start,type:'date',required:true,disabled})}${field({id:id+'-end',name:'end',label:optionalEnd?'Bis (optional)':'Bis',value:end,type:'date',min:start||undefined,required:!optionalEnd,disabled})}</div></fieldset>`;
+}
+
+export function recurrenceEditor({id,label='Wiederholung',value={},action='recurrence-change',disabled=false,people=[]}) {
+  objectId(id);const kind=value.kind||'once',unit=kind==='daily'?'day':kind==='yearly'?'year':kind.startsWith('monthly')?'month':'week',start=value.start||'',days=value.weekdays||[],repeating=kind!=='once';
+  return `<fieldset class="recurrence"${disabled?' disabled':''} id="${escapeHtml(id)}" data-ui-recurrence ${objectAction(action)}><legend>${escapeHtml(label)}</legend>${dateRange({id:id+'-dates',start,end:value.end||'',disabled})}<label class="check"><input type="checkbox" name="repeating"${repeating?' checked':''}${disabled?' disabled':''}>${icon('schedule')}Wiederkehrend</label><div class="recurrence-controls"${repeating?'':' hidden'}><div class="repeat-line"><span>Wiederholen alle</span><input type="number" name="interval" min="1" max="365" value="${escapeHtml(value.interval??1)}" aria-label="Wiederholungsabstand"${disabled||!repeating?' disabled':''}><select name="unit" aria-label="Wiederholungseinheit"${disabled||!repeating?' disabled':''}>${[['day','Tag'],['week','Woche'],['month','Monat'],['year','Jahr']].map(([v,l])=>`<option value="${v}"${unit===v?' selected':''}>${l}</option>`).join('')}</select></div><label class="field" data-month-mode><span>Monatliches Muster</span><select name="month_mode"${disabled?' disabled':''}><option value="date"${kind!=='monthly_nth'?' selected':''}>Am Tag des Startdatums</option><option value="nth"${kind==='monthly_nth'?' selected':''}>An einem bestimmten Wochentag</option></select></label><label class="field" data-nth><span>Welcher im Monat?</span><select name="nth"${disabled?' disabled':''}>${[[1,'Erster'],[2,'Zweiter'],[3,'Dritter'],[4,'Vierter'],[5,'Fünfter'],[-1,'Letzter']].map(([v,l])=>`<option value="${v}"${Number(value.nth??1)===v?' selected':''}>${l}</option>`).join('')}</select></label>${weekdayPicker({id:id+'-days',values:days,disabled})}${people.length?`<label class="check"><input type="checkbox" name="alternating"${value.alternating?' checked':''}${disabled?' disabled':''}>Abwechselnd</label><label class="field" data-first-person><span>Wer beginnt?</span><select name="first_person"${disabled?' disabled':''}>${people.map(p=>`<option value="${escapeHtml(p)}"${value.first_person===p?' selected':''}>${escapeHtml(p)}</option>`).join('')}</select></label>`:''}<small class="recurrence-hint" aria-live="polite"></small></div></fieldset>`;
+}
+
+export function programGroup({id,title,count,content='',expanded=true}) {
+  objectId(id);return `<section class="program-group" id="${escapeHtml(id)}"><button type="button" class="program-group-head" data-ui="collapse" aria-expanded="${expanded}" aria-controls="${escapeHtml(id)}-content">${icon('chevron',{expanded})}<strong>${escapeHtml(title)}</strong><span>${escapeHtml(count??'')}</span></button><div id="${escapeHtml(id)}-content"${expanded?'':' hidden'}>${content}</div></section>`;
+}
+export function programRow({id,title,meta=[],enabled=true,expanded=false,content='',actions='',index=0,count=1,editable=true,sortable=true,copyable=true,disabled=false}) {
+  objectId(id);const data={program:id};
+  const tools=(editable&&sortable?programOrderButtons({programId:id,index,count,disabled}):'')+toggle({label:title+' aktiv',action:'program-enabled',checked:enabled,disabled,data,iconOnly:true})+(editable&&copyable?iconButton({icon:'copy',label:'Programm kopieren',action:'copy-program',data,disabled,desktopOnly:true}):'')+(editable?iconButton({icon:'edit',label:'Programm bearbeiten',action:'edit-program',data,disabled}):'')+actions;
+  return `<section class="program${enabled?'':' muted'}"><div class="program-head"><div class="program-heading"><button type="button" class="program-title" data-ui="collapse" aria-expanded="${expanded}" aria-controls="${escapeHtml(id)}-content">${icon('chevron',{expanded})}<span>${escapeHtml(title)}</span></button><div class="tags">${meta.map(t=>`<span>${escapeHtml(t)}</span>`).join('')}</div></div><div class="toolbar">${tools}</div></div><div id="${escapeHtml(id)}-content"${expanded?'':' hidden'}>${content}</div></section>`;
+}
+export function actionRow({title,description='',detail='',actions='',enabled=true,inlineActions=false,skipped=false}) {
+  return `<div class="ride${enabled?'':' muted'}${skipped?' skipped':''}"><div class="ride-info"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(description)}</span>${detail?`<small>${escapeHtml(detail)}</small>`:''}</div><div class="toolbar ride-actions${inlineActions?' inline-actions':''}">${actions}</div></div>`;
+}
+export function actionEditor({id,title,summary='',content='',actions='',expanded=true}) {
+  objectId(id);return `<section class="subpanel"><div class="ride-editor-head"><button type="button" class="ride-fold" data-ui="collapse" aria-controls="${escapeHtml(id)}-body" aria-expanded="${expanded}">${icon('chevron',{expanded})}<span class="ride-fold-text"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(summary)}</span></span></button><div class="toolbar ride-editor-actions">${actions}</div></div><div id="${escapeHtml(id)}-body" class="ride-editor-body"${expanded?'':' hidden'}>${content}</div></section>`;
+}
+export function foldControls({scopeId,expandLabel='Alle aufklappen',collapseLabel='Alle zuklappen'}) {
+  objectId(scopeId);return `<div class="toolbar"><button type="button" data-ui-fold-all="true" data-scope="${escapeHtml(scopeId)}">${escapeHtml(expandLabel)}</button><button type="button" data-ui-fold-all="false" data-scope="${escapeHtml(scopeId)}">${escapeHtml(collapseLabel)}</button></div>`;
+}
+export function sensorOverview({id,title='Messwerte',expanded=true,sunrise='',sunset='',groups=[]}) {
+  objectId(id);return `<div class="overview-panel"><button type="button" class="overview-toggle" data-ui="collapse" aria-controls="${escapeHtml(id)}-content" aria-expanded="${expanded}">${icon('chevron',{expanded})}<span>${escapeHtml(title)}</span></button><section class="overview" id="${escapeHtml(id)}-content"${expanded?'':' hidden'}>${sunrise||sunset?`<div class="sun-row">${[['sunrise',sunrise,'Sonnenaufgang'],['sunset',sunset,'Sonnenuntergang']].filter(([,v])=>v).map(([name,value,label])=>`<span class="sun-value" title="${label}" aria-label="${label} ${escapeHtml(value)}">${icon(name)}<span>${escapeHtml(value)}</span></span>`).join('')}</div>`:''}${groups.map(group=>`<section class="overview-group"><h4>${escapeHtml(group.title)}</h4><div class="sensor-grid">${group.items.map(item=>`<div class="sensor-value"><span class="sensor-label">${escapeHtml(item.label)}</span><span class="sensor-state" title="${escapeHtml(item.value)}">${icon(item.icon||'unknown')}<span${item.icon==='lock'||item.icon==='unlock'?' class="visually-hidden"':''}>${escapeHtml(item.value)}</span></span></div>`).join('')}</div></section>`).join('')}</section></div>`;
+}
+export function statusBadge({label,state='neutral',icon:iconName}) {
+  if(!['neutral','active','success','warning','error','paused'].includes(state))throw new TypeError('Unknown status state');
+  return `<span class="fui-status-tag ${state}">${iconName?icon(iconName):''}${escapeHtml(label)}</span>`;
+}
+export function counter(value,label='') { return `<small class="fui-counter"${label?` aria-label="${escapeHtml(label)}"`:''}>${escapeHtml(value)}</small>`; }
+/** Static account summary. Values, units, status and permissions belong to the host. */
+export function accountTile({id,label,value,unit='',status='',state='neutral',description='',details='',metrics=[]}) {
+  objectId(id);
+  if(!['neutral','active','success','warning','error'].includes(state))throw new TypeError('Unknown account state');
+  if(!Array.isArray(metrics)||metrics.length>2)throw new TypeError('Account tiles allow at most two metrics');
+  const metricContent=metrics.length?`<div class="fui-account-metrics">${metrics.map(metric=>`<div class="fui-account-metric"><span class="fui-account-metric-label">${escapeHtml(metric.label||'')}</span><div class="fui-account-metric-reading"><strong class="fui-account-metric-value">${escapeHtml(metric.value)}</strong>${metric.unit?`<span class="fui-account-unit">${escapeHtml(metric.unit)}</span>`:''}</div>${metric.description?`<small class="fui-account-metric-description">${escapeHtml(metric.description)}</small>`:''}</div>`).join('')}</div>`:'';
+  return `<article class="fui-account-tile ${state}${metrics.length?' has-metrics':''}" id="${escapeHtml(id)}" aria-labelledby="${escapeHtml(id)}-label"${details?` aria-describedby="${escapeHtml(id)}-details" title="${escapeHtml(details)}"`:''}><h4 class="fui-account-label" id="${escapeHtml(id)}-label" title="${escapeHtml(label)}">${escapeHtml(label)}</h4>${metrics.length?metricContent:`<div class="fui-account-balance"><strong class="fui-account-value">${escapeHtml(value)}</strong><span class="fui-account-unit">${escapeHtml([unit,status].filter(Boolean).join(' '))}</span></div>`}${description?`<p class="fui-account-description" title="${escapeHtml(description)}">${escapeHtml(description)}</p>`:''}${details?`<span class="visually-hidden" id="${escapeHtml(id)}-details">${escapeHtml(details)}</span>`:''}</article>`;
+}
+/** Always two equal columns, including mobile and single-account views. */
+export function accountTiles({content,label='Zeitkonten'}) {
+  return `<div class="fui-account-tiles" role="group" aria-label="${escapeHtml(label)}">${content}</div>`;
+}
+export function historyList({entries,emptyLabel='Noch keine Einträge vorhanden.'}) {
+  if(!entries.length)return emptyState(emptyLabel);
+  return `<div class="daily-history" role="list">${entries.map(entry=>{
+    const failed=entry.status==='error',pending=entry.status==='pending',result=entry.result||(failed?'Fehlgeschlagen':pending?'Wartet':'Erfolgreich');
+    return `<div class="daily-history-row ${failed?'failed':pending?'pending':'completed'}" role="listitem"><time${entry.datetime?` datetime="${escapeHtml(entry.datetime)}"`:''}>${escapeHtml(entry.time)}</time><div class="daily-command"><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.description)}</small>${entry.detail?`<small class="failure-reason">${escapeHtml(entry.detail)}</small>`:''}</div><span class="command-result">${icon(failed?'failure':pending?'schedule':'success')}${escapeHtml(result)}</span></div>`;
+  }).join('')}</div>`;
+}
+export function groupedHistory({id,title='Verlauf',groups,expanded=false}) {
+  objectId(id);return section({id,title,expanded,trailing:counter(groups.reduce((n,g)=>n+g.entries.length,0),'Einträge'),content:groups.map((g,i)=>`<div class="fui-history-month">${section({id:id+'-group-'+i,title:g.title,expanded:g.expanded??false,trailing:counter(g.entries.length),content:historyList({entries:g.entries})})}</div>`).join('')||emptyState('Noch keine Einträge vorhanden.')});
+}
+export function statisticsTable({label='Statistik',columns,rows,totals}) {
+  if(!columns.length)throw new TypeError('Statistics needs columns');
+  const cells=(values,tag)=>columns.map((col,i)=>`<${tag}${tag==='th'?' scope="col"':''}${col.align==='right'?' class="numeric"':''}>${escapeHtml(values[i])}</${tag}>`).join('');
+  return `<div class="fui-statistics"><table aria-label="${escapeHtml(label)}"><thead><tr>${cells(columns.map(c=>c.label),'th')}</tr></thead><tbody>${rows.map(values=>`<tr>${cells(values,'td')}</tr>`).join('')}</tbody>${totals?`<tfoot><tr>${cells(totals,'td')}</tr></tfoot>`:''}</table></div>`;
+}
+export function dateNavigation({label,previousLabel='Vorherige Woche',nextLabel='Nächste Woche',todayLabel='Heute',previousAction='previous-period',nextAction='next-period',todayAction='today',disabled=false,previousDisabled=false,nextDisabled=false,todayDisabled=false}) {
+  return `<div class="week">${iconButton({icon:'left',label:previousLabel,action:previousAction,disabled:disabled||previousDisabled})}<strong>${escapeHtml(label)}</strong>${button({label:todayLabel,action:todayAction,disabled:disabled||todayDisabled})}${iconButton({icon:'right',label:nextLabel,action:nextAction,disabled:disabled||nextDisabled})}</div>`;
+}
+export function dateKey(date) {return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;}
+export function calendarDates(start,count=7) {
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!Number.isInteger(count)||count<1||count>366)throw new TypeError('Invalid calendar range');
+  const first=new Date(start+'T12:00:00');if(!Number.isFinite(first.getTime())||dateKey(first)!==start)throw new TypeError('Invalid calendar date');
+  return Array.from({length:count},(_,i)=>{const day=new Date(first);day.setDate(day.getDate()+i);return dateKey(day);});
+}
+function safeLink(value) {try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?escapeHtml(u.href):'';}catch{return '';}}
+export function weekCalendar({id,start,entries=[],locale='de-DE',today='',emptyLabel='Eintrag hinzufügen',action='open-day'}) {
+  objectId(id);return `<div id="${escapeHtml(id)}" class="days fui-calendar">${calendarDates(start).map(date=>{const entry=entries.find(e=>e.date===date),day=new Date(date+'T12:00:00'),link=entry?.link&&safeLink(entry.link);return `<article class="calendar-row${entry?'':' empty'}${date===today?' today':''}" data-ui-calendar-day="${date}" ${objectAction(action)}><div class="day-date"><b>${escapeHtml(day.toLocaleDateString(locale,{weekday:'short'}))}</b><small>${escapeHtml(day.toLocaleDateString(locale,{day:'2-digit',month:'2-digit'}))}</small></div><div class="calendar-content"><div class="setting-row"><div class="row-text"><strong>${escapeHtml(entry?.title||emptyLabel)}</strong>${entry?.description?`<small>${escapeHtml(entry.description)}</small>`:''}</div><div class="toolbar">${entry?.actions||iconButton({icon:entry?'edit':'add',label:entry?'Eintrag bearbeiten':emptyLabel,action,data:{date}})}</div></div>${link?`<a class="meal-link" href="${link}" target="_blank" rel="noopener">Link öffnen</a>`:''}</div></article>`;}).join('')}</div>`;
+}
+export function completionRow({id,title,description='',people=[],action='completion-change',readOnly=false}) {
+  objectId(id);const completed=people.length&&people.every(p=>p.completed);
+  return `<div class="setting-row${completed?' completed':''}"><div class="row-text"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></div><div class="checks">${people.map(p=>readOnly?`<span class="assignee${p.completed?' completed':''}">${escapeHtml(p.label)}${p.completed?icon('success'):''}</span>`:`<label class="complete" ${objectAction(action)} data-ui-completion data-id="${escapeHtml(id)}" data-person="${escapeHtml(p.id)}"><input type="checkbox" aria-label="${escapeHtml(title+' – '+p.label)}"${p.completed?' checked':''}${p.disabled?' disabled':''}><span class="visually-hidden">${escapeHtml(p.label)}</span></label>`).join('')}</div></div>`;
+}
+export function dayAgenda({id,days}) {objectId(id);return days.map((day,i)=>section({id:id+'-'+i,title:day.title,expanded:day.expanded??true,trailing:counter(day.count??'',day.countLabel||''),content:day.content||''})).join('');}
+export function languagePicker({value='de',action='language-change',languages=[{id:'de',label:'Deutsch',short:'DE',flag:'🇩🇪'},{id:'en',label:'English',short:'EN',flag:'🇬🇧'}] }={}) {
+  return `<div class="language-picker" role="group" aria-label="Sprache">${languages.map(l=>`<button type="button" data-action="${escapeHtml(action)}" data-language="${escapeHtml(l.id)}" aria-pressed="${l.id===value}" title="${escapeHtml(l.label)}">${escapeHtml(l.flag||'')} <span>${escapeHtml(l.short||l.id)}</span></button>`).join('')}</div>`;
+}
+export function backupControls({id='backup',exportAction='export-backup',importAction='import-backup',exportLabel='Sicherung erstellen',importLabel='Sicherung wiederherstellen',disabled=false,maxBytes=2*1024*1024}={}) {
+  objectId(id);return `<div id="${escapeHtml(id)}" data-ui-backup ${objectAction(importAction)} data-max-bytes="${Number(maxBytes)}"><div class="toolbar backup-actions">${button({label:exportLabel,action:exportAction,disabled})}<button type="button" data-ui-import${disabled?' disabled':''}>${escapeHtml(importLabel)}</button></div><input type="file" accept="application/json,.json" aria-label="Sicherungsdatei" hidden${disabled?' disabled':''}><div data-backup-feedback></div></div>`;
+}
+export function helpContent({title='',content=''}) {return `<article class="howto">${title?`<h2>${escapeHtml(title)}</h2>`:''}${content}</article>`;}
+export function panelHeader({title,dirty=false,busy=false,menu=true,reload=true,save=true,menuAction='menu',reloadAction='reload',saveAction='save',saveLabel='Änderungen speichern',savedLabel='Gespeichert'}) {
+  return `<header class="fui-panel-header">${menu?iconButton({icon:'menu',label:'Menü öffnen',action:menuAction}):''}<strong>${escapeHtml(title)}</strong><span class="grow"></span>${reload?button({label:'Neu laden',action:reloadAction,disabled:busy}):''}${save?busyButton({label:dirty?saveLabel:savedLabel,busy,disabled:!dirty,action:saveAction}):''}</header>`;
+}
+export function feedback(message,{kind='info'}={}) {
+  if(!['info','success','warning','error'].includes(kind))throw new TypeError('Unknown feedback kind');
+  return `<div class="fui-feedback ${kind}" role="${kind==='error'?'alert':'status'}">${escapeHtml(message)}</div>`;
+}
+export function formError(message) {return `<p class="modal-save-error" role="alert"${message?'':' hidden'}>${escapeHtml(message)}</p>`;}
+export function emptyState(message,{actionContent=''}={}) {return `<div class="empty" role="status">${escapeHtml(message)}${actionContent?`<div class="toolbar">${actionContent}</div>`:''}</div>`;}
+export function loadingState(label='Wird geladen …') {return `<p class="hint fui-loading" role="status" aria-live="polite" aria-busy="true">${escapeHtml(label)}</p>`;}
+export function busyButton({label='Speichern',busy=false,busyLabel='Speichern …',disabled=false,action='save',variant='primary',data={}}={}) {return button({label:busy?busyLabel:label,disabled:disabled||busy,action,variant,data}).replace('<button ',`<button aria-busy="${busy}" `);}
+export function confirmDialog({id,title='Eintrag löschen?',message,confirmLabel='Löschen',cancelLabel='Abbrechen',confirmAction='confirm',cancelAction='cancel',danger=true}) {
+  return dialog({id,title,content:`<p>${escapeHtml(message)}</p>`,actions:button({label:cancelLabel,action:cancelAction}).replace('data-action=', 'data-ui-cancel-action=')+button({label:confirmLabel,action:confirmAction,variant:danger?'danger':'primary'})});
+}
+export function photoPreview({src,alt='Foto',large=false}) {
+  if(!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(src||''))throw new TypeError('A JPEG/PNG/WebP data URL is required');
+  return `<img class="${large?'gm-photo-large':'photo-preview'}" src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">`;
+}
+export function photoPicker({id,label='Foto (optional)',src='',action='photo-change',disabled=false}) {
+  objectId(id);return `<div class="gm-photo-box" id="${escapeHtml(id)}" data-ui-photo ${objectAction(action)}><span class="field-label">${escapeHtml(label)}</span><div class="toolbar"><button type="button" data-ui-photo-choose${disabled?' disabled':''}>Foto wählen</button><button type="button" data-ui-photo-remove${src?'':' hidden'}${disabled?' disabled':''}>Foto entfernen</button></div><input type="file" accept="image/jpeg,image/png,image/webp" hidden aria-label="${escapeHtml(label)}"${disabled?' disabled':''}><div data-photo-preview>${src?photoPreview({src}):''}</div><small data-photo-status role="status">${src?'Foto vorhanden.':'JPG / PNG / WebP · bis 20 MB · wird automatisch verkleinert.'}</small><div data-photo-error></div></div>`;
+}
+export function photoDialog({id,title='Foto',src,alt}) {return dialog({id,title,content:photoPreview({src,alt,large:true})});}
+
+
+export function recurrenceSummary(rule) {
+  if(rule.kind==='once')return 'Einmalig';
+  const n=rule.interval||1,days=['Mo','Di','Mi','Do','Fr','Sa','So'];
+  if(rule.kind==='daily')return n===1?'Täglich':`Alle ${n} Tage`;
+  if(rule.kind==='weekly')return (n===1?'Jede Woche':`Alle ${n} Wochen`)+' · '+(rule.weekdays||[]).map(i=>days[i]).join(', ');
+  if(rule.kind==='yearly')return (n===1?'Jährlich':`Alle ${n} Jahre`)+' · '+(rule.start||'').slice(5);
+  const prefix=n===1?'Monatlich':`Alle ${n} Monate`;
+  return rule.kind==='monthly_date'?prefix+' · am '+Number((rule.start||'').slice(8))+'. Tag':prefix+' · '+(rule.nth===-1?'Letzter':rule.nth+'.')+' '+(rule.weekdays||[]).map(i=>days[i]).join(', ');
+}
+
+export async function readJSONFile(file,{maxBytes=2*1024*1024}={}) {
+  if(!file||typeof file.text!=='function')throw new TypeError('Bitte eine Sicherungsdatei auswählen.');
+  if(file.size>maxBytes)throw new Error('Datei zu groß.');
+  try{return JSON.parse(await file.text());}catch{throw new Error('Die Datei enthält kein gültiges JSON.');}
+}
+export function downloadJSON(value,{filename='sicherung.json',document:doc=globalThis.document}={}) {
+  const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'})),a=doc.createElement('a');
+  a.href=url;a.download=filename;doc.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+export async function compressPhoto(file) {
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Bitte ein JPG-, PNG- oder WebP-Foto wählen.');
+  if(file.size>20*1024*1024)throw new Error('Bitte ein Foto bis 20 MB wählen.');
+  const url=URL.createObjectURL(file);
+  try{
+    const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('Das Foto konnte nicht gelesen werden.'));img.src=url;});
+    if(!img.naturalWidth||!img.naturalHeight)throw new Error('Das Foto hat keine gültige Größe.');
+    const factor=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(img.naturalWidth*factor));canvas.height=Math.max(1,Math.round(img.naturalHeight*factor));
+    const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Bildverarbeitung nicht verfügbar.');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    for(const quality of [.85,.7,.55,.4]){const data=canvas.toDataURL('image/jpeg',quality);if(data.length<950000)return data;}
+    throw new Error('Das Foto ist zu groß. Bitte ein kleineres Bild wählen.');
+  }finally{URL.revokeObjectURL(url);}
+}
+
+/** UI event delegation only: no network, HA services, persistence or business decisions. */
+export function bindObjects(root,onAction) {
+  let disposed=false;const initialized=new WeakSet(),photoTokens=new WeakMap();
+  const emit=(control,event,value,extra={})=>{if(!disposed&&control.dataset.controlAction)onAction({action:control.dataset.controlAction,data:{...control.dataset},value,element:control,originalEvent:event,...extra});};
+  const closeCombo=box=>{box.querySelector('[role=listbox]').hidden=true;const input=box.querySelector('input');input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');box.querySelectorAll('.active').forEach(el=>el.classList.remove('active'));};
+  const options=box=>[...box.querySelectorAll('[data-ui-option]')].filter(el=>!el.hidden&&!el.disabled);
+  const filterCombo=box=>{
+    const input=box.querySelector('input'),q=input.value.trim().toLocaleLowerCase();
+    box.querySelectorAll('[data-ui-option]').forEach(el=>{el.hidden=!el.textContent.toLocaleLowerCase().includes(q);el.classList.remove('active');});
+    box.querySelector('.fui-options-empty').hidden=Boolean(options(box).length);
+    input.removeAttribute('aria-activedescendant');
+  };
+  const openCombo=box=>{if(box.querySelector('input').disabled)return;filterCombo(box);box.querySelector('[role=listbox]').hidden=false;box.querySelector('input').setAttribute('aria-expanded','true');};
+  const choose=(box,option,event)=>{
+    if(option.disabled)return;const input=box.querySelector('input');input.value=option.dataset.label;box.dataset.selected=option.dataset.value;
+    box.querySelectorAll('[data-ui-option]').forEach(el=>el.setAttribute('aria-selected',String(el===option)));
+    input.focus();closeCombo(box);emit(box,event,option.dataset.value,{label:option.dataset.label});
+  };
+  const updateMulti=control=>{
+    const q=(control.querySelector('input[type=search]')?.value||'').trim().toLocaleLowerCase();
+    for(const group of control.querySelectorAll('[data-selection-group]')){
+      let rows=[...group.querySelectorAll('[data-selection-row]')];
+      rows.forEach(el=>el.hidden=!el.dataset.search.includes(q));
+      if(control.dataset.selectedFirst==='true'){rows.sort((a,b)=>Number(b.querySelector('input').checked)-Number(a.querySelector('input').checked));rows.forEach(el=>group.append(el));}
+      group.hidden=rows.every(el=>el.hidden);
+    }
+    control.querySelector('.fui-selection-empty').hidden=Boolean(control.querySelector('[data-selection-row]:not([hidden])'));
+    control.querySelector('[data-selection-count]').textContent=control.querySelectorAll('input[type=checkbox]:checked').length+' ausgewählt';
+  };
+  const selection=control=>[...control.querySelectorAll('input[type=checkbox]:checked')].map(el=>control.dataset.valueType==='number'?Number(el.value):el.value);
+  const updateRange=control=>{
+    const input=control.querySelector('input'),keep=control.dataset.keep==='true',n=control.dataset.reverse==='true'?Number(input.max)+Number(input.min)-Number(input.value):Number(input.value),text=keep?control.dataset.keepLabel:n+(control.dataset.unit?' '+control.dataset.unit:'');
+    control.querySelector('output').textContent=text;input.setAttribute('aria-valuetext',text);input.style.setProperty('--range-percent',((input.value-input.min)/(input.max-input.min)*100)+'%');
+    const button=control.querySelector('[data-ui-keep]');button?.classList.toggle('selected',keep);button?.setAttribute('aria-pressed',String(keep));return keep?null:n;
+  };
+  const updateRecurrence=control=>{
+    const get=name=>control.querySelector(`[name="${name}"]`),repeating=get('repeating'),alternate=get('alternating'),globalDisabled=control.hasAttribute('disabled');
+    if(alternate?.checked)repeating.checked=true;
+    const unit=get('unit').value,kind=!repeating.checked?'once':unit==='day'?'daily':unit==='year'?'yearly':unit==='month'?(get('month_mode').value==='nth'?'monthly_nth':'monthly_date'):'weekly';
+    const start=get('start').value,end=get('end');end.min=start;end.closest('label').hidden=!repeating.checked;end.disabled=globalDisabled||!repeating.checked;
+    control.querySelector('.recurrence-controls').hidden=!repeating.checked;
+    control.querySelector('[data-month-mode]').hidden=unit!=='month';control.querySelector('[data-nth]').hidden=kind!=='monthly_nth';
+    const days=control.querySelector('[data-ui-checks]');days.hidden=!['weekly','monthly_nth'].includes(kind);
+    const first=control.querySelector('[data-first-person]');if(first)first.hidden=!alternate?.checked;
+    control.querySelectorAll('.recurrence-controls input,.recurrence-controls select').forEach(el=>{el.disabled=globalDisabled||!repeating.checked||Boolean(el.closest('[hidden]'));});
+    const rule={kind,interval:kind==='once'?1:Number(get('interval').value),start,end:kind==='once'?'':end.value,weekdays:[...days.querySelectorAll('input:checked')].map(el=>Number(el.value)),nth:Number(get('nth').value),alternating:Boolean(alternate?.checked),first_person:get('first_person')?.value||''};
+    const dayRequired=['weekly','monthly_nth'].includes(kind);const dayInput=days.querySelector('input');dayInput?.setCustomValidity(dayRequired&&!rule.weekdays.length?'Bitte mindestens einen Wochentag auswählen.':'');
+    const valid=Boolean(start)&&Number.isInteger(rule.interval)&&rule.interval>=1&&rule.interval<=365&&(!rule.end||rule.end>=start)&&(!dayRequired||rule.weekdays.length>0);
+    let text=valid?recurrenceSummary(rule):'Bitte Datum, Wiederholungsabstand und Wochentage prüfen.';
+    if(rule.alternating)text+=' · Abwechselnd, Beginn: '+rule.first_person;
+    if(kind==='monthly_date'&&Number(start.slice(8))>28)text+=' · Monate ohne diesen Tag werden übersprungen.';
+    if(kind==='yearly'&&start.slice(5)==='02-29')text+=' · Jahre ohne den 29. Februar werden übersprungen.';
+    control.querySelector('.recurrence-hint').textContent=text;return {rule,valid};
+  };
+  const init=()=>{
+    for(const el of root.querySelectorAll('[data-ui-multi],[data-ui-recurrence],[data-ui-range]')){
+      if(initialized.has(el))continue;initialized.add(el);
+      if(el.hasAttribute('data-ui-multi'))updateMulti(el);
+      if(el.hasAttribute('data-ui-recurrence'))updateRecurrence(el);
+      if(el.hasAttribute('data-ui-range'))updateRange(el);
+    }
+  };
+  const click=event=>{
+    const target=event.target.closest?.('button'),combo=event.target.closest?.('[data-ui-combobox]');
+    if(target?.disabled)return;
+    if(target?.hasAttribute('data-ui-combo-toggle')){const open=combo.querySelector('input').getAttribute('aria-expanded')==='true';combo.querySelector('input').focus();if(open)closeCombo(combo);else openCombo(combo);return;}
+    if(target?.hasAttribute('data-ui-option')){choose(combo,target,event);return;}
+    if(target?.hasAttribute('data-ui-preset')){const box=target.closest('.fui-number'),input=box.querySelector('input');input.value=target.dataset.uiPreset;input.focus();emit(box,event,input.valueAsNumber,{valid:input.checkValidity()});return;}
+    if(target?.hasAttribute('data-ui-keep')){const control=target.closest('[data-ui-range]');control.dataset.keep='true';updateRange(control);emit(control,event,null);return;}
+    if(target?.hasAttribute('data-ui-select-all')||target?.hasAttribute('data-ui-select-none')){
+      const control=target.closest('[data-ui-multi]'),checked=target.hasAttribute('data-ui-select-all');
+      control.querySelectorAll('input[type=checkbox]').forEach(el=>{if(!el.disabled&&(!checked||!el.closest('[data-selection-row]').hidden))el.checked=checked;});updateMulti(control);emit(control,event,selection(control));return;
+    }
+    if(target?.hasAttribute('data-ui-fold-all')){
+      const scope=root.getElementById(target.dataset.scope);scope?.querySelectorAll('[data-ui="collapse"]').forEach(el=>{const expanded=target.dataset.uiFoldAll==='true';el.setAttribute('aria-expanded',String(expanded));el.querySelector('.chevron')?.classList.toggle('expanded',expanded);const body=root.getElementById(el.getAttribute('aria-controls'));if(body)body.hidden=!expanded;});return;
+    }
+    if(target?.hasAttribute('data-ui-cancel-action')){target.closest('dialog')?.close();onAction({action:target.dataset.uiCancelAction,data:{},value:false,element:target,originalEvent:event});return;}
+    if(target?.hasAttribute('data-ui-import')){target.closest('[data-ui-backup]').querySelector('input[type=file]').click();return;}
+    if(target?.hasAttribute('data-ui-photo-choose')){target.closest('[data-ui-photo]').querySelector('input[type=file]').click();return;}
+    if(target?.hasAttribute('data-ui-photo-remove')){const control=target.closest('[data-ui-photo]');photoTokens.set(control,{});control.querySelector('[data-photo-preview]').replaceChildren();control.querySelector('[data-photo-status]').textContent='Foto wird entfernt.';control.querySelector('[data-photo-error]').replaceChildren();target.hidden=true;control.querySelector('input').value='';emit(control,event,null);return;}
+    const day=event.target.closest?.('[data-ui-calendar-day]');
+    if(day&&!event.target.closest('button,a,input,select,textarea'))emit(day,event,day.dataset.uiCalendarDay,{date:day.dataset.uiCalendarDay});
+  };
+  const input=event=>{
+    const el=event.target,recurrence=el.closest?.('[data-ui-recurrence]');
+    if(recurrence){if(el.name==='repeating'&&!el.checked){const alternate=recurrence.querySelector('[name=alternating]');if(alternate)alternate.checked=false;}const {rule,valid}=updateRecurrence(recurrence);emit(recurrence,event,rule,{valid});return;}
+    const combo=el.closest?.('[data-ui-combobox]');if(combo&&el.matches('input')){combo.dataset.selected='';combo.querySelectorAll('[data-ui-option]').forEach(o=>o.setAttribute('aria-selected','false'));openCombo(combo);return;}
+    const multi=el.closest?.('[data-ui-multi]');if(multi&&el.type==='search'){updateMulti(multi);return;}
+    const range=el.closest?.('[data-ui-range]');if(range){range.dataset.keep='false';emit(range,event,updateRange(range),{phase:'input'});return;}
+    const number=el.closest?.('.fui-number');if(number)emit(number,event,el.valueAsNumber,{valid:el.checkValidity()});
+    const season=el.closest?.('[data-ui-season]');if(season&&el.type!=='checkbox'){el.setCustomValidity(parseMonthDay(el.value)?'':'Bitte ein gültiges Datum als TT.MM. eingeben.');}
+  };
+  const change=async event=>{
+    const el=event.target,recurrence=el.closest?.('[data-ui-recurrence]');
+    if(recurrence){if(el.name==='repeating'&&!el.checked){const alternate=recurrence.querySelector('[name=alternating]');if(alternate)alternate.checked=false;}const {rule,valid}=updateRecurrence(recurrence);emit(recurrence,event,rule,{valid});return;}
+    const multi=el.closest?.('[data-ui-multi]');if(multi&&el.type==='checkbox'){updateMulti(multi);emit(multi,event,selection(multi));return;}
+    const checks=el.closest?.('[data-ui-checks]');if(checks){emit(checks,event,selection(checks));return;}
+    const completion=el.closest?.('[data-ui-completion]');if(completion){emit(completion,event,el.checked,{checked:el.checked});return;}
+    const range=el.closest?.('[data-ui-range]');if(range){range.dataset.keep='false';emit(range,event,updateRange(range),{phase:'change'});return;}
+    const window=el.closest?.('[data-ui-time-window]');if(window){const start=window.querySelector('[name=start]'),end=window.querySelector('[name=end]');emit(window,event,{start:start.value,end:end.value},{valid:start.checkValidity()&&end.checkValidity()});return;}
+    const dates=el.closest?.('[data-ui-date-range]');if(dates){const start=dates.querySelector('[name=start]'),end=dates.querySelector('[name=end]');end.min=start.value;emit(dates,event,{start:start.value,end:end.value},{valid:start.checkValidity()&&end.checkValidity()});return;}
+    const season=el.closest?.('[data-ui-season]');if(season){const enabled=season.querySelector('[data-season-enabled]').checked;season.querySelector('.season-dates').hidden=!enabled;const fields=[...season.querySelectorAll('input:not([type=checkbox])')];fields.forEach(f=>{f.disabled=!enabled;f.setCustomValidity(enabled&&!parseMonthDay(f.value)?'Bitte ein gültiges Datum als TT.MM. eingeben.':'');});emit(season,event,{enabled,start:parseMonthDay(fields[0].value),end:parseMonthDay(fields[1].value)},{valid:!enabled||fields.every(f=>f.checkValidity())});return;}
+    const backup=el.closest?.('[data-ui-backup]');if(backup&&el.type==='file'&&el.files?.[0]){
+      const file=el.files[0],box=backup.querySelector('[data-backup-feedback]');box.textContent='Datei wird gelesen …';
+      try{const value=await readJSONFile(file,{maxBytes:Number(backup.dataset.maxBytes)});if(disposed||!backup.isConnected)return;box.replaceChildren();emit(backup,event,value,{file});}catch(error){if(!disposed&&backup.isConnected)box.innerHTML=feedback(error.message,{kind:'error'});}el.value='';return;
+    }
+    const photo=el.closest?.('[data-ui-photo]');if(photo&&el.type==='file'&&el.files?.[0]){
+      const token={};photoTokens.set(photo,token);const controls=[...photo.querySelectorAll('button,input')].filter(n=>!n.disabled);controls.forEach(n=>n.disabled=true);const status=photo.querySelector('[data-photo-status]'),error=photo.querySelector('[data-photo-error]');error.replaceChildren();status.textContent='Foto wird aufbereitet …';
+      try{const src=await compressPhoto(el.files[0]);if(disposed||!photo.isConnected||photoTokens.get(photo)!==token)return;photo.querySelector('[data-photo-preview]').innerHTML=photoPreview({src});photo.querySelector('[data-ui-photo-remove]').hidden=false;status.textContent='Foto bereit.';emit(photo,event,src);}catch(err){if(!disposed&&photo.isConnected&&photoTokens.get(photo)===token){status.textContent='Bitte ein anderes Foto wählen.';error.innerHTML=feedback(err.message,{kind:'error'});}}finally{controls.forEach(n=>n.disabled=false);el.value='';}return;
+    }
+  };
+  const colour=(control,x,y,event)=>{
+    const radius=Math.hypot(x,y);if(radius>1){x/=radius;y/=radius;}
+    const rgb=hsvToRGB((Math.atan2(x,-y)*180/Math.PI+360)%360,Math.min(1,radius)),hex='#'+rgb.map(n=>n.toString(16).padStart(2,'0')).join('');control.dataset.rgb=rgb.join(',');
+    Object.assign(control.querySelector('.colour-marker').style,{left:(50+x*50)+'%',top:(50+y*50)+'%',background:hex});control.querySelector('[data-colour-swatch]').style.background=hex;control.querySelector('output').textContent=hex.toUpperCase();emit(control,event,rgb,{hex});
+  };
+  const pointer=event=>{
+    const wheel=event.target.closest?.('.colour-wheel');if(!wheel||wheel.getAttribute('aria-disabled')==='true'||event.isPrimary===false)return;
+    if(event.type==='pointermove'&&!wheel.hasPointerCapture(event.pointerId))return;
+    if(event.type==='pointerdown'){if(event.button!==0)return;wheel.setPointerCapture(event.pointerId);wheel.focus();}
+    const r=wheel.getBoundingClientRect();if(!r.width)return;event.preventDefault();colour(wheel.closest('[data-ui-colour]'),(event.clientX-r.left-r.width/2)/(r.width/2),(event.clientY-r.top-r.height/2)/(r.height/2),event);
+  };
+  const keydown=event=>{
+    const el=event.target,combo=el.closest?.('[data-ui-combobox]');
+    if(combo&&el.matches('input')){
+      if(event.key==='Tab'){closeCombo(combo);return;}
+      if(event.key==='Escape'&&el.getAttribute('aria-expanded')==='true'){event.preventDefault();event.stopPropagation();closeCombo(combo);return;}
+      if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();if(el.getAttribute('aria-expanded')!=='true')openCombo(combo);const list=options(combo),index=list.findIndex(n=>n.classList.contains('active')),next=event.key==='ArrowDown'?Math.min(index+1,list.length-1):Math.max(index-1,0);list.forEach(n=>n.classList.remove('active'));if(list[next]){list[next].classList.add('active');el.setAttribute('aria-activedescendant',list[next].id);list[next].scrollIntoView({block:'nearest'});}return;}
+      if(event.key==='Enter'&&el.getAttribute('aria-expanded')==='true'){event.preventDefault();const list=options(combo),selected=list.find(n=>n.classList.contains('active'))||(list.length===1?list[0]:null);if(selected)choose(combo,selected,event);return;}
+    }
+    const wheel=el.closest?.('.colour-wheel');if(wheel&&wheel.getAttribute('aria-disabled')!=='true'&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key)){
+      event.preventDefault();const control=wheel.closest('[data-ui-colour]'),{h,s}=rgbToHSV(control.dataset.rgb.split(',').map(Number)),a=h*Math.PI/180,step=event.shiftKey?.1:.02;let x=Math.sin(a)*s,y=-Math.cos(a)*s;
+      if(event.key==='Home'){x=0;y=0;}else if(event.key==='End'){x=Math.sin(a);y=-Math.cos(a);}else if(event.key==='ArrowLeft')x-=step;else if(event.key==='ArrowRight')x+=step;else if(event.key==='ArrowUp')y-=step;else y+=step;
+      colour(control,x,y,event);
+    }
+  };
+  const focusin=event=>{const box=event.target.closest?.('[data-ui-combobox]');if(box&&event.target.matches('input'))openCombo(box);};
+  const outside=event=>{root.querySelectorAll('[data-ui-combobox]').forEach(box=>{if(!box.contains(event.target))closeCombo(box);});};
+  const focusout=event=>{const box=event.target.closest?.('[data-ui-combobox]');if(box&&event.relatedTarget&&!box.contains(event.relatedTarget))closeCombo(box);};
+  const listeners={click,input,change,keydown,focusin,focusout,pointerdown:pointer,pointermove:pointer};
+  for(const [type,fn] of Object.entries(listeners))root.addEventListener(type,fn);
+  root.addEventListener('pointerdown',outside);const observer=new MutationObserver(init);observer.observe(root,{childList:true,subtree:true});init();
+  return ()=>{disposed=true;observer.disconnect();for(const [type,fn] of Object.entries(listeners))root.removeEventListener(type,fn);root.removeEventListener('pointerdown',outside);};
+}
+
+/** Source: Essensplaner horizontal swipe, Gartenarbeit top-of-page pull. Opt-in per surface. */
+export function bindGestures(element,{onSwipeLeft,onSwipeRight,onPullDown,canPull=()=>!element.getRootNode().querySelector?.('dialog[open]')&&(element.ownerDocument.defaultView.scrollY<=0),swipeThreshold=60,pullThreshold=85}={}) {
+  let start=null;
+  const touchstart=event=>{const target=event.target;start=event.touches.length===1&&!target.closest?.('input,select,textarea,button,a,.colour-wheel')?[event.touches[0].clientX,event.touches[0].clientY,canPull()]:null;};
+  const cancel=()=>{start=null;};
+  const touchend=event=>{if(!start||!event.changedTouches.length)return;const [x,y,pull]=start;start=null;const dx=event.changedTouches[0].clientX-x,dy=event.changedTouches[0].clientY-y;if(Math.abs(dx)>swipeThreshold&&Math.abs(dx)>Math.abs(dy)*1.2)(dx<0?onSwipeLeft:onSwipeRight)?.();else if(pull&&dy>pullThreshold&&dy>Math.abs(dx)*1.2)onPullDown?.();};
+  element.addEventListener('touchstart',touchstart,{passive:true});element.addEventListener('touchend',touchend,{passive:true});element.addEventListener('touchcancel',cancel,{passive:true});
+  return ()=>{cancel();element.removeEventListener('touchstart',touchstart);element.removeEventListener('touchend',touchend);element.removeEventListener('touchcancel',cancel);};
+}
+
+
+/** Presentation only. Authorization, account and speaker selection remain in the application. */
+export function musicActionButton({label,action,icon:mediaIcon,disabled=false,data={},pressed}) {
+  let markup=iconButton({label,action,icon:'media-'+mediaIcon,disabled,data});
+  if(pressed!==undefined)markup=markup.replace('<button ',`<button aria-pressed="${Boolean(pressed)}" `);
+  if(mediaIcon==='star'&&pressed===false)markup=markup.replace('ui-icon filled','ui-icon');
+  return markup;
+}
+export function musicArtwork({src='',kind='music'}={}) {
+  let safe='';try{const url=new URL(src,'https://home-assistant.local');if(src&&['http:','https:'].includes(url.protocol)&&!url.username&&!url.password)safe=src;}catch{}
+  return `<span class="fui-music-artwork" aria-hidden="true">${icon(kind==='radio'?'media-radio':'media-music')}${safe?`<img src="${escapeHtml(safe)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}</span>`;
+}
+export function musicPlayerHeader({title='',description='',speaker='',speakerSelect=null,artwork='',radio=false,hideSpeaker=false,settingsAction='player-settings',disabled=false}) {
+  const choice=hideSpeaker?'<span aria-hidden="true"></span>':speakerSelect?`<div class="fui-player-speaker${speakerSelect.compact?' fui-player-speaker-compact':''}">${selectField({id:speakerSelect.id,label:'Box',hideLabel:true,value:speakerSelect.value,options:speakerSelect.options,disabled:disabled||speakerSelect.disabled}).replace('<select ', '<select aria-label="Box" ')}</div>`:`<span class="fui-player-name" aria-label="Box">${escapeHtml(speaker)}</span>`;
+  const settings=iconButton({label:'Einstellungen',icon:'settings',action:settingsAction,disabled}).replace('class="edit-button"','class="edit-button fui-player-settings"');
+  return `<div class="fui-player-toolbar">${choice}${settings}</div><div class="fui-player-heading">${musicArtwork({src:artwork,kind:radio?'radio':'music'})}<div><h3>${escapeHtml(title)}</h3><small>${escapeHtml(description)}</small></div></div>`;
+}
+export function musicTransport({controls=[]}={}) {
+  if(!controls.length)return '';
+  return `<div class="fui-music-transport" aria-label="Wiedergabe">${controls.map(control=>{let markup=musicActionButton(control);if(control.action==='play-pause')markup=markup.replace('class="edit-button"','class="edit-button fui-music-play"');return markup;}).join('')}</div>`;
+}
+export function musicFavoriteTile({label,action='play-favorite',data={},artwork='',kind='music',disabled=false}) {
+  return button({label,action,data,disabled}).replace('class=""','class="fui-music-favorite"').replace('<button ',`<button aria-label="${escapeHtml(label+' abspielen')}" title="${escapeHtml(label)}" `).replace(`<span>${escapeHtml(label)}</span>`,musicArtwork({src:artwork,kind}));
+}
+
+
+const ENERGY_ROLES = new Set(['solar','grid','home','battery','export','charge']);
+const roleClass = role => 'fui-energy-'+(ENERGY_ROLES.has(role) ? role : 'grid');
+/** Generic display only. The host supplies measured values and calculated directed flows. */
+export function energyFlow({nodes,flows=[],label='Energiefluss',animated=true}) {
+  const positions={solar:[250,70],grid:[65,195],home:[435,195],battery:[250,320]};
+  const paths={'solar-home':'M270 108 Q270 177 390 177','solar-grid':'M230 108 Q230 177 110 177','solar-battery':'M250 112 L250 278','grid-home':'M110 195 L390 195','battery-home':'M270 282 Q270 213 390 213','grid-battery':'M110 213 Q230 213 230 282'};
+  const edges=Object.entries(paths).filter(([key])=>key.includes('battery')?nodes.some(n=>n.id==='battery'):true).map(([key,d])=>{
+    const [from,to]=key.split('-');const flow=flows.find(f=>(f.from===from&&f.to===to)||(f.from===to&&f.to===from));
+    const track = `<path class="fui-flow-track" d="${d}"/>`;
+    const watts = flow?.value;
+    if (!Number.isFinite(watts) || watts <= 0) return track;
+    const reverse = flow.from === to;
+    // Use the same watts-to-dots scale for each connection, regardless of its length.
+    const dots = Math.min(8, Math.max(1, Math.ceil(Math.sqrt(watts / 225))));
+    const step = 100 / dots;
+    const motion = animated ? ` pathLength="100" style="--fui-flow-dot-step:${step};--fui-flow-dot-duration:${5 / dots}s;--fui-flow-dot-start:${-step / 2}px;--fui-flow-dot-end:${-step * 1.5}px"` : '';
+    return track + `<path class="fui-flow-line ${roleClass(flow.role||flow.from)}${animated?' animated':''}${reverse?' reverse':''}" d="${d}"${motion}/>`;
+  }).join('');
+  return `<div class="fui-energy-flow" role="group" aria-label="${escapeHtml(label)}"><svg viewBox="0 0 500 390" aria-hidden="true" focusable="false">${edges}</svg>${nodes.map(n=>{
+    const [x,y]=positions[n.id]||positions.home;
+    return `<button type="button" class="fui-energy-node ${roleClass(n.id)}" style="--node-x:${x/5}%;--node-y:${y/3.9}%" data-action="energy-node" data-node="${escapeHtml(n.id)}" aria-label="${escapeHtml([n.label,n.value,n.detail].filter(Boolean).join(', '))}"><span class="fui-energy-circle">${n.badge?`<small>${escapeHtml(n.badge)}</small>`:''}${icon('energy-'+n.id)}<strong>${escapeHtml(n.value??'—')}</strong>${n.detail?`<small>${escapeHtml(n.detail)}</small>`:''}</span><span class="fui-energy-label">${escapeHtml(n.label)}</span></button>`;
+  }).join('')}</div>`;
+}
+
+/** Numeric x coordinates; null points break lines. Interactive legends are controlled by the caller. */
+export function seriesChart({id,title,series,unit='',kind='line',min,max,formatX=String,formatValue=v=>Number(v).toLocaleString('de-DE',{maximumFractionDigits:2}),width=700,legendAction,legendLabel='Datenreihen',integerTicks=false}) {
+  const heading = `<h3>${escapeHtml(title)}${unit ? ` <small>${escapeHtml(unit)}</small>` : ''}</h3>`;
+  const legend = legendAction
+    ? `<div class="fui-chart-legend fui-chart-legend-interactive" role="group" aria-label="${escapeHtml(legendLabel)}">${series.map((item, index) => {
+        const label = escapeHtml(item.label);
+        const valueId = `${escapeHtml(id)}-legend-value-${index}`;
+        const hasValue = item.legendValue != null;
+        const description = hasValue ? ` aria-describedby="${valueId}"` : '';
+        const value = hasValue ? `<small id="${valueId}">${escapeHtml(item.legendValue)}</small>` : '';
+        return `<button type="button" class="fui-chart-legend-button ${roleClass(item.role)}" data-action="${escapeHtml(legendAction)}" data-series="${escapeHtml(item.id)}" aria-pressed="${!item.hidden}" aria-label="${label}"${description}><i aria-hidden="true"></i><span>${label}${value}</span></button>`;
+      }).join('')}</div>`
+    : `<div class="fui-chart-legend">${series.map(item => `<span><i class="${roleClass(item.role)}"></i>${escapeHtml(item.label)}</span>`).join('')}</div>`;
+  if (legendAction) {
+    series = series.filter(item => !item.hidden);
+    if (!series.length) {
+      return `<section class="fui-series-chart" id="${escapeHtml(id)}">${heading}${legend}${notice('Wähle mindestens eine Datenreihe aus.')}</section>`;
+    }
+  }
+  width=Math.max(280,Math.min(1000,Number(width)||700));const plotWidth=width-80;
+  const times=[...new Set(series.flatMap(s=>s.points.map(p=>p.x)))].filter(Number.isFinite).sort((a,b)=>a-b);
+  const values=series.flatMap(s=>s.points.map(p=>p.y)).filter(v=>typeof v==='number'&&Number.isFinite(v));
+  let low=min??Math.min(0,...values),high=max??Math.max(1,...values);
+  let tickValues;
+  if (integerTicks) {
+    const targetStep = Math.max(1, (high - low) / 3);
+    const magnitude = 10 ** Math.floor(Math.log10(targetStep));
+    const step = [1, 2, 5, 10].find(value => value * magnitude >= targetStep) * magnitude;
+    low = Math.floor(low / step) * step;
+    high = Math.max(low + step, Math.ceil(high / step) * step);
+    tickValues = Array.from({length: 1 + (high - low) / step}, (_, i) => low + i * step);
+  } else {
+    tickValues = [0, 1, 2, 3].map(i => low + (high - low || 1) * i / 3);
+  }
+  const range = high - low || 1;
+  const first = times[0] ?? 0;
+  const span = (times.at(-1) ?? first) - first;
+  let band = 0;
+  if (kind === 'bar') {
+    // Leave half a group at either end. Use the closest timestamps so groups
+    // stay separate even when some intervals are missing.
+    const shortestInterval = times.slice(1).reduce((shortest, t, i) => Math.min(shortest, t - times[i]), span);
+    band = span > 0 ? plotWidth / (span / shortestInterval + 1) : plotWidth;
+  }
+  const inset = band / 2;
+  const x = t => 52 + inset + (t - first) / (span || 1) * (plotWidth - band);
+  const y=v=>220-(v-low)/range*180;
+  const chartData={width,plotWidth,inset,times,labels:times.map(formatX),unit,series:series.map(s=>({label:s.label,role:roleClass(s.role),values:times.map(t=>{const v=s.points.find(p=>p.x===t)?.y;return typeof v==='number'&&Number.isFinite(v)?formatValue(v):null;})}))};
+  const ticks=tickValues.map(v=>{const yy=y(v);return `<line class="fui-chart-grid" x1="52" x2="${width-28}" y1="${yy}" y2="${yy}"/><text x="46" y="${yy+4}" text-anchor="end">${escapeHtml(integerTicks ? v.toLocaleString('de-DE') : formatValue(v))}</text>`;}).join('')+
+    (kind === 'bar' && low < 0 && high > 0 ? `<line class="fui-chart-zero" x1="52" x2="${width-28}" y1="${y(0)}" y2="${y(0)}"/>` : '');
+  const marks=series.map((s,si)=>{
+    const points=times.map(t=>({x:t,y:s.points.find(p=>p.x===t)?.y}));
+    const cls=roleClass(s.role);
+    if(kind==='bar'){
+      const barWidth = Math.min(28, band * .75 / series.length);
+      const baseline = y(0);
+      return points.filter(p => typeof p.y === 'number' && Number.isFinite(p.y)).map(p =>
+        `<rect class="fui-chart-bar ${cls}" x="${x(p.x)+(si-series.length/2)*barWidth}" y="${Math.min(baseline,y(p.y))}" width="${barWidth}" height="${Math.abs(y(p.y)-baseline)}"/>`
+      ).join('');
+    }
+    let d='',pen=false;for(const p of points){if(typeof p.y!=='number'||!Number.isFinite(p.y)){pen=false;continue;}d+=`${pen?'L':'M'}${x(p.x)},${y(p.y)} `;pen=true;}
+    return `<path class="fui-chart-line ${cls}" d="${d}"/>`+points.filter(p=>typeof p.y==='number'&&Number.isFinite(p.y)).map(p=>`<circle class="fui-chart-dot ${cls}" cx="${x(p.x)}" cy="${y(p.y)}" r="2"/>`).join('');
+  }).join('');
+  const indices=times.length?[...new Set([0,Math.floor((times.length-1)/2),times.length-1])]:[];
+  return `<section class="fui-series-chart" id="${escapeHtml(id)}" style="--chart-rows:${series.length}" data-chart-index="${Math.max(0,times.length-1)}" data-chart="${escapeHtml(JSON.stringify(chartData))}">${heading}${legend}<div class="fui-chart-inspector" aria-live="polite">${values.length?`<strong>${escapeHtml(chartData.labels.at(-1))}</strong><div class="fui-chart-values">${chartData.series.map(s=>`<span>${escapeHtml(s.label)}</span><span>${escapeHtml(s.values.at(-1)===null?'—':s.values.at(-1)+' '+unit)}</span>`).join('')}</div>`:'Keine historischen Werte für diesen Zeitraum vorhanden.'}</div><svg class="fui-chart-svg" viewBox="0 0 ${width} 264" role="group" aria-label="${escapeHtml(title+' – Pfeiltasten für Einzelwerte')}" tabindex="0">${ticks}${marks}${indices.map(i=>`<text x="${x(times[i])}" y="248" text-anchor="${i===0?'start':i===times.length-1?'end':'middle'}">${escapeHtml(formatX(times[i]))}</text>`).join('')}<line class="fui-chart-cursor" x1="52" x2="52" y1="32" y2="220" hidden/><rect class="fui-chart-hit" x="52" y="32" width="${plotWidth}" height="188"/></svg></section>`;
+}
+
+/** Bind once per ShadowRoot, cleanup on disconnect. The inspector stays above the plot. */
+export function bindSeriesCharts(root) {
+  function inspect(chart,index){
+    const data=JSON.parse(chart.dataset.chart);if(!data.times.length)return;
+    index=Math.max(0,Math.min(data.times.length-1,index));chart.dataset.chartIndex=String(index);
+    chart.querySelector('.fui-chart-inspector').innerHTML=`<strong>${escapeHtml(data.labels[index])}</strong><div class="fui-chart-values">${data.series.map(s=>`<span>${escapeHtml(s.label)}</span><span>${escapeHtml(s.values[index]===null?'—':s.values[index]+' '+data.unit)}</span>`).join('')}</div>`;
+    const cursor=chart.querySelector('.fui-chart-cursor'),times=data.times;
+    const inset = data.inset ?? 0;
+    const xx=52+inset+(times[index]-times[0])/(times.at(-1)-times[0]||1)*(data.plotWidth-2*inset);
+    cursor.removeAttribute('hidden');cursor.setAttribute('x1',xx);cursor.setAttribute('x2',xx);
+  }
+  function pointer(event){
+    const svg=event.target.closest?.('.fui-chart-svg');if(!svg)return;
+    const chart=svg.closest('[data-chart]'),data=JSON.parse(chart.dataset.chart);if(!data.times.length)return;
+    const box = svg.getBoundingClientRect();
+    const inset = data.inset ?? 0;
+    const plotWidth = data.plotWidth - 2 * inset;
+    const offset = (event.clientX - box.left) / box.width * data.width - 52 - inset;
+    const fraction = plotWidth > 0 ? Math.max(0, Math.min(1, offset / plotWidth)) : 0;
+    const t = data.times[0] + fraction * (data.times.at(-1) - data.times[0]);
+    let index=0;data.times.forEach((v,i)=>{if(Math.abs(v-t)<Math.abs(data.times[index]-t))index=i;});inspect(chart,index);
+    if(event.type==='pointerdown')svg.setPointerCapture?.(event.pointerId);
+  }
+  function keyboard(event){const chart=event.target.closest?.('[data-chart]');if(!chart||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const data=JSON.parse(chart.dataset.chart),i=Number(chart.dataset.chartIndex||0);inspect(chart,event.key==='Home'?0:event.key==='End'?data.times.length-1:i+(event.key==='ArrowRight'?1:-1));}
+  root.addEventListener('pointermove',pointer);root.addEventListener('pointerdown',pointer);root.addEventListener('keydown',keyboard);
+  return ()=>{root.removeEventListener('pointermove',pointer);root.removeEventListener('pointerdown',pointer);root.removeEventListener('keydown',keyboard);};
+}
+
+
+/** Original, local vector illustrations. WMO codes come from the host, never a network lookup. */
+export const WEATHER_GRAPHICS = Object.freeze(['clear','partly-cloudy','cloudy','fog','rain','showers','snow','sleet','thunder','hail','thermometer','unknown']);
+function weatherType(code) {
+  if (code === 0) return 'clear';
+  if ([1,2].includes(code)) return 'partly-cloudy';
+  if (code === 3) return 'cloudy';
+  if ([45,48].includes(code)) return 'fog';
+  if ([51,53,55,61,63,65].includes(code)) return 'rain';
+  if ([56,57,66,67].includes(code)) return 'sleet';
+  if ([71,73,75,77,85,86].includes(code)) return 'snow';
+  if ([80,81,82].includes(code)) return 'showers';
+  if (code === 95) return 'thunder';
+  if ([96,99].includes(code)) return 'hail';
+  return 'unknown';
+}
+export function weatherGraphic({code=null,kind,isDay=true,windy=false,label=''}={}) {
+  const type=kind || weatherType(code);
+  if (!WEATHER_GRAPHICS.includes(type)) throw new TypeError('Unknown weather graphic');
+  const sun='<g fill="none" stroke="#e8a51b" stroke-width="2.4" stroke-linecap="round"><path d="M40 8V3m0 47v5M18 29h-5m49 0h5M24 13l-4-4m36 36 4 4M24 45l-4 4m36-36 4-4"/><circle cx="40" cy="29" r="14" fill="#ffd467"/></g>';
+  const moon='<path d="M47 6a23 23 0 1 0 21 34C44 44 35 22 47 6Z" fill="#9db2dc" stroke="#768ebd" stroke-width="1.6"/>';
+  const sky=isDay?sun:moon;
+  const cloud='<path d="M25 52C8 52 8 30 24 29c3-17 28-20 36-4 20-5 31 24 10 27Z" fill="#e1f2fb" stroke="#a3d0e6" stroke-width="1.5"/>';
+  const drops='<g stroke="#46acd9" stroke-width="3" stroke-linecap="round"><path d="m29 61-3 6m19-6-3 6m19-6-3 6"/></g>';
+  const snow='<g stroke="#70a9cb" stroke-width="1.5" stroke-linecap="round"><path d="M29 59v12m-5-9 10 6m0-6-10 6M56 59v12m-5-9 10 6m0-6-10 6"/></g>';
+  let drawing='';
+  if(type==='clear')drawing=`<g transform="translate(8 5)">${sky}</g>`;
+  if(['partly-cloudy','showers'].includes(type))drawing=`<g transform="translate(0 -1) scale(.92)">${sky}</g>${cloud}`+(type==='showers'?drops:'');
+  if(['cloudy','rain','snow','sleet','thunder','hail','fog'].includes(type))drawing=cloud;
+  if(type==='rain')drawing+=drops;
+  if(type==='snow')drawing+=snow;
+  if(type==='sleet')drawing+='<path d="m28 59-3 7" stroke="#46acd9" stroke-width="3" stroke-linecap="round"/>'+snow.replace('M29 59v12m-5-9 10 6m0-6-10 6','');
+  if(['thunder','hail'].includes(type))drawing+='<path d="m48 46-12 17h10l-5 12 20-22H49l5-7" fill="#f3bb36" stroke="#dfa328" stroke-linejoin="round"/>'+(type==='hail'?'<g fill="#78b9d8"><circle cx="25" cy="64" r="3"/><circle cx="69" cy="64" r="3"/></g>':'');
+  if(type==='fog')drawing+='<path d="M14 58h56M23 65h50M17 72h44" stroke="#9bb0bb" stroke-width="3" stroke-linecap="round"/>';
+  if(type==='thermometer')drawing='<circle cx="48" cy="39" r="31" fill="#eef8ff"/><path d="M39 46V17a9 9 0 0 1 18 0v29a16 16 0 1 1-18 0Z" fill="#fff" stroke="#79b9dc" stroke-width="2.4"/><path d="M48 29v28" stroke="#2594ca" stroke-width="5" stroke-linecap="round"/><circle cx="48" cy="59" r="8" fill="#2594ca"/><path d="M61 21h7m-7 10h4m-4 10h7" stroke="#79b9dc" stroke-width="2" stroke-linecap="round"/>';
+  if(type==='unknown')drawing='<circle cx="48" cy="39" r="25" fill="#f2f5f7" stroke="#c5d3db"/><path d="M40 30a8 8 0 1 1 12 7c-4 2-4 5-4 7m0 7v1" fill="none" stroke="#8b9faa" stroke-width="3" stroke-linecap="round"/>';
+  if(windy&&type!=='thermometer'&&type!=='unknown')drawing+='<g fill="none" stroke="#7e9cae" stroke-width="2" stroke-linecap="round"><path d="M65 12h15c10 0 8 11 2 9M72 27h12c9 0 8 10 1 9"/></g>';
+  return `<svg class="fui-weather-graphic" data-weather-graphic="${type}" viewBox="0 0 96 80" focusable="false"${label?` role="img" aria-label="${escapeHtml(label)}"`:' aria-hidden="true"'}>${drawing}</svg>`;
+}
+
+const WEATHER_METRIC_PATHS={
+  rain:'<path d="M3 12a9 9 0 0 1 18 0H3Zm9-9v17c0 3 4 3 4 0M6 16l-1 2m14-2-1 2"/>',
+  wind:'<path d="M3 8h12c6 0 6-6 2-6M3 12h16c5 0 5 7 0 7M3 16h7c5 0 5 6 0 6"/>',
+  feels:'<path d="M12 21S2 15 2 8a5 5 0 0 1 10-1A5 5 0 0 1 22 8c0 7-10 13-10 13Z"/>',
+  humidity:'<path d="M12 2S4 11 4 16a8 8 0 0 0 16 0c0-5-8-14-8-14Z"/><path d="m9 18 6-6m-6 0h.01m6 6h.01"/>',
+  pressure:'<circle cx="12" cy="12" r="9"/><path d="m12 12 4-5M6 12h1m5-6v1m5 5h1m-9 5h6"/>',
+  light:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/>',
+  temperature:'<path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0ZM12 7v11"/>'
+};
+export function weatherMetricIcon(name) {
+  if(!Object.hasOwn(WEATHER_METRIC_PATHS,name))throw new TypeError('Unknown weather metric');
+  return `<svg class="fui-weather-metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${WEATHER_METRIC_PATHS[name]}</svg>`;
+}
+function weatherMetrics(metrics) {
+  return `<dl class="fui-weather-metrics">${metrics.map(m=>`<div><dt>${weatherMetricIcon(m.icon)}<span>${escapeHtml(m.label)}</span></dt><dd>${escapeHtml(m.value??'—')}${m.detail?`<small>${escapeHtml(m.detail)}</small>`:''}</dd></div>`).join('')}</dl>`;
+}
+/** Inputs are already formatted. No meteorology, aggregation or sample inference belongs to the kit. */
+function renderWeatherPeriod({id='',time,kind='forecast',temperature='—',temperatureLabel='',range='',condition='',graphic={},metrics=[],start,end,hours=[],detailsId='',expanded=false}={},hour=false) {
+  if(!['actual','forecast'].includes(kind))throw new TypeError('Unknown weather source');
+  if(!Array.isArray(hours))throw new TypeError('Weather hours must be an array');
+  const expandable=!hour&&hours.length>0;
+  if(expandable&&(!detailsId||/\s/.test(detailsId)))throw new TypeError('Hourly details require a unique nonempty ID without whitespace');
+  const bounds=[['start',start],['end',end]].filter(([,v])=>Number.isFinite(v)).map(([k,v])=>` data-${k}="${v}"`).join('');
+  const heading=expandable?`<button type="button" class="fui-weather-period-toggle" data-ui="collapse" aria-label="${escapeHtml(time)} · Stundenwerte" aria-expanded="${Boolean(expanded)}" aria-controls="${escapeHtml(detailsId)}">${icon('chevron',{expanded})}<span>${escapeHtml(time)}</span></button>`:escapeHtml(time);
+  const details=expandable?`<div class="fui-weather-hours" id="${escapeHtml(detailsId)}"${expanded?'':' hidden'}><p class="fui-weather-hours-label">Stundenwerte</p><ul class="fui-weather-hour-list">${hours.map(value=>renderWeatherPeriod(value,true)).join('')}</ul></div>`:'';
+  return `<li${id?` id="${escapeHtml(id)}"`:''} class="${hour?'fui-weather-hour':'fui-weather-period'} is-${kind}" data-weather-${hour?'hour-kind':'kind'}="${kind}"${bounds}><div class="fui-weather-time">${heading}</div><small class="fui-weather-source">${kind==='actual'?'Gemessen':'Vorhersage'}</small>${weatherGraphic(graphic)}<div class="fui-weather-temperature"><strong>${escapeHtml(temperature)}</strong></div><small class="fui-weather-temperature-label">${escapeHtml(temperatureLabel)}</small><div class="fui-weather-range">${escapeHtml(range)}</div><p class="fui-weather-condition">${escapeHtml(condition)}</p>${weatherMetrics(metrics)}${details}</li>`;
+}
+export function weatherPeriod(options={}) { return renderWeatherPeriod(options); }
+export function weatherStrip({items=[],label='Wetter im 3-Stunden-Takt'}={}) {
+  return `<div class="fui-weather-strip" role="region" aria-label="${escapeHtml(label)}" tabindex="0"><ul class="fui-weather-periods">${items.map(weatherPeriod).join('')}</ul></div>`;
+}
+/** Natural page scrolling, including current readings as a regular item. No nested scroll surface. */
+export function weatherList({items=[],label='Wetter im 3-Stunden-Takt'}={}) {
+  return `<div class="fui-weather-list" role="region" aria-label="${escapeHtml(label)}"><ul class="fui-weather-list-items">${items.map(weatherPeriod).join('')}</ul></div>`;
+}
+export function weatherNow({id='',label='Jetzt',temperature='—',range='',metrics=[]}={}) {
+  return `<div${id?` id="${escapeHtml(id)}"`:''} class="fui-weather-now is-actual" data-weather-kind="actual"><div><span>${escapeHtml(label)}</span><strong>${escapeHtml(temperature)}</strong><small>${escapeHtml(range)}</small></div>${weatherMetrics(metrics)}</div>`;
+}

@@ -46,6 +46,22 @@ class ForecastTests(unittest.TestCase):
         self.assertEqual(slot["precipitation_probability"],90)
         self.assertEqual(slot["condition"],"Gewitter")
         self.assertTrue(slot["partial"])
+        self.assertEqual([hour["temperature"] for hour in slot["hours"]],[11,12])
+        self.assertEqual([hour["precipitation"] for hour in slot["hours"]],[.5,1])
+        self.assertEqual([hour["condition"] for hour in slot["hours"]],["Gewitter","Gewitter"])
+        self.assertEqual(slot["hours"][0]["start"],self.now.timestamp())
+        self.assertEqual(slot["period_start"],self.now.timestamp()-5400)
+
+    def test_hourly_details_are_distinct_and_conserve_the_interval_rain(self):
+        data=forecast.build_forecast(self.payload,self.now)
+        for day in data["days"]:
+            for slot in day["slots"]:
+                self.assertAlmostEqual(sum(h["precipitation"] for h in slot["hours"]),slot["precipitation"])
+                self.assertEqual(slot["hours"][0]["start"],slot["start"])
+                self.assertEqual(slot["hours"][-1]["end"],slot["end"])
+                self.assertTrue(all(0<h["end"]-h["start"]<=3600 for h in slot["hours"]))
+        later=forecast.build_forecast(self.payload,self.now+timedelta(minutes=10))
+        self.assertEqual(data["days"][0]["slots"][0]["period_start"],later["days"][0]["slots"][0]["period_start"])
 
     def test_missing_rain_is_unknown_instead_of_zero(self):
         first_end=self.now.timestamp()+1800
@@ -55,6 +71,8 @@ class ForecastTests(unittest.TestCase):
         slot=forecast.build_forecast(self.payload,self.now)["days"][0]["slots"][0]
         self.assertIsNone(slot["precipitation"])
         self.assertIsNone(slot["precipitation_probability"])
+        self.assertIsNone(slot["hours"][0]["precipitation"])
+        self.assertEqual(slot["hours"][1]["precipitation"],1)
 
     def test_visual_details_keep_units_ranges_and_circular_wind_direction(self):
         hourly=self.payload["hourly"]
@@ -87,6 +105,9 @@ class ForecastTests(unittest.TestCase):
             slots=forecast.build_forecast(weather_payload(now),now)["days"][1]["slots"]
             self.assertEqual(len(slots),8)
             self.assertEqual(sum(slot["end"]-slot["start"] for slot in slots),hours*3600)
+            children=[hour for slot in slots for hour in slot["hours"]]
+            self.assertEqual(len(children),hours)
+            self.assertTrue(all(hour["end"]-hour["start"]==3600 for hour in children))
 
     def test_malformed_or_wrong_units_and_incomplete_ranges_are_rejected(self):
         for change in [lambda data:data["hourly_units"].update(temperature_2m="°F"),lambda data:data["hourly"]["time"].reverse(),lambda data:data["hourly"].update(temperature_2m=[]),lambda data:data["hourly"].update(time=[])]:

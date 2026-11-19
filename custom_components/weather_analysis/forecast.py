@@ -79,60 +79,66 @@ def build_forecast(payload, now):
             return (left + ((right-left+180) % 360-180) * fraction) % 360
         return left + (right-left) * fraction
 
+    def window(start,end,begin):
+        instants = [i for i, timestamp in enumerate(times) if start <= timestamp < end]
+        nearest = min(bisect_left(times, start), len(times)-1)
+        codes = [hourly["weather_code"][i] for i in instants] or [hourly["weather_code"][nearest]]
+        known = [int(code) for code in codes if number(code) is not None and int(code) in CONDITIONS]
+        code = max(known, key=lambda value: CONDITIONS[value][2]) if known else None
+        condition, icon, _ = CONDITIONS.get(code, ("Keine Wetterangabe", "cloudy", 0))
+        if code in (0, 1, 2) and hourly["is_day"][nearest] == 0:
+            icon = "night" if code == 0 else "night-partly-cloudy"
+        rain, probabilities, gusts, covered, probability_covered, gust_covered = [], [], [], 0., 0., 0.
+        for i, timestamp in enumerate(times):
+            overlap = max(0, min(end, timestamp) - max(start, timestamp-3600))
+            if not overlap:
+                continue
+            amount = number(hourly["precipitation"][i])
+            probability = number(hourly["precipitation_probability"][i])
+            gust = number(hourly["wind_gusts_10m"][i])
+            if amount is not None and amount >= 0:
+                rain.append(amount * overlap / 3600)
+                covered += overlap
+            if probability is not None and 0 <= probability <= 100:
+                probabilities.append(probability)
+                probability_covered += overlap
+            if gust is not None and gust >= 0:
+                gusts.append(gust)
+                gust_covered += overlap
+        winds = [number(hourly["wind_speed_10m"][i]) for i in instants] + [at("wind_speed_10m", start)]
+        temperatures = [number(hourly["temperature_2m"][i]) for i in instants] + [at("temperature_2m", start),at("temperature_2m", end)]
+        complete_temperatures = all(value is not None for value in temperatures) and not any(
+            right-left > 7200 for left,right in zip(times,times[1:]) if left < end and right > start)
+        humidity, direction, pressure = at("relative_humidity_2m", start), at("wind_direction_10m", start), at("pressure_msl", start)
+        return {"period_start":begin,"start": start, "end": end, "partial": start > begin,
+            "temperature": at("temperature_2m", start), "condition": condition, "icon": "mdi:weather-"+icon,
+            "weather_code": code, "is_day": hourly["is_day"][nearest] != 0,
+            "temperature_min": min(temperatures) if complete_temperatures else None,
+            "temperature_max": max(temperatures) if complete_temperatures else None,
+            "apparent_temperature": at("apparent_temperature",start),
+            "humidity": humidity if humidity is not None and 0 <= humidity <= 100 else None,
+            "pressure": pressure if pressure is not None and pressure > 0 else None,
+            "wind_direction": direction if direction is not None and 0 <= direction <= 360 else None,
+            "wind_gusts": max(gusts,default=None) if gust_covered >= end-start-1 else None,
+            "precipitation": sum(rain) if rain and covered >= end-start-1 else None,
+            "precipitation_probability": max(probabilities, default=None) if probability_covered >= end-start-1 else None,
+            "wind_speed": max((wind for wind in winds if wind is not None and wind >= 0), default=None)}
+
     days = []
-    for offset in (0, 1):
-        midnight = local.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=offset)
+    for offset in (0,1):
+        midnight = local.replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=offset)
         slots = []
-        for hour in range(0, 24, 3):
-            begin = (midnight + timedelta(hours=hour)).timestamp()
-            end = (midnight + timedelta(hours=hour+3)).timestamp()
+        for hour in range(0,24,3):
+            begin = (midnight+timedelta(hours=hour)).timestamp()
+            end = (midnight+timedelta(hours=hour+3)).timestamp()
             if end <= now_ts:
                 continue
-            start = max(begin, now_ts)
-            instants = [i for i, timestamp in enumerate(times) if start <= timestamp < end]
-            nearest = min(bisect_left(times, start), len(times)-1)
-            codes = [hourly["weather_code"][i] for i in instants] or [hourly["weather_code"][nearest]]
-            known = [int(code) for code in codes if number(code) is not None and int(code) in CONDITIONS]
-            code = max(known, key=lambda value: CONDITIONS[value][2]) if known else None
-            condition, icon, _ = CONDITIONS.get(code, ("Keine Wetterangabe", "cloudy", 0))
-            if code in (0, 1, 2) and hourly["is_day"][nearest] == 0:
-                icon = "night" if code == 0 else "night-partly-cloudy"
-            rain, probabilities, gusts, covered, probability_covered, gust_covered = [], [], [], 0., 0., 0.
-            for i, timestamp in enumerate(times):
-                overlap = max(0, min(end, timestamp) - max(start, timestamp-3600))
-                if not overlap:
-                    continue
-                amount = number(hourly["precipitation"][i])
-                probability = number(hourly["precipitation_probability"][i])
-                gust = number(hourly["wind_gusts_10m"][i])
-                if amount is not None and amount >= 0:
-                    rain.append(amount * overlap / 3600)
-                    covered += overlap
-                if probability is not None and 0 <= probability <= 100:
-                    probabilities.append(probability)
-                    probability_covered += overlap
-                if gust is not None and gust >= 0:
-                    gusts.append(gust)
-                    gust_covered += overlap
-            winds = [number(hourly["wind_speed_10m"][i]) for i in instants] + [at("wind_speed_10m", start)]
-            temperatures = [number(hourly["temperature_2m"][i]) for i in instants] + [at("temperature_2m", start),at("temperature_2m", end)]
-            complete_temperatures = all(value is not None for value in temperatures) and not any(
-                right-left > 7200 for left,right in zip(times,times[1:]) if left < end and right > start)
-            humidity, direction, pressure = at("relative_humidity_2m", start), at("wind_direction_10m", start), at("pressure_msl", start)
-            slots.append({"start": start, "end": end, "partial": start > begin,
-                "temperature": at("temperature_2m", start), "condition": condition, "icon": "mdi:weather-"+icon,
-                "weather_code": code, "is_day": hourly["is_day"][nearest] != 0,
-                "temperature_min": min(temperatures) if complete_temperatures else None,
-                "temperature_max": max(temperatures) if complete_temperatures else None,
-                "apparent_temperature": at("apparent_temperature",start),
-                "humidity": humidity if humidity is not None and 0 <= humidity <= 100 else None,
-                "pressure": pressure if pressure is not None and pressure > 0 else None,
-                "wind_direction": direction if direction is not None and 0 <= direction <= 360 else None,
-                "wind_gusts": max(gusts,default=None) if gust_covered >= end-start-1 else None,
-                "precipitation": sum(rain) if rain and covered >= end-start-1 else None,
-                "precipitation_probability": max(probabilities, default=None) if probability_covered >= end-start-1 else None,
-                "wind_speed": max((wind for wind in winds if wind is not None and wind >= 0), default=None)})
-        days.append({"date": midnight.date().isoformat(), "label": "Heute · Resttag" if offset == 0 else "Morgen", "slots": slots})
+            start = max(begin,now_ts)
+            slot = window(start,end,begin)
+            edges = [start]+[timestamp for timestamp in range(int(begin),int(end),3600) if start<timestamp]+[end]
+            slot["hours"] = [window(left,right,begin+math.floor((left-begin)/3600)*3600) for left,right in zip(edges,edges[1:])]
+            slots.append(slot)
+        days.append({"date":midnight.date().isoformat(),"label":"Heute · Resttag" if offset==0 else "Morgen","slots":slots})
     if not days[1]["slots"] or not any(slot["temperature"] is not None for slot in days[1]["slots"]):
         raise ValueError("No forecast for tomorrow")
     return {"location": LOCATION, "timezone": TIMEZONE, "source": "Open-Meteo", "source_url": SOURCE_URL, "days": days}

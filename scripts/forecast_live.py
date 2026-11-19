@@ -17,5 +17,6 @@ with urlopen(module.API_URL+"?"+urlencode(params),timeout=20) as response:
     payload=json.load(response)
 data=module.build_forecast(payload,datetime.now(timezone.utc))
 assert len(data["days"][1]["slots"])==8
+assert all(slot.get("hours") and all(0<h["end"]-h["start"]<=3600 for h in slot["hours"]) for day in data["days"] for slot in day["slots"])
 assert all(slot["temperature"] is not None for day in data["days"] for slot in day["slots"])
 print("Live Open-Meteo response verified for 67459: rest of today and tomorrow, 3-hour slots, Celsius, km/h and mm.")
