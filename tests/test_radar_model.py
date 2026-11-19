@@ -1,6 +1,7 @@
 """Actual GRIB decoding, geographical alignment, forecast cadence and source isolation."""
 import asyncio,unittest
-import eccodes as ec
+import base64,json
+from pathlib import Path
 import numpy as np
 from datetime import datetime,timezone
 from unittest.mock import AsyncMock
@@ -8,13 +9,16 @@ from test_radar import r,d,SCALE,rgba,NOW
 from radar_test_package import radar_model as m
 
 UUID='c6b12daa91ad64045b26c1b6452a2a20'
-def grib(parameter='TOT_PR',values=(0,.001,9999,.002),reference=NOW-3600,lead=180):
-    handle=ec.codes_grib_new_from_samples('GRIB2')
-    try:
-        date=datetime.fromtimestamp(reference,timezone.utc)
-        for key,value in [('centre',78),('tablesVersion',19),('localTablesVersion',1),('gridDefinitionTemplateNumber',101),('numberOfDataPoints',len(values)),('uuidOfHGrid',UUID),('shortName',{'TOT_PR':'tprate','CLAT':'tlat','CLON':'tlon'}[parameter]),('dataDate',int(date.strftime('%Y%m%d'))),('dataTime',int(date.strftime('%H%M'))),('stepUnits',0),('forecastTime',lead),('bitmapPresent',1)]:ec.codes_set(handle,key,value)
-        ec.codes_set_values(handle,values);return ec.codes_get_message(handle)
-    finally:ec.codes_release(handle)
+def grib(parameter='TOT_PR',values=None,reference=NOW-3600,lead=180):
+    fixtures=json.loads((Path(__file__).parent/'fixtures/ruc-grib.json').read_text())
+    raw=bytearray(base64.b64decode(fixtures[parameter]));offset=16
+    date=datetime.fromtimestamp(reference,timezone.utc)
+    while offset<len(raw)-4:
+        length=int.from_bytes(raw[offset:offset+4],'big');section=raw[offset+4]
+        if section==1:raw[offset+12:offset+19]=date.year.to_bytes(2,'big')+bytes((date.month,date.day,date.hour,date.minute,date.second))
+        if section==4:raw[offset+17]=0;raw[offset+18:offset+22]=lead.to_bytes(4,'big')
+        offset+=length
+    return bytes(raw)
 
 class ModelDataTests(unittest.TestCase):
     def test_real_grib_units_missing_values_and_run_are_verified(self):

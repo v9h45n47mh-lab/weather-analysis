@@ -17,7 +17,6 @@
   "requirements": [
     "h5py==3.15.1",
     "pyproj==3.7.2",
-    "eccodes==2.44.0",
     "scipy==1.16.3"
   ],
   "version": "1.17.0"

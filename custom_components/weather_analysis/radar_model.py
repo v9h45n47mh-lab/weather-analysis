@@ -6,31 +6,12 @@ import math
 from pathlib import Path
 import re
 from .radar_data import RadarUnavailable,colour_image
+from .radar_grib import decode
 from .radar_store import RawRadarStore
 
 MODEL_URL='https://opendata.dwd.de/weather/nwp/v1/m/icon-d2-ruc/p/'
 RUN=re.compile(r'(\d{4}-\d{2}-\d{2}T\d{2})(?:%3[Aa]|:)00/')
 STEP=re.compile(r'PT(\d{3})H(\d{2})M\.grib2')
-
-def decode(raw,parameter,reference=None,valid=None):
-    import eccodes as ec
-    import numpy as np
-    if not 64<=len(raw)<=8_000_000 or raw[:4]!=b'GRIB' or raw[7]!=2 or raw[-4:]!=b'7777' or int.from_bytes(raw[8:16],'big')!=len(raw):raise ValueError('Invalid GRIB2 message')
-    handle=ec.codes_new_from_message(raw)
-    try:
-        get=lambda name:ec.codes_get(handle,name)
-        if get('gridType')!='unstructured_grid' or not 1<=get('numberOfDataPoints')<=2_000_000:raise ValueError('Unexpected model grid')
-        stamp=lambda date,clock:int(datetime.strptime(str(get(date))+f'{int(get(clock)):04}', '%Y%m%d%H%M').replace(tzinfo=timezone.utc).timestamp())
-        meta={'reference':stamp('dataDate','dataTime'),'valid':stamp('validityDate','validityTime'),'uuid':get('uuidOfHGrid'),'count':int(get('numberOfDataPoints'))}
-        expected={'TOT_PR':('tprate','kg m**-2 s**-1'),'CLAT':('tlat','Degree N'),'CLON':('tlon','Degree E')}[parameter]
-        if (get('shortName'),get('units'))!=expected or get('stepType')!='instant':raise ValueError('Unexpected DWD parameter or units')
-        if reference is not None and (meta['reference']!=reference or meta['valid']!=valid):raise ValueError('Wrong model run or validity')
-        values=ec.codes_get_values(handle).astype('float32');known=np.isfinite(values)&(values!=get('missingValue'))
-        if not known.any():raise ValueError('No model data')
-        values[~known]=np.nan
-        if parameter=='TOT_PR':values*=3600 # kg m-2 s-1 is mm/s, displayed as mm/h.
-        return meta,values
-    finally:ec.codes_release(handle)
 
 def native_grid(latitude_raw,longitude_raw,uuid):
     import numpy as np

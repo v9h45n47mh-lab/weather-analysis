@@ -4,7 +4,7 @@
 - Erste Stunde aus dem DWD-Radar-Nowcast, längere Vorschau aus DWD ICON-D2-RUC. Modellvorhersagen werden ausdrücklich gekennzeichnet und auf dem nativen Modellgitter geografisch zugeordnet.
 - Standort bei allen Zoomstufen in der Kartenmitte. Zwei-Finger-Geste zum Zoomen; Ein-Finger-Scrollen und Zoom-Buttons bleiben verfügbar.
 - HA UI Kit 1.16.0 mit gemeinsamer Vorschauauswahl, korrekter Zeitachse und Zwei-Finger-Zoom. Weißer Kartenhintergrund und blaue Niederschlagsskala bleiben erhalten.
-- Neue Decoder-Abhängigkeiten: ecCodes 2.44.0 und SciPy 1.16.3.
+- Neue Decoder-Abhängigkeiten: SciPy 1.16.3 und der vorhandene HDF5-CCSDS-Decoder.
 
 ## 1.16.1
 

@@ -23,7 +23,7 @@ jobs:
       - run: npm install --ignore-scripts
       - run: npx playwright install --with-deps chromium
       - name: Install radar decoder dependencies
-        run: python3 -m pip install h5py==3.15.1 pyproj==3.7.2 eccodes==2.44.0 scipy==1.16.3
+        run: python3 -m pip install h5py==3.15.1 pyproj==3.7.2 scipy==1.16.3
       - run: npm run build && npm run check && npm test
       - name: Check live weather provider
         continue-on-error: true
