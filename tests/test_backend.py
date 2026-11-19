@@ -314,7 +314,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.history_read.return_value=raw
         await self.manager.load()
         expected=None
-        for interval in (900,3600,21600):
+        for interval in (900,3600,10800,21600):
             data=await self.manager.analyse({"start_date":"2026-11-17","end_date":"2026-11-17","chart_interval":interval})
             self.assertEqual(data["chart_interval"],interval)
             self.assertTrue(all(point["resolution"]==interval for point in data["chart"]))
@@ -418,6 +418,46 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["sensors"]["illuminance"]["current"],1234)
         self.assertEqual(data["errors"],{})
         self.assertNotIn(backend.DOMAIN+"_forecast",self.hass.data)
+
+    async def test_weather_intervals_use_real_three_hour_sensor_integrals(self):
+        first=datetime(2026,11,16,23,tzinfo=timezone.utc).timestamp()
+        def history(manager,start,end):
+            high={"temperature":12,"wind":18,"illuminance":900}[manager.kind]
+            raw=backend.Archive();raw.start(first,0);raw.change(first+3600,high);raw.advance(now.timestamp())
+            return raw
+        self.history_patch.stop()
+        with patch.object(backend.Manager,"read_history",autospec=True,side_effect=history):
+            connection=Connection()
+            await backend.ws_dashboard(self.hass,connection,{"id":1,"temperature_entity":"sensor.test","wind_entity":"sensor.wind","illuminance_entity":"sensor.lux","as_of":now.timestamp()})
+        data=connection.results[-1][1]
+        first_slot=data["intervals"][0]
+        self.assertEqual((first_slot["start"],first_slot["end"]),(first,first+10800))
+        self.assertEqual(first_slot["temperature"],8)
+        self.assertEqual((first_slot["temperature_min"],first_slot["temperature_max"]),(0,12))
+        self.assertEqual(first_slot["wind_speed"],12)
+        self.assertEqual(first_slot["illuminance"],600)
+        self.assertEqual(data["intervals"][-1]["end"],now.timestamp())
+        self.assertTrue(data["intervals"][-1]["partial"])
+        self.assertTrue(all(slot["end"]<=data["as_of"] for slot in data["intervals"]))
+
+    async def test_weather_snapshot_excludes_changes_after_the_requested_boundary(self):
+        first=datetime(2026,11,16,23,tzinfo=timezone.utc).timestamp();snapshot=now.timestamp()-60
+        raw=backend.Archive();raw.start(first,10);raw.change(snapshot+30,99);raw.advance(now.timestamp())
+        self.history_read.return_value=raw
+        connection=Connection()
+        await backend.ws_dashboard(self.hass,connection,{"id":1,"temperature_entity":"sensor.test","as_of":snapshot})
+        data=connection.results[-1][1]
+        self.assertEqual(data["as_of"],snapshot)
+        self.assertEqual(data["sensors"]["temperature"]["max"],10)
+        self.assertEqual(data["intervals"][-1]["end"],snapshot)
+        self.assertEqual(data["intervals"][-1]["temperature"],10)
+
+    async def test_weather_rejects_invalid_snapshot_without_querying_history(self):
+        for value in (float("nan"),now.timestamp()+3600,-1,True):
+            connection=Connection()
+            await backend.ws_dashboard(self.hass,connection,{"id":1,"temperature_entity":"sensor.test","as_of":value})
+            self.assertEqual(connection.errors[-1][1],"invalid_range")
+        self.history_read.assert_not_called()
 
     async def test_dashboard_denied_sensor_never_queries_history(self):
         connection=Connection(denied={"sensor.test"})

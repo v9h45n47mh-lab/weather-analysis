@@ -37,7 +37,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -230,7 +230,7 @@ class Manager:
             raise ValueError("Bitte gültige Kalendertage auswählen.")
         requested_end = (last_local + timedelta(days=1)).timestamp()
         interval = msg.get("chart_interval", 3600 if (last_local-start_local).days <= 3 else 86400)
-        if interval not in (900,3600,21600,86400):
+        if interval not in (900,3600,10800,21600,86400):
             raise ValueError("Bitte eine gültige Chartauflösung auswählen.")
         start = start_local.timestamp()
         now = dt_util.utcnow().timestamp()
@@ -251,7 +251,7 @@ class Manager:
                 requested_end = math.floor(reference/60)*60+60
                 start = (local.replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=7)).timestamp()
             start_local = datetime.fromtimestamp(start,tz)
-        end = min(now, requested_end)
+        end = min(now, requested_end, reference if window else now)
         if start >= end or requested_end <= start or requested_end-start > 367*86400 or (last_local.date()-datetime.fromisoformat(msg["start_date"]).date()).days > 365:
             raise ValueError("Der Zeitraum muss in der Vergangenheit beginnen und darf höchstens ein Jahr umfassen.")
         await self.import_history()
@@ -442,6 +442,7 @@ async def ws_import_history(hass, connection, msg):
 
 @websocket_api.websocket_command({
     vol.Required("type"): "weather_analysis/dashboard",
+    vol.Optional("as_of"): vol.Coerce(float),
     vol.Optional("temperature_entity", default=""): str,
     vol.Optional("wind_entity", default=""): str,
     vol.Optional("illuminance_entity", default=""): str,
@@ -449,7 +450,14 @@ async def ws_import_history(hass, connection, msg):
 @websocket_api.async_response
 async def ws_dashboard(hass, connection, msg):
     """Today's sensor overview and independent public location forecast."""
-    today = dt_util.utcnow().astimezone(ZoneInfo(hass.config.time_zone)).date().isoformat()
+    now = dt_util.utcnow().timestamp()
+    snapshot = msg.get("as_of",now)
+    if not isinstance(snapshot,(int,float)) or isinstance(snapshot,bool) or not math.isfinite(snapshot) or snapshot < 0 or snapshot > now+300:
+        connection.send_error(msg["id"],"invalid_range","Bitte einen gültigen Zeitpunkt auswählen.")
+        return
+    snapshot = min(snapshot,now)
+    local = datetime.fromtimestamp(snapshot,ZoneInfo(hass.config.time_zone))
+    today = local.date().isoformat()
     sensors, errors = {}, {}
 
     async def reading(kind):
@@ -468,25 +476,38 @@ async def ws_dashboard(hass, connection, msg):
             manager = manager or await ensure_manager(hass,entity,kind)
             data = {"entity_id":entity,"current":manager.state_value(),"unit":{"temperature":"°C","wind":"km/h","illuminance":"lx"}[kind],
                 "updated_at":state.last_updated.timestamp() if state is not None else None}
-            if kind=="temperature":
-                analysis = await manager.analyse({"start_date":today,"end_date":today,"chart_interval":900})
-                data.update({key:analysis["summary"].get(key) for key in ("min","max","min_at","max_at")})
+            analysis = await manager.analyse({"start_date":today,"end_date":today,"chart_interval":10800,"window":"day","as_of":snapshot})
+            data.update({key:analysis["summary"].get(key) for key in ("min","max","min_at","max_at")})
+            data["chart"] = analysis["chart"]
             sensors[kind] = data
         except Exception:
             _LOGGER.exception("Dashboard reading failed for %s",entity)
             errors[kind] = "Die heutigen Messwerte konnten nicht geladen werden."
 
     await asyncio.gather(*(reading(kind) for kind in SENSOR_FIELDS))
-    connection.send_result(msg["id"],{"version":VERSION,"date":today,"timezone":hass.config.time_zone,
-        "sensors":sensors,"errors":errors})
+    intervals = []
+    midnight = local.replace(hour=0,minute=0,second=0,microsecond=0)
+    for hour in range(0,24,3):
+        start = (midnight+timedelta(hours=hour)).timestamp()
+        end = min(snapshot,(midnight+timedelta(hours=hour+3)).timestamp())
+        if start >= end:
+            continue
+        points = {kind:next((point for point in data.get("chart",[]) if point["start"]==start),{}) for kind,data in sensors.items()}
+        temperature,wind,light = (points.get(kind,{}) for kind in SENSOR_FIELDS)
+        intervals.append({"start":start,"end":end,"partial":end<(midnight+timedelta(hours=hour+3)).timestamp(),
+            "temperature":temperature.get("mean"),"temperature_min":temperature.get("min"),"temperature_max":temperature.get("max"),
+            "wind_speed":wind.get("mean"),"wind_max":wind.get("max"),"illuminance":light.get("mean"),
+            "estimated":any(point.get("estimated",False) for point in points.values())})
+    connection.send_result(msg["id"],{"version":VERSION,"date":today,"timezone":hass.config.time_zone,"as_of":snapshot,
+        "sensors":sensors,"errors":errors,"intervals":intervals})
 
 
-@websocket_api.websocket_command({vol.Required("type"): "weather_analysis/forecast"})
+@websocket_api.websocket_command({vol.Required("type"): "weather_analysis/forecast",vol.Optional("as_of"):vol.Coerce(float)})
 @websocket_api.async_response
 async def ws_forecast(hass, connection, msg):
     client = hass.data.setdefault(DOMAIN+"_forecast",ForecastClient(hass))
     try:
-        prediction,error = await client.get(),None
+        prediction,error = await client.get(as_of=msg.get("as_of")),None
     except ForecastUnavailable as exception:
         prediction,error = None,str(exception)
     connection.send_result(msg["id"],{"forecast":prediction,"forecast_error":error})

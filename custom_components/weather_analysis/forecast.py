@@ -134,9 +134,15 @@ class ForecastClient:
                 response.raise_for_status()
                 return await response.json()
 
-    async def get(self):
+    async def get(self, as_of=None):
         async with self.lock:
             now = self.clock()
+            reference = now
+            if as_of is not None:
+                timestamp = number(as_of)
+                if timestamp is None or timestamp < 0 or timestamp > now.timestamp()+300:
+                    raise ForecastUnavailable("Ungültiger Vorhersagezeitpunkt.")
+                reference = datetime.fromtimestamp(min(timestamp,now.timestamp()),timezone.utc)
             stale = False
             required_end = (now.astimezone(ZoneInfo(TIMEZONE)).replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=2)).timestamp()
             range_missing = self.raw is None or self.raw["hourly"]["time"][-1] < required_end
@@ -154,7 +160,7 @@ class ForecastClient:
             if self.raw is None or self.updated is None or (now-self.updated).total_seconds() > 21600:
                 raise ForecastUnavailable("Die Wettervorhersage ist derzeit nicht erreichbar.")
             try:
-                result = build_forecast(self.raw, now)
+                result = build_forecast(self.raw, reference)
             except ValueError as error:
                 raise ForecastUnavailable("Die Wettervorhersage ist derzeit nicht verfügbar.") from error
-            return {**result, "updated_at": self.updated.timestamp(), "stale": stale}
+            return {**result, "as_of":reference.timestamp(), "updated_at": self.updated.timestamp(), "stale": stale}

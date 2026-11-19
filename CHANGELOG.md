@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.0
+
+- Reiter Dashboard heißt jetzt Wetter. Die vier Messkacheln entfallen in dieser Übersicht.
+- Gemeinsame 3-Stunden-Zeitliste für heute: tatsächliche Sensordaten in Blau, anschließender Forecast in Schwarz; morgen ausschließlich Forecast.
+- Ist-Werte stammen aus der HA-Historie: zeitgewichtete Temperatur-, Wind- und Helligkeitsmittel sowie Temperatur-Minimum/-Maximum je Abschnitt. Fehlende Ist-Daten werden nicht aus dem Wettermodell aufgefüllt.
+- Der laufende 3-Stunden-Abschnitt wird an einem gemeinsamen Abfragezeitpunkt geteilt. Messwerte enden dort, Vorhersage beginnt dort.
+- Kompakte blaue Jetzt-Zeile mit aktuellen Werten und Temperatur-Minimum/-Maximum heute.
+- Helle Zeitzeilen für gute Lesbarkeit der ausdrücklich schwarzen Prognose auch im dunklen Theme. Gemeinsame Zeilen und Klappbereiche des HA UI Kits bleiben erhalten.
+
 ## 1.7.0
 
 - Aktuell bedeutet bei Tag wieder heute. Die Zeitachse zeigt immer 00:00–23:59 Uhr; Messwerte reichen bis jetzt. Pfeile wechseln volle Kalendertage, Aktuell kehrt zu heute zurück.

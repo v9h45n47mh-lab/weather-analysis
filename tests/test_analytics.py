@@ -184,6 +184,9 @@ class ResolutionTests(unittest.TestCase):
             self.assertEqual([datetime.fromtimestamp(p["start"],tz).hour for p in chart],[0,6,12,18])
             self.assertEqual(sum(p["end"]-p["start"] for p in chart),hours*3600)
             self.assertEqual([p["mean"] for p in chart],[7]*4)
+            weather=self.chart(archive,10800,start,end,str(tz))
+            self.assertEqual([datetime.fromtimestamp(p["start"],tz).hour for p in weather],list(range(0,24,3)))
+            self.assertEqual(sum(p["end"]-p["start"] for p in weather),hours*3600)
 
 
 class SensorDiscoveryTests(unittest.TestCase):

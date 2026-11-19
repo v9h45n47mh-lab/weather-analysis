@@ -50,13 +50,13 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.7.0",data
+            assert data["version"]=="1.8.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data
             assert data["summary"]["min"]==-2,data
             assert data["summary"]["min_at"] is not None,data
-            for interval in (900,3600,21600):
+            for interval in (900,3600,10800,21600):
                 detail=await manager.analyse({**request,"chart_interval":interval})
                 assert detail["chart_interval"]==interval,detail
                 assert detail["chart"] and all(point["resolution"]==interval for point in detail["chart"]),detail
@@ -82,6 +82,9 @@ async def main():
             lux_manager=await ensure_manager(hass,"sensor.lux_test","illuminance")
             lux_data=await lux_manager.analyse(request)
             assert lux_data["current"]==1234 and lux_data["unit"]=="lx",lux_data
+            for weather_manager in (wind_manager,lux_manager):
+                intervals=await weather_manager.analyse({**request,"chart_interval":10800,"window":"day"})
+                assert all(point["resolution"]==10800 for point in intervals["chart"]),intervals
             assert len(hass.data["weather_analysis"])==3
             hass.data["weather_analysis_settings"]["smoke"]={"entities":["sensor.outdoor_test"],
                 "wind_entities":["sensor.wind_test","sensor.wind_test2"],

@@ -1,10 +1,10 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.7.0**, HA UI Kit **1.8.0** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.8.0**, HA UI Kit **1.8.0** lokal eingebunden.
 
 ## Funktionen
 
-- **Dashboard** mit aktueller Temperatur, Temperatur-Minimum und -Maximum von heute, aktuellem Wind und Helligkeit sowie Wettervorhersage. Daneben **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigener Sensorauswahl aus den Karteneinstellungen.
+- **Wetter** mit einer gemeinsamen 3-Stunden-Zeitliste: Ist-Daten blau, Forecast schwarz. Aktuelle Messwerte und Temperatur-Minimum/-Maximum von heute stehen in einer kompakten Zeile statt Kacheln. Daneben **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigener Sensorauswahl aus den Karteneinstellungen.
 - Relevante Sensoren aller drei Messarten im einklappbaren Bereich „Sensorauswahl“ vorauswählen, je Karte eigene Namen vergeben und per Ziehen sortieren. Die Reihenfolge gilt auch für die Dropdowns. Die ursprünglichen HA-Entitätsnamen bleiben erhalten.
 - Schmale, links ausgerichtete Sensordropdowns und ein Aktualisieren-Symbol in der Kopfleiste aller Reiter. Kein Kartentitel und kein Feld Anzeigename.
 - Zwei Kacheln über dem Chart: Aktuell mit Veränderung in 1 Std. sowie Minimum/Maximum.
@@ -50,15 +50,17 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Sensoren und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.7.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.8.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
 
-## Dashboard und Vorhersage
+## Wetter und 3-Stunden-Sicht
 
-Das Dashboard verwendet jeweils den in den Messreitern aktiven Sensor aus der gespeicherten Vorauswahl. Die Sensornamen stehen an den Kacheln. Temperatur-Minimum und -Maximum werden immer für heute in der HA-Zeitzone berechnet, unabhängig vom gewählten Auswertungszeitraum.
+Der Reiter **Wetter** verwendet jeweils den in den Messreitern aktiven Sensor aus der gespeicherten Vorauswahl. Die Sensornamen stehen oberhalb der Zeitliste. Die Kacheln entfallen hier. Eine blaue Jetzt-Zeile zeigt aktuelle Temperatur, Wind und Helligkeit sowie Temperatur-Minimum/-Maximum von heute.
 
-Die Vorhersage für **67459 Böhl-Iggelheim** (49.3806° N, 8.3039° E) kommt von [Open-Meteo](https://open-meteo.com/) und benötigt keinen API-Schlüssel. Home Assistant lädt sie serverseitig und teilt einen 30-Minuten-Cache für alle Karten. Es werden ausschließlich die festen Ortskoordinaten und gewünschten Vorhersagevariablen übertragen. Die lokalen Sensordaten bleiben unabhängig davon verfügbar.
+Heute werden gemessene 3-Stunden-Abschnitte aus der HA-Historie blau und anschließende Vorhersagen schwarz angezeigt. Ist-Temperatur, Wind und Helligkeit sind zeitlich gewichtete Mittelwerte der verfügbaren Messwerte. Temperatur-Minimum/-Maximum gelten in der Zeitliste für den jeweiligen Abschnitt. Fehlende Messwerte werden nicht durch Vorhersagen ersetzt. Der laufende Abschnitt wird am gemeinsamen Abfragezeitpunkt geteilt: Ist endet dort, Forecast beginnt dort. Morgen enthält ausschließlich Vorhersagen. Helle Zeilenflächen halten die ausdrücklich schwarzen Prognosewerte auch im dunklen Theme lesbar.
 
-Heute wird nur der Resttag angezeigt, morgen der volle Tag. Die örtlichen Zeitfenster beginnen bei 00, 03, 06, 09, 12, 15, 18 und 21 Uhr. Der erste noch laufende Abschnitt beginnt jetzt. Die Temperatur bezieht sich auf den Beginn des Abschnitts; Wetterzustand und Wind berücksichtigen die im Abschnitt enthaltenen Stunden. Regenrisiko zeigt das höchste stündliche Risiko; Niederschlag die aufsummierte Menge. Angebrochene Stunden werden für Niederschlag anteilig geschätzt. Fehlende Werte werden als fehlend angezeigt.
+Die Vorhersage für **67459 Böhl-Iggelheim** (49.3806° N, 8.3039° E) kommt von [Open-Meteo](https://open-meteo.com/) und benötigt keinen API-Schlüssel. Home Assistant lädt sie serverseitig und teilt einen 30-Minuten-Cache für alle Karten. Es werden ausschließlich die festen Ortskoordinaten und gewünschten Vorhersagevariablen übertragen. Die lokalen Sensordaten bleiben unabhängig davon verfügbar und werden nie an den Vorhersagedienst übertragen.
+
+Der Forecast umfasst heute nur den verbleibenden Resttag und morgen den vollen Tag. Die örtlichen Zeitfenster beginnen bei 00, 03, 06, 09, 12, 15, 18 und 21 Uhr. Der erste noch laufende Abschnitt beginnt jetzt. Die Temperatur bezieht sich auf den Beginn des Abschnitts; Wetterzustand und Wind berücksichtigen die im Abschnitt enthaltenen Stunden. Regenrisiko zeigt das höchste stündliche Risiko; Niederschlag die aufsummierte Menge. Angebrochene Stunden werden für Niederschlag anteilig geschätzt. Fehlende Werte werden als fehlend angezeigt.
 
 Quelle und Abrufzeit stehen direkt an der Vorhersage. Bei einer Störung kann ein bis zu sechs Stunden alter Stand mit deutlicher Kennzeichnung weiter angezeigt werden; danach erscheint eine Fehlermeldung. Dafür benötigt HA Internetzugang. Die Wetterdaten sind Vorhersagen, die vier oberen Kacheln stammen von den eigenen Sensoren.
 

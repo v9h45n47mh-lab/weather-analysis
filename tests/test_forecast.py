@@ -121,6 +121,21 @@ class ForecastCacheTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(forecast.ForecastUnavailable):await self.client.get()
         self.assertEqual(len(self.session.calls),1)
 
+    async def test_forecast_starts_at_the_same_explicit_snapshot_as_measurements(self):
+        snapshot=self.time[0].timestamp()-37
+        data=await self.client.get(as_of=snapshot)
+        self.assertEqual(data["as_of"],snapshot)
+        self.assertEqual(data["days"][0]["slots"][0]["start"],snapshot)
+        self.time[0]+=timedelta(minutes=5)
+        again=await self.client.get(as_of=snapshot)
+        self.assertEqual(again["days"][0]["slots"][0]["start"],snapshot)
+        self.assertEqual(len(self.session.calls),1)
+
+    async def test_invalid_forecast_snapshot_never_contacts_provider(self):
+        for value in (float("nan"),True,-1,self.time[0].timestamp()+3600):
+            with self.assertRaises(forecast.ForecastUnavailable):await self.client.get(as_of=value)
+        self.assertEqual(self.session.calls,[])
+
     async def test_cancellation_is_not_swallowed(self):
         self.session.failure=asyncio.CancelledError()
         with self.assertRaises(asyncio.CancelledError):await self.client.get()
