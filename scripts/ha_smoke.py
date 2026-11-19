@@ -68,8 +68,13 @@ async def main():
             hass.states.async_set(ssid.entity_id,"Home test")
             hass.states.async_set("person.gps_test","not_home",{"user_id":"gps-test","device_trackers":[tracker.entity_id],"source":tracker.entity_id})
             conn.user.is_admin=True
+            saved=asyncio.Event()
+            def sent_result(request,data):
+                responses.append(data)
+                if request==3:saved.set()
+            conn.send_result=sent_result
             ws_save_network(hass,conn,{"id":3,"home_ssids":["Home test"]})
-            await hass.async_block_till_done()
+            await asyncio.wait_for(saved.wait(),10)
             conn.user.is_admin=False
             assert (await hass.data["weather_analysis_network_store"].async_load())["home_ssids"]==["Home test"]
             conn.user.id="gps-test"
