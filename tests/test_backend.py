@@ -70,8 +70,8 @@ def state(entity, value, unit, kind):
 
 
 class Connection:
-    def __init__(self, admin=False, denied=()):
-        self.user = SimpleNamespace(is_admin=admin, permissions=SimpleNamespace(
+    def __init__(self, admin=False, denied=(), user_id="test-user"):
+        self.user = SimpleNamespace(id=user_id,is_admin=admin, permissions=SimpleNamespace(
             check_entity=lambda entity, policy:entity not in denied))
         self.results = []
         self.errors = []
@@ -103,6 +103,80 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.manager = backend.Manager(self.hass, SimpleNamespace(data={"entity_id":"sensor.test"}, entry_id="entry"))
         self.manager.statistics = AsyncMock(return_value=[])
         self.hass.data[backend.DOMAIN]["entry"] = self.manager
+
+    def add_position(self, user_id="test-user", person="person.test", tracker="device_tracker.phone", latitude=49.3806, longitude=8.3039):
+        self.states[person] = SimpleNamespace(entity_id=person,state="home",attributes={
+            "user_id":user_id,"device_trackers":[tracker],"source":tracker},last_updated=now)
+        self.states[tracker] = SimpleNamespace(entity_id=tracker,state="home",attributes={
+            "source_type":"gps","latitude":latitude,"longitude":longitude},last_updated=now)
+
+    async def test_location_only_uses_current_users_permitted_gps(self):
+        self.add_position()
+        self.add_position("other-user","person.other","device_tracker.other",53.55,10.0)
+        self.assertEqual(backend.user_position(self.hass,Connection()),(49.3806,8.3039))
+        self.assertEqual(backend.user_position(self.hass,Connection(user_id="other-user")),(53.55,10.0))
+        self.assertIsNone(backend.user_position(self.hass,Connection(user_id="unknown-user")))
+        self.assertIsNone(backend.user_position(self.hass,Connection(denied={"person.test"})))
+        self.assertIsNone(backend.user_position(self.hass,Connection(denied={"device_tracker.phone"})))
+        self.assertIsNone(backend.user_position(self.hass,Connection(user_id=None)))
+
+    async def test_location_uses_newest_valid_gps_over_router_source(self):
+        self.add_position()
+        self.states["person.test"].attributes["device_trackers"].append("device_tracker.new_phone")
+        self.states["device_tracker.new_phone"] = SimpleNamespace(entity_id="device_tracker.new_phone",state="not_home",
+            attributes={"source_type":"gps","latitude":53.55,"longitude":10.0},last_updated=now+timedelta(minutes=1))
+        self.assertEqual(backend.user_position(self.hass,Connection()),(53.55,10.0))
+        self.states["device_tracker.new_phone"].attributes["source_type"]="router"
+        self.assertEqual(backend.user_position(self.hass,Connection()),(49.3806,8.3039))
+        self.states["device_tracker.phone"].state="unavailable"
+        self.assertIsNone(backend.user_position(self.hass,Connection()))
+        self.states["person.test"].attributes.update(latitude=49.38,longitude=8.3)
+        self.assertEqual(backend.user_position(self.hass,Connection()),(49.38,8.3))
+
+    async def test_missing_and_invalid_location_do_not_guess_home_or_contact_geocoder(self):
+        with patch.object(backend,"resolve_place",new_callable=AsyncMock) as resolve:
+            conn=Connection()
+            await backend.ws_location(self.hass,conn,{"id":1})
+            self.assertFalse(conn.results[-1][1]["location"]["is_home"])
+            self.assertFalse(conn.results[-1][1]["location"]["position_available"])
+            self.assertIn("Kein GPS",conn.results[-1][1]["location_error"])
+            for command in (backend.ws_location,backend.ws_forecast):
+                for point in ({"latitude":91,"longitude":8},{"latitude":49},{"latitude":float("nan"),"longitude":8}):
+                    await command(self.hass,conn,{"id":2,**point})
+                    self.assertEqual(conn.errors[-1][1],"invalid_location")
+            resolve.assert_not_awaited()
+
+    async def test_location_passes_owned_gps_and_explicit_device_coordinates(self):
+        self.add_position()
+        lookup={"name":"Hamburg","resolved":True,"is_home":False}
+        with patch.object(backend,"resolve_place",new_callable=AsyncMock,return_value=lookup) as resolve:
+            conn=Connection()
+            await backend.ws_location(self.hass,conn,{"id":1})
+            resolve.assert_awaited_with(self.hass,49.3806,8.3039)
+            await backend.ws_location(self.hass,conn,{"id":2,"latitude":53.55001,"longitude":10})
+            resolve.assert_awaited_with(self.hass,53.55,10.0)
+            self.assertEqual(conn.results[-1][1],{"location":lookup,"location_error":None})
+            lookup.update(name="Aktueller Standort",resolved=False)
+            await backend.ws_location(self.hass,conn,{"id":3})
+            self.assertIsNotNone(conn.results[-1][1]["location_error"])
+            self.assertFalse(conn.results[-1][1]["location"]["is_home"])
+
+    async def test_forecast_pool_isolates_places_and_updates_returned_place_metadata(self):
+        def place(hass,lat,lon):
+            return {"latitude":lat,"longitude":lon,"name":str(lat),"country_code":"de","postal_code":"67459" if lat<50 else "20095"}
+        clients=[]
+        def client(hass,location=None):
+            obj=SimpleNamespace(location=location,get=AsyncMock(return_value={"location":location,"days":[]}))
+            clients.append(obj)
+            return obj
+        with patch.object(backend,"resolve_place",new_callable=AsyncMock,side_effect=place),patch.object(backend,"ForecastClient",side_effect=client):
+            conn=Connection()
+            for latitude in (49.3806,53.55,49.38061):
+                await backend.ws_forecast(self.hass,conn,{"id":1,"latitude":latitude,"longitude":8.3})
+            self.assertEqual(len(clients),2)
+            self.assertEqual(clients[0].get.await_count,2)
+            self.assertEqual(clients[1].get.await_count,1)
+            self.assertEqual(conn.results[-1][1]["forecast"]["location"]["latitude"],49.3806)
 
     async def test_query_converts_existing_temperature(self):
         await self.manager.load()

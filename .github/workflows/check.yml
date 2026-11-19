@@ -26,6 +26,9 @@ jobs:
       - name: Check live weather provider
         continue-on-error: true
         run: python3 scripts/forecast_live.py
+      - name: Check live place provider
+        continue-on-error: true
+        run: python3 scripts/location_live.py
       - run: npm run test:browser
       - run: npm run package
       - uses: actions/upload-artifact@v4

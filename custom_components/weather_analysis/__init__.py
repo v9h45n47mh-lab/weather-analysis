@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime, timedelta
 from functools import partial
@@ -32,12 +33,13 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .forecast import ForecastClient, ForecastUnavailable
+from .location import LocationClient, coordinates, fallback
 
 from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.11.0"
+VERSION = "1.12.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -61,7 +63,7 @@ async def async_setup(hass, config):
         StaticPathConfig("/weather-analysis", str(Path(__file__).parent / "frontend"), False)
     ])
     frontend.add_extra_js_url(hass, f"/weather-analysis/weather-analysis-card.js?v={VERSION}")
-    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast):
+    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location):
         websocket_api.async_register_command(hass, command)
     return True
 
@@ -514,12 +516,90 @@ async def ws_dashboard(hass, connection, msg):
         "sensors":sensors,"errors":errors,"intervals":intervals})
 
 
-@websocket_api.websocket_command({vol.Required("type"): "weather_analysis/forecast",vol.Optional("as_of"):vol.Coerce(float)})
+def user_position(hass, connection):
+    """Read only the logged-in user's linked person and permitted GPS trackers."""
+    user_id = getattr(connection.user, "id", None)
+    if not user_id:
+        return None
+    people = [p for p in hass.states.async_all("person") if p.entity_id.startswith("person.")
+        and p.attributes.get("user_id") == user_id and may_read(connection,p.entity_id)]
+    candidates = []
+    for person in people:
+        ids = person.attributes.get("device_trackers", [])
+        ids = list(ids) if isinstance(ids,list) else []
+        source = person.attributes.get("source")
+        if isinstance(source,str) and source.startswith("device_tracker."):
+            ids.append(source)
+        for entity in {value for value in ids if isinstance(value,str)}:
+            if not isinstance(entity,str) or not entity.startswith("device_tracker.") or not may_read(connection,entity):
+                continue
+            state = hass.states.get(entity)
+            if not state or state.state in ("unknown","unavailable") or state.attributes.get("source_type") != "gps":
+                continue
+            try:
+                lat,lon = coordinates(state.attributes.get("latitude"),state.attributes.get("longitude"))
+            except ValueError:
+                continue
+            candidates.append((state.last_updated.timestamp(),lat,lon))
+    if candidates:
+        _,lat,lon = max(candidates)
+        return lat,lon
+    for person in people:
+        if person.state in ("unknown","unavailable"):
+            continue
+        try:
+            return coordinates(person.attributes.get("latitude"),person.attributes.get("longitude"))
+        except ValueError:
+            pass
+    return None
+
+
+async def resolve_place(hass, latitude, longitude):
+    client = hass.data.setdefault(DOMAIN+"_location",LocationClient(hass))
+    return await client.get(latitude,longitude)
+
+
+@websocket_api.websocket_command({vol.Required("type"):"weather_analysis/location",
+    vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float)})
+@websocket_api.async_response
+async def ws_location(hass, connection, msg):
+    try:
+        point = coordinates(msg.get("latitude"),msg.get("longitude")) if "latitude" in msg or "longitude" in msg else user_position(hass,connection)
+    except ValueError as error:
+        connection.send_error(msg["id"],"invalid_location",str(error));return
+    if point is None:
+        connection.send_result(msg["id"],{"location":fallback(),"location_error":"Kein GPS-Standort verfügbar. Angezeigt wird die Vorhersage für Böhl-Iggelheim."})
+        return
+    location = await resolve_place(hass,*point)
+    error = None if location["resolved"] else "Der Ortsname ist derzeit nicht verfügbar. Die Vorhersage nutzt weiterhin deinen GPS-Standort."
+    connection.send_result(msg["id"],{"location":location,"location_error":error})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "weather_analysis/forecast",vol.Optional("as_of"):vol.Coerce(float),
+    vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float)})
 @websocket_api.async_response
 async def ws_forecast(hass, connection, msg):
-    client = hass.data.setdefault(DOMAIN+"_forecast",ForecastClient(hass))
+    location = None
+    if "latitude" in msg or "longitude" in msg:
+        try:
+            lat,lon = coordinates(msg.get("latitude"),msg.get("longitude"))
+        except ValueError as error:
+            connection.send_error(msg["id"],"invalid_location",str(error));return
+        location = await resolve_place(hass,lat,lon)
+        pool = hass.data.setdefault(DOMAIN+"_forecast_locations",OrderedDict())
+        key = (round(lat,3),round(lon,3),location.get("country_code"),location.get("postal_code"))
+        if key not in pool:
+            pool[key] = ForecastClient(hass,location=location)
+        client = pool[key]
+        pool.move_to_end(key)
+        while len(pool)>64:
+            pool.popitem(last=False)
+    else:
+        client = hass.data.setdefault(DOMAIN+"_forecast",ForecastClient(hass))
     try:
         prediction,error = await client.get(as_of=msg.get("as_of")),None
+        if location:
+            prediction = {**prediction,"location":location}
     except ForecastUnavailable as exception:
         prediction,error = None,str(exception)
     connection.send_result(msg["id"],{"forecast":prediction,"forecast_error":error})

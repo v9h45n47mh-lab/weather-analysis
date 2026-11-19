@@ -109,6 +109,20 @@ class ForecastTests(unittest.TestCase):
             self.assertEqual(len(children),hours)
             self.assertTrue(all(hour["end"]-hour["start"]==3600 for hour in children))
 
+    def test_forecast_uses_destination_timezone_and_place(self):
+        reference=datetime(2026,11,19,23,30,tzinfo=timezone.utc)
+        place={"name":"Tokio","latitude":35.68,"longitude":139.69}
+        data=forecast.build_forecast(weather_payload(reference,"Asia/Tokyo"),reference,place)
+        self.assertEqual(data["timezone"],"Asia/Tokyo")
+        self.assertEqual(data["location"],place)
+        self.assertEqual(data["days"][0]["date"],"2026-11-20")
+        self.assertEqual(data["days"][0]["slots"][0]["start"],reference.timestamp())
+        self.assertEqual(len(data["days"][1]["slots"]),8)
+
+    def test_invalid_provider_timezone_is_rejected(self):
+        self.payload["timezone"]="invalid/timezone"
+        with self.assertRaises(ValueError):forecast.build_forecast(self.payload,self.now)
+
     def test_malformed_or_wrong_units_and_incomplete_ranges_are_rejected(self):
         for change in [lambda data:data["hourly_units"].update(temperature_2m="°F"),lambda data:data["hourly"]["time"].reverse(),lambda data:data["hourly"].update(temperature_2m=[]),lambda data:data["hourly"].update(time=[])]:
             payload=deepcopy(self.payload);change(payload)
@@ -146,6 +160,17 @@ class ForecastCacheTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(params["latitude"],49.3806)
         self.assertEqual(params["longitude"],8.3039)
         self.assertEqual(params["timeformat"],"unixtime")
+        self.assertEqual(params["timezone"],"auto")
+
+    async def test_location_clients_do_not_share_weather_or_timezone(self):
+        session=Session(weather_payload(self.time[0],"Asia/Tokyo"))
+        place={"latitude":35.68,"longitude":139.69,"name":"Tokio"}
+        client=forecast.ForecastClient(None,session,lambda:self.time[0],location=place)
+        data=await client.get()
+        self.assertEqual(data["location"]["name"],"Tokio")
+        self.assertEqual(data["timezone"],"Asia/Tokyo")
+        self.assertEqual(session.calls[0][1]["latitude"],35.68)
+        self.assertIsNone(self.client.raw)
 
     async def test_cache_recomputes_remaining_windows_without_new_request(self):
         initial=await self.client.get();self.time[0]+=timedelta(minutes=10)

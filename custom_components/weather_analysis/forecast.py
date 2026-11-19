@@ -35,7 +35,15 @@ def number(value):
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
 
 
-def build_forecast(payload, now):
+def forecast_timezone(payload):
+    name = payload.get("timezone", TIMEZONE)
+    try:
+        return ZoneInfo(name)
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("Invalid forecast timezone") from error
+
+
+def build_forecast(payload, now, location=None):
     """Hourly precipitation/probability refer to the preceding hour.
 
     Temperature is interpolated at the start of a window. Rain is accumulated,
@@ -56,7 +64,7 @@ def build_forecast(payload, now):
     if any(units.get(key) != value for key, value in {"temperature_2m": "°C", "wind_speed_10m": "km/h", "precipitation": "mm",
             "apparent_temperature": "°C", "relative_humidity_2m": "%", "pressure_msl": "hPa", "wind_direction_10m": "°", "wind_gusts_10m": "km/h"}.items()):
         raise ValueError("Unexpected forecast units")
-    tz = ZoneInfo(TIMEZONE)
+    tz = forecast_timezone(payload)
     local = now.astimezone(tz)
     now_ts = now.timestamp()
     required_end = (local.replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=2)).timestamp()
@@ -141,7 +149,7 @@ def build_forecast(payload, now):
         days.append({"date":midnight.date().isoformat(),"label":"Heute · Resttag" if offset==0 else "Morgen","slots":slots})
     if not days[1]["slots"] or not any(slot["temperature"] is not None for slot in days[1]["slots"]):
         raise ValueError("No forecast for tomorrow")
-    return {"location": LOCATION, "timezone": TIMEZONE, "source": "Open-Meteo", "source_url": SOURCE_URL, "days": days}
+    return {"location": dict(location or LOCATION), "timezone": tz.key, "source": "Open-Meteo", "source_url": SOURCE_URL, "days": days}
 
 
 class ForecastUnavailable(RuntimeError):
@@ -150,18 +158,19 @@ class ForecastUnavailable(RuntimeError):
 
 class ForecastClient:
     """Share one cached provider request across all cards and users."""
-    def __init__(self, hass, session=None, clock=None):
+    def __init__(self, hass, session=None, clock=None, location=None):
         self.hass, self.session = hass, session
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.raw, self.updated, self.attempt = None, None, None
         self.lock = asyncio.Lock()
+        self.location = dict(location or LOCATION)
 
     async def _download(self):
         if self.session is None:
             from homeassistant.helpers.aiohttp_client import async_get_clientsession
             self.session = async_get_clientsession(self.hass)
-        params = {"latitude": LOCATION["latitude"], "longitude": LOCATION["longitude"], "hourly": ",".join(VARIABLES),
-            "timezone": TIMEZONE, "timeformat": "unixtime", "forecast_days": 3,
+        params = {"latitude": self.location["latitude"], "longitude": self.location["longitude"], "hourly": ",".join(VARIABLES),
+            "timezone": "auto", "timeformat": "unixtime", "forecast_days": 3,
             "temperature_unit": "celsius", "wind_speed_unit": "kmh", "precipitation_unit": "mm"}
         async with asyncio.timeout(12):
             async with self.session.get(API_URL, params=params) as response:
@@ -178,14 +187,14 @@ class ForecastClient:
                     raise ForecastUnavailable("Ungültiger Vorhersagezeitpunkt.")
                 reference = datetime.fromtimestamp(min(timestamp,now.timestamp()),timezone.utc)
             stale = False
-            required_end = (now.astimezone(ZoneInfo(TIMEZONE)).replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=2)).timestamp()
+            required_end = (now.astimezone(forecast_timezone(self.raw or {})).replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=2)).timestamp()
             range_missing = self.raw is None or self.raw["hourly"]["time"][-1] < required_end
             if self.updated is None or (now-self.updated).total_seconds() >= 1800 or range_missing:
                 if self.attempt is None or (now-self.attempt).total_seconds() >= 300:
                     self.attempt = now
                     try:
                         raw = await self._download()
-                        build_forecast(raw, now)
+                        build_forecast(raw, now, self.location)
                         self.raw, self.updated = raw, now
                         range_missing = False
                     except Exception as error:
@@ -194,7 +203,7 @@ class ForecastClient:
             if self.raw is None or self.updated is None or (now-self.updated).total_seconds() > 21600:
                 raise ForecastUnavailable("Die Wettervorhersage ist derzeit nicht erreichbar.")
             try:
-                result = build_forecast(self.raw, reference)
+                result = build_forecast(self.raw, reference, self.location)
             except ValueError as error:
                 raise ForecastUnavailable("Die Wettervorhersage ist derzeit nicht verfügbar.") from error
             return {**result, "as_of":reference.timestamp(), "updated_at": self.updated.timestamp(), "stale": stale}

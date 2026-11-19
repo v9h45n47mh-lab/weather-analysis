@@ -1,3 +1,12 @@
+## 1.12.0
+
+- Wetter folgt automatisch dem GPS-Standort der mit dem angemeldeten HA-Benutzer verknüpften Person. Alternativ lässt sich der Standort des angezeigten Geräts freigeben.
+- Im deutschen Postleitzahlgebiet 67459 stehen Ist, Aktuell und Vorhersage bereit. An anderen Orten wird ausschließlich die örtliche Vorhersage angezeigt; heimische Sensorwerte werden dort nicht abgefragt.
+- Der Ortsname steht im Kopfbereich. Heute, Morgen und die aufklappbaren Stundenwerte folgen der Zeitzone am Aufenthaltsort.
+- Ohne GPS erscheint ein Hinweis mit optionaler Gerätefreigabe und zunächst nur die Vorhersage für Böhl-Iggelheim. Eine fehlgeschlagene Ortsauflösung schaltet keine heimischen Messwerte frei.
+- Getrennte, begrenzte Standort- und Vorhersage-Caches; nur eigene, lesbare Person-/GPS-Entitäten werden für die automatische Position verwendet. Verspätete Antworten nach Ortswechsel werden verworfen.
+- Bestehende Kopfbereich-, Hinweis-, Button- und Wetterkomponenten aus HA UI Kit 1.12.0 wiederverwendet.
+
 ## 1.11.0
 
 - Jeder 3-Stunden-Zeitraum in Wetter lässt sich in seine Stundenwerte aufklappen, sowohl Ist als auch Vorhersage.

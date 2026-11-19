@@ -237,7 +237,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.equal(await forecastHours.getAttribute('aria-expanded'),'true','Forecast hour fold survives reload and navigation');
   await forecastHours.click();await measuredFold.click();await actualHours.click();await lastActual.click();await measuredFold.click();
   await nowFold.click();
-  assert.equal(await card().locator('.wa-forecast-source a').getAttribute('href'),'https://open-meteo.com/');
+  assert.equal(await card().locator('.wa-forecast-source a').first().getAttribute('href'),'https://open-meteo.com/');
   await card().locator('[aria-controls="wa-forecast-1-content"]').click();
   await card().locator('[data-page="temperature"]').click();await card().locator('#wa-current').waitFor();
   await card().locator('[data-page="dashboard"]').click();await page.waitForFunction(()=>demo.card._dashboard&&!demo.card._busy);
@@ -358,7 +358,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
    }
-   assert.match(await card().locator('.version-info').innerText(),/1\.11\.0/);
+   assert.match(await card().locator('.version-info').innerText(),/1\.12\.0/);
   }
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
   assert.match(await card().locator('#wa-current').innerText(),/1.235/);assert.match(await card().locator('#wa-current').innerText(),/lx/);assert.equal(await card().getByText('Temperaturspanne',{exact:true}).count(),0);
@@ -461,7 +461,93 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.deepEqual(await touchPage.evaluate(()=>demo.saved.get('touch').entities),['sensor.north','sensor.garden']);
   await touchContext.close();
   assert.deepEqual(errors,[]);
+  // Per-user GPS changes must clear home data before any new request completes.
+  const gpsPage=await browser.newPage({viewport:{width:390,height:1100}});
+  gpsPage.on('pageerror',error=>errors.push(error.message));
+  await gpsPage.addInitScript(freezeDate);
+  await gpsPage.addInitScript(()=>{
+    window.testGeo={watches:0,cleared:[],success:null,error:null};
+    Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
+      watchPosition(success,error){testGeo.success=success;testGeo.error=error;return ++testGeo.watches;},
+      clearWatch(id){testGeo.cleared.push(id);}
+    }});
+  });
+  await gpsPage.goto('http://127.0.0.1:'+server.address().port);
+  const gpsCard=gpsPage.locator('weather-analysis-card').first();
+  const gpsReady=async name=>gpsPage.waitForFunction(name=>demo.card._location?.name===name&&demo.card._forecast&&!demo.card._busy,name);
+  await gpsReady('Böhl-Iggelheim');
+  assert.equal(await gpsCard.locator('.fui-panel-header strong').innerText(),'Böhl-Iggelheim');
+  assert.equal(await gpsPage.evaluate(()=>testGeo.watches),0,'Automatic HA position never prompts browser geolocation');
+  const homeQueries=await gpsPage.evaluate(()=>demo.calls.filter(m=>m.type==='weather_analysis/dashboard').length);
+  await gpsPage.evaluate(()=>{
+    Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:53.55,longitude:10});
+    demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);
+    if(demo.card._dashboard||demo.card._forecast)throw Error('Old-place data was retained');
+    demo.card._fetchDashboard();
+  });
+  await gpsReady('Hamburg');
+  assert.equal(await gpsCard.locator('.fui-panel-header strong').innerText(),'Hamburg');
+  assert.equal(await gpsCard.locator('#wa-weather-current,#wa-weather-actual-content,#wa-weather-now-content').count(),0);
+  assert.doesNotMatch(await gpsCard.locator('main').innerText(),/Messpunkte|Aktuell|Gemessen/);
+  assert.equal(await gpsPage.evaluate(()=>demo.calls.filter(m=>m.type==='weather_analysis/dashboard').length),homeQueries,'Away never queries native dashboard');
+  assert.deepEqual(await gpsPage.evaluate(()=>{const m=demo.calls.filter(m=>m.type==='weather_analysis/forecast').at(-1);return [m.latitude,m.longitude];}),[53.55,10]);
+  const gpsHours=gpsCard.locator('#wa-forecast-0-content .fui-weather-period-toggle').first();await gpsHours.click();
+  assert.equal(await gpsHours.getAttribute('aria-expanded'),'true');
+  for(const width of [1100,390,320])for(const dark of [false,true]){
+    await gpsPage.setViewportSize({width,height:1100});await gpsPage.evaluate(dark=>document.body.classList.toggle('dark',dark),dark);
+    assert(await gpsPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await gpsPage.screenshot({path:path.join(screens,'gps-hamburg-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
+  }
+  // Returning to 67459 restores measured rows, with location-specific fold state.
+  await gpsPage.evaluate(()=>{Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:49.381,longitude:8.304});demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
+  await gpsReady('Böhl-Iggelheim');await gpsCard.locator('#wa-weather-current').waitFor();
+  assert.equal(await gpsCard.locator('#wa-forecast-0-content .fui-weather-period-toggle').last().getAttribute('aria-expanded'),'false');
+  // A late home lookup may not restore native rows after an away lookup wins.
+  await gpsPage.evaluate(()=>{demo.locationDelay=450;demo.card._fetchDashboard();});
+  await gpsPage.evaluate(()=>{demo.locationDelay=0;Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:53.55,longitude:10});demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
+  await gpsReady('Hamburg');await gpsPage.waitForTimeout(500);
+  assert.equal(await gpsCard.locator('#wa-weather-current').count(),0);
+  assert.equal(await gpsCard.locator('.fui-panel-header strong').innerText(),'Hamburg');
+  // No linked GPS: the fixed fallback is forecast-only, with a visible recovery action.
+  await gpsPage.evaluate(()=>{demo.noGps=true;demo.card._fetchDashboard();});
+  await gpsReady('Böhl-Iggelheim');
+  assert.equal(await gpsCard.locator('#wa-weather-current').count(),0);
+  assert.match(await gpsCard.locator('main').innerText(),/Kein GPS-Standort verfügbar/);
+  await gpsPage.setViewportSize({width:390,height:1100});await gpsPage.evaluate(()=>document.body.classList.remove('dark'));
+  await gpsPage.screenshot({path:path.join(screens,'gps-unavailable-390-light.png'),fullPage:true});
+  await gpsCard.locator('[data-action="device-location"]').click();
+  await gpsPage.evaluate(()=>setTimeout(()=>testGeo.error({code:1}),0));
+  await gpsPage.waitForFunction(()=>demo.card._gpsError&&!demo.card._gpsBusy);
+  assert.match(await gpsCard.locator('main').innerText(),/Standortfreigabe wurde abgelehnt/);
+  await gpsCard.locator('[data-action="device-location"]').click();
+  await gpsPage.evaluate(()=>{demo.noGps=false;setTimeout(()=>testGeo.success({coords:{latitude:35.6812,longitude:139.7671}}),0);});
+  await gpsReady('Tokio');
+  assert.equal(await gpsPage.evaluate(()=>demo.card._forecast.timezone),'Asia/Tokyo');
+  assert.match(await gpsCard.locator('#wa-forecast-0-content').innerText(),/14:40–15:00/);
+  assert.equal(await gpsCard.locator('#wa-weather-current').count(),0);
+  await gpsPage.screenshot({path:path.join(screens,'gps-tokyo-390-light.png'),fullPage:true});
+  // Device override is per card and can be switched back to the HA person's GPS.
+  await gpsCard.locator('[data-page="settings"]').click();
+  assert.match(await gpsCard.locator('#wa-location-settings-content').innerText(),/Standort dieses Geräts/);
+  await gpsCard.locator('[data-action="location-auto"]').click();
+  assert.equal(await gpsPage.evaluate(()=>demo.card._browserCoordinates),null);
+  assert((await gpsPage.evaluate(()=>testGeo.cleared.length))>=2);
+  await gpsCard.locator('[data-page="dashboard"]').click();await gpsReady('Hamburg');
+  // Tracker updates must not cancel an in-flight temperature history request.
+  await gpsPage.evaluate(()=>demo.delayNext=300);
+  await gpsCard.locator('[data-page="temperature"]').click();
+  await gpsPage.evaluate(()=>{Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:49.38,longitude:8.3});demo.card.hass=demo.hass;});
+  await gpsPage.waitForFunction(()=>demo.card._data&&!demo.card._busy);
+  assert.equal(await gpsCard.locator('#wa-current').count(),1);
+  // A device watcher is cleaned up when its card leaves the dashboard.
+  await gpsCard.locator('[data-page="settings"]').click();await gpsCard.locator('[data-action="device-location"]').click();
+  await gpsPage.evaluate(()=>setTimeout(()=>testGeo.success({coords:{latitude:53.55,longitude:10}}),0));
+  await gpsPage.waitForFunction(()=>demo.card._browserCoordinates);
+  const watcher=await gpsPage.evaluate(()=>demo.card._gpsWatch);
+  await gpsPage.evaluate(()=>demo.card.remove());
+  assert(await gpsPage.evaluate(id=>testGeo.cleared.includes(id),watcher));
+  await gpsPage.close();
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:fs.readdirSync(screens).filter(name=>name.endsWith(".png")).length,errors},null,2));
-  console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards and 3 widths × 2 themes.');
+  console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards, per-user GPS home/away/unknown/device permission/cleanup/races and 3 widths × 2 themes.');
  }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

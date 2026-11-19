@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import logging
+from types import SimpleNamespace
 
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
@@ -44,13 +45,25 @@ async def main():
             assert result["type"]=="create_entry",result
             assert result["title"]=="Weather Analysis",result
             await hass.async_block_till_done()
-            from custom_components.weather_analysis import ensure_manager
+            from custom_components.weather_analysis import ensure_manager, user_position, ws_location
+            # Native HA states and permission objects; no network or actual user coordinates.
+            hass.states.async_set("device_tracker.gps_test","not_home",{"source_type":"gps","latitude":53.55,"longitude":10})
+            hass.states.async_set("person.gps_test","not_home",{"user_id":"gps-test","device_trackers":["device_tracker.gps_test"],"source":"device_tracker.gps_test"})
+            conn=SimpleNamespace(user=SimpleNamespace(id="gps-test",is_admin=False,permissions=SimpleNamespace(check_entity=lambda entity,policy:True)))
+            assert user_position(hass,conn)==(53.55,10.0)
+            conn.user.id="another-user"
+            assert user_position(hass,conn) is None
+            responses=[]
+            conn.send_result=lambda request,data:responses.append(data)
+            await ws_location(hass,conn,{"id":1})
+            assert not responses[-1]["location"]["is_home"]
+            assert not responses[-1]["location"]["position_available"]
             manager=await ensure_manager(hass,"sensor.outdoor_test","temperature")
             today=datetime.now(timezone.utc).date().isoformat()
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.11.0",data
+            assert data["version"]=="1.12.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data
