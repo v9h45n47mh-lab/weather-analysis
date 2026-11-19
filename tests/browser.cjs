@@ -198,7 +198,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await page.evaluate(()=>{demo.failForecast=false;demo.forecastStale=true;});await action('reload').click();await page.waitForFunction(()=>!demo.card._busy&&!demo.card._refreshing);
   assert.match(await card().locator('#wa-dashboard-forecast-content').innerText(),/letzte verfügbare Stand/);
   await page.evaluate(()=>{demo.forecastStale=false;demo.failEntity='sensor.garden';});await action('reload').click();await page.waitForFunction(()=>!demo.card._busy&&!demo.card._refreshing);
-  assert.match(await card().innerText(),/Sensor nicht verfügbar/);
+  assert.match(await card().locator('main').innerText(),/Sensor nicht verfügbar/);
   assert.match(await card().locator('#wa-weather-current').innerText(),/Wind 18,0/);
   assert.equal(await card().locator('#wa-forecast-1-content .setting-row').count(),8);
   await page.evaluate(()=>demo.failEntity=null);
