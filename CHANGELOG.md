@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0
+
+- Aktuell bedeutet bei Tag wieder heute. Die Zeitachse zeigt immer 00:00–23:59 Uhr; Messwerte reichen bis jetzt. Pfeile wechseln volle Kalendertage, Aktuell kehrt zu heute zurück.
+- Neuer Reiter Dashboard: aktuelle Temperatur, Temperatur-Minimum/-Maximum von heute, Wind und Helligkeit. Die jeweils aktiven Sensoren der Messreiter und ihre Kartennamen werden verwendet.
+- Wettervorhersage für 67459 Böhl-Iggelheim: heute Resttag und morgen in örtlichen 3-Stunden-Abschnitten mit Wetterzustand, Temperatur, Regenrisiko/-menge und Wind.
+- Open-Meteo serverseitig ohne API-Schlüssel, gemeinsamer 30-Minuten-Cache, Quellenangabe und Abrufzeit. Letzter verfügbarer Stand bei Störungen klar gekennzeichnet; lokale Messwerte und Vorhersage laden unabhängig voneinander.
+- Fehlende Wetterwerte bleiben fehlend. Vorhersagefenster berücksichtigen Sommer-/Winterzeit und werden auf den verbleibenden Resttag zugeschnitten.
+- HA UI Kit 1.8.0 mit gemeinsamen Messkacheln, Navigation, Zeilen und Klappbereichen unverändert verwendet.
+
 ## 1.6.0
 
 - Durchgezogene Verlaufslinien für beide Sensoren, ohne dauerhaft sichtbare Messpunktkreise. Zwei Farben bleiben erhalten; bekannte Messlücken werden weiterhin erkennbar dargestellt.

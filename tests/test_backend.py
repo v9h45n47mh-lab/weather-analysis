@@ -353,16 +353,16 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         for key in ("entities","wind_entities","illuminance_entities"):
             self.assertEqual(saved[key],message[key])
 
-    async def test_live_day_matches_0641_to_0640_and_clips_real_values(self):
+    async def test_current_day_uses_full_today_and_clips_real_values(self):
         reference=datetime(2026,11,18,5,40,25,tzinfo=timezone.utc)
-        first=datetime(2026,11,17,5,41,tzinfo=timezone.utc).timestamp()
+        first=datetime(2026,11,17,23,tzinfo=timezone.utc).timestamp()
         raw=backend.Archive();raw.start(first-3600,100);raw.change(first,0);raw.change(first+3600,10);raw.advance(reference.timestamp())
         self.history_read.return_value=raw
         with patch.object(backend.dt_util,"utcnow",return_value=reference):
             await self.manager.load()
             data=await self.manager.analyse({"start_date":"2026-11-17","end_date":"2026-11-18","chart_interval":900,"window":"day","as_of":reference.timestamp()})
         self.assertEqual(data["start"],first)
-        self.assertEqual(data["display_end"],datetime(2026,11,18,5,41,tzinfo=timezone.utc).timestamp())
+        self.assertEqual(data["display_end"],datetime(2026,11,18,23,tzinfo=timezone.utc).timestamp())
         self.assertEqual(data["display_end"]-data["start"],86400)
         self.assertEqual(data["end"],reference.timestamp())
         self.assertAlmostEqual(data["summary"]["mean"],10*(data["end"]-first-3600)/(data["end"]-first))
@@ -391,18 +391,60 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(all(point["end"]<=reference.timestamp() for point in data["chart"]))
                 self.assertIsNone(data["window"])
 
-    async def test_live_day_remains_24_hours_across_dst(self):
+    async def test_current_day_follows_calendar_day_across_dst(self):
         for reference in [datetime(2026,3,29,5,40,25,tzinfo=timezone.utc),datetime(2026,10,25,5,40,25,tzinfo=timezone.utc)]:
             with patch.object(backend.dt_util,"utcnow",return_value=reference):
                 await self.manager.load()
                 key=reference.date().isoformat()
                 data=await self.manager.analyse({"start_date":key,"end_date":key,"chart_interval":900,"window":"day","as_of":reference.timestamp()})
-                self.assertEqual(data["display_end"]-data["start"],86400)
+                self.assertEqual(data["display_end"]-data["start"],(23 if reference.month==3 else 25)*3600)
 
     async def test_invalid_live_window_parameters_are_rejected(self):
         for extra in [{"window":"year"},{"window":"day","as_of":float("nan")},{"window":"day","as_of":now.timestamp()+3600},{"window":"day","as_of":-1}]:
             with self.assertRaises(ValueError):
                 await self.manager.analyse({"start_date":"2026-11-17","end_date":"2026-11-17",**extra})
+
+    async def test_dashboard_has_current_values_and_extremes_only_from_today(self):
+        today=now.replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(hours=1)
+        raw=backend.Archive();raw.start(today.timestamp()-3600,-99);raw.change(today.timestamp(),0);raw.change(today.timestamp()+3600,10);raw.advance(now.timestamp())
+        self.history_read.return_value=raw
+        connection=Connection()
+        await backend.ws_dashboard(self.hass,connection,{"id":1,"temperature_entity":"sensor.test","wind_entity":"sensor.wind","illuminance_entity":"sensor.lux"})
+        data=connection.results[-1][1]
+        self.assertEqual(data["date"],"2026-11-17")
+        self.assertEqual(data["sensors"]["temperature"]["current"],10)
+        self.assertEqual((data["sensors"]["temperature"]["min"],data["sensors"]["temperature"]["max"]),(0,10))
+        self.assertEqual(data["sensors"]["wind"]["current"],18)
+        self.assertEqual(data["sensors"]["illuminance"]["current"],1234)
+        self.assertEqual(data["errors"],{})
+        self.assertNotIn(backend.DOMAIN+"_forecast",self.hass.data)
+
+    async def test_dashboard_denied_sensor_never_queries_history(self):
+        connection=Connection(denied={"sensor.test"})
+        await backend.ws_dashboard(self.hass,connection,{"id":1,"temperature_entity":"sensor.test"})
+        data=connection.results[-1][1]
+        self.assertEqual(data["sensors"],{})
+        self.assertIn("temperature",data["errors"])
+        self.history_read.assert_not_called()
+
+    async def test_dashboard_isolates_wrong_kind_and_missing_selections(self):
+        connection=Connection()
+        await backend.ws_dashboard(self.hass,connection,{"id":1,"temperature_entity":"sensor.wind","wind_entity":"sensor.wind"})
+        data=connection.results[-1][1]
+        self.assertNotIn("temperature",data["sensors"])
+        self.assertIn("temperature",data["errors"])
+        self.assertEqual(data["sensors"]["wind"]["current"],18)
+        await backend.ws_dashboard(self.hass,connection,{"id":2})
+        self.assertEqual(connection.results[-1][1]["sensors"],{})
+
+    async def test_forecast_failure_is_explicit_and_independent_of_dashboard(self):
+        self.hass.data[backend.DOMAIN+"_forecast"]=SimpleNamespace(get=AsyncMock(side_effect=backend.ForecastUnavailable("Offline")))
+        connection=Connection()
+        await backend.ws_forecast(self.hass,connection,{"id":1})
+        self.assertIsNone(connection.results[-1][1]["forecast"])
+        self.assertEqual(connection.results[-1][1]["forecast_error"],"Offline")
+        await backend.ws_dashboard(self.hass,connection,{"id":2,"wind_entity":"sensor.wind"})
+        self.assertEqual(connection.results[-1][1]["sensors"]["wind"]["current"],18)
 
     async def test_invalid_ranges_rejected(self):
         for first, last in [("2025-01-01","2026-11-17"),("2027-01-01","2027-01-01"),("2026-11-17","2026-11-16")]:

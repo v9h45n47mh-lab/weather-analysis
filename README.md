@@ -1,10 +1,10 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.6.0**, HA UI Kit **1.8.0** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.7.0**, HA UI Kit **1.8.0** lokal eingebunden.
 
 ## Funktionen
 
-- Oben nur **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigener Sensorauswahl aus den Karteneinstellungen.
+- **Dashboard** mit aktueller Temperatur, Temperatur-Minimum und -Maximum von heute, aktuellem Wind und Helligkeit sowie Wettervorhersage. Daneben **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigener Sensorauswahl aus den Karteneinstellungen.
 - Relevante Sensoren aller drei Messarten im einklappbaren Bereich „Sensorauswahl“ vorauswählen, je Karte eigene Namen vergeben und per Ziehen sortieren. Die Reihenfolge gilt auch für die Dropdowns. Die ursprünglichen HA-Entitätsnamen bleiben erhalten.
 - Schmale, links ausgerichtete Sensordropdowns und ein Aktualisieren-Symbol in der Kopfleiste aller Reiter. Kein Kartentitel und kein Feld Anzeigename.
 - Zwei Kacheln über dem Chart: Aktuell mit Veränderung in 1 Std. sowie Minimum/Maximum.
@@ -19,7 +19,7 @@ Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Tempera
 - Weitere Kennzahlen, Vergleiche und Rekorde sind aufklappbar. Doppelte Monats- und Tageswerttabellen entfallen.
 - Temperatur: Froststunden, Stunden ab 25/30 °C sowie nachgewiesene Frost-/Warm-/Heißtage.
 - Wind: aktueller Wert und Kennzahlen in km/h. Sensoren in m/s, km/h, mph, Knoten und ft/s werden umgerechnet. Ein Sensor-Höchstwert ist keine separat gemessene Böe. Alternative Einheitenschreibweisen und leere Geräteklassen werden unterstützt.
-- **Tag:** Aktuell zeigt die letzten 24 Stunden minutengenau. Um 06:40 reicht die Sicht von gestern 06:41 bis heute 06:40. Zurück zeigt den vollständigen Vortag; vorwärts zurück auf heute den vollständigen Tag 00:00–23:59. Erst **Aktuell** kehrt zur rollierenden Sicht zurück.
+- **Tag:** Aktuell zeigt **heute**, immer mit vollständiger Zeitachse **00:00–23:59 Uhr**. Zurück/vorwärts wechselt volle Kalendertage; Aktuell kehrt zu heute zurück. Messwerte reichen ausschließlich bis jetzt.
 - **Woche:** Aktuell zeigt heute plus die letzten sieben Kalendertage. Zurück wechselt zur vollständigen vorherigen Kalenderwoche Montag–Sonntag. Vorwärts zeigt die aktuelle Kalenderwoche vollständig; Aktuell kehrt zur rollierenden Sicht zurück.
 - **Monat:** voller Kalendermonat. In Kalenderansichten bleibt die vollständige Zeitachse sichtbar; Messwerte reichen höchstens bis jetzt. Zukünftige Zeiträume sind gesperrt. Links-/Rechtspfeile der Tastatur funktionieren bei fokussierter Karte, unabhängig von Eingabefeldern. Freier Zeitraum bis 366 Kalendertage.
 - **Helligkeit:** separate Lux-Sensoren, aktueller Wert, Verlauf, Mittelwert, Extremwerte und Vergleiche.
@@ -50,7 +50,17 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Sensoren und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.6.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.7.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+
+## Dashboard und Vorhersage
+
+Das Dashboard verwendet jeweils den in den Messreitern aktiven Sensor aus der gespeicherten Vorauswahl. Die Sensornamen stehen an den Kacheln. Temperatur-Minimum und -Maximum werden immer für heute in der HA-Zeitzone berechnet, unabhängig vom gewählten Auswertungszeitraum.
+
+Die Vorhersage für **67459 Böhl-Iggelheim** (49.3806° N, 8.3039° E) kommt von [Open-Meteo](https://open-meteo.com/) und benötigt keinen API-Schlüssel. Home Assistant lädt sie serverseitig und teilt einen 30-Minuten-Cache für alle Karten. Es werden ausschließlich die festen Ortskoordinaten und gewünschten Vorhersagevariablen übertragen. Die lokalen Sensordaten bleiben unabhängig davon verfügbar.
+
+Heute wird nur der Resttag angezeigt, morgen der volle Tag. Die örtlichen Zeitfenster beginnen bei 00, 03, 06, 09, 12, 15, 18 und 21 Uhr. Der erste noch laufende Abschnitt beginnt jetzt. Die Temperatur bezieht sich auf den Beginn des Abschnitts; Wetterzustand und Wind berücksichtigen die im Abschnitt enthaltenen Stunden. Regenrisiko zeigt das höchste stündliche Risiko; Niederschlag die aufsummierte Menge. Angebrochene Stunden werden für Niederschlag anteilig geschätzt. Fehlende Werte werden als fehlend angezeigt.
+
+Quelle und Abrufzeit stehen direkt an der Vorhersage. Bei einer Störung kann ein bis zu sechs Stunden alter Stand mit deutlicher Kennzeichnung weiter angezeigt werden; danach erscheint eine Fehlermeldung. Dafür benötigt HA Internetzugang. Die Wetterdaten sind Vorhersagen, die vier oberen Kacheln stammen von den eigenen Sensoren.
 
 ## Historie und Genauigkeit
 

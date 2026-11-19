@@ -43,10 +43,10 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.match(await card().locator('#wa-inspector').innerText(),/Min.*Max/);
   assert.equal(await action('period').filter({hasText:'Gestern',exact:true}).count(),0);
   assert(await action('next-day').isDisabled());
-  assert.equal(await page.evaluate(()=>demo.card._data.window),'day');
+  assert.equal(await page.evaluate(()=>demo.card._data.window),null);
   assert.equal(await page.evaluate(()=>demo.card._data.display_end-demo.card._data.start),86400);
-  assert.match(await card().locator('.wa-range').innerText(),/17\.11\.2026, 06:41.*18\.11\.2026, 06:40/s);
-  await page.setViewportSize({width:390,height:1100});await page.screenshot({path:path.join(screens,'rolling-24h-390-light.png'),fullPage:true});
+  assert.match(await card().locator('.wa-range').innerText(),/18\.11\.2026.*00:00–23:59/s);
+  await page.setViewportSize({width:390,height:1100});await page.screenshot({path:path.join(screens,'today-390-light.png'),fullPage:true});
   await page.setViewportSize({width:1100,height:1100});
   await action('previous-day').click();
   await page.waitForFunction(()=>demo.card._data&&!demo.card._isRolling()&&!demo.card._busy);
@@ -66,10 +66,10 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.equal(await card().locator('.wa-cursor-point:not([visibility="hidden"])').count(),0);
   await page.mouse.move(0,0);await page.screenshot({path:path.join(screens,'calendar-today-390-light.png'),fullPage:true});
   await page.setViewportSize({width:1100,height:1100});
-  await action('today').click();await page.waitForFunction(()=>demo.card._data?.window==='day'&&!demo.card._busy);
+  await action('today').click();await page.waitForFunction(()=>demo.card._data&&demo.card._day===null&&!demo.card._busy);
   assert.equal(await page.evaluate(()=>demo.card._day),null);
   assert.equal(await action('today').innerText(),'Aktuell');
-  assert.match(await card().locator('.wa-range').innerText(),/06:41.*06:40/s);
+  assert.match(await card().locator('.wa-range').innerText(),/18\.11\.2026.*00:00–23:59/s);
   await action('period').filter({hasText:'Woche'}).click();await page.waitForFunction(()=>demo.card._data&&!demo.card._busy);await checkFolds();
   for(const [period,label,interval] of [['week','Woche',3600],['month','Monat',21600]]){
     await action('period').filter({hasText:label,exact:true}).click();await page.waitForFunction(i=>demo.card._data?.chart_interval===i&&!demo.card._busy,interval);await checkFolds();
@@ -164,6 +164,39 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   for(const [kind] of selectedKinds){const handle=card().locator('#wa-alias-fields-'+kind+' [data-ui="order"]').first();await handle.focus();await handle.press('ArrowDown');}
   await action('save-settings').click();await card().locator('#wa-current').waitFor();
   for(const [,field,entities] of selectedKinds)assert.deepEqual(await page.evaluate(field=>demo.saved.get('test-garden')[field],field),entities);
+  await page.evaluate(()=>demo.forecastDelay=500);
+  await card().locator('[data-page="dashboard"]').click();
+  await card().locator('#wa-dashboard-temperature').waitFor();
+  await page.waitForFunction(()=>demo.card._dashboard?.sensors?.temperature);
+  assert.match(await card().locator('#wa-dashboard-temperature').innerText(),/11,4/);
+  assert.match(await card().locator('#wa-dashboard-extrema').innerText(),/Minimum.*-2,0.*Maximum.*26,0/s);
+  assert.match(await card().locator('#wa-dashboard-wind').innerText(),/18,0.*km\/h/s);
+  assert.match(await card().locator('#wa-dashboard-illuminance').innerText(),/1.235.*lx/s);
+  assert.equal(await card().locator('.wa-title,#wa-active-sensor,.wa-periods').count(),0);
+  assert.match(await card().locator('.wa-range').innerText(),/18\.11\.2026.*00:00–23:59/s);
+  await page.waitForFunction(()=>demo.card._forecast&&!demo.card._busy);
+  await page.evaluate(()=>demo.forecastDelay=0);
+  assert.match(await card().locator('#wa-dashboard-forecast-content').innerText(),/67459|Heute · Resttag/);
+  assert.equal(await card().locator('#wa-forecast-1-content .setting-row').count(),8);
+  assert.equal(await card().locator('#wa-forecast-0-content .setting-row').count(),6);
+  assert.match(await card().locator('#wa-forecast-0-content .setting-row').first().innerText(),/06:40–09:00/);
+  assert.equal(await card().locator('.wa-forecast-source a').getAttribute('href'),'https://open-meteo.com/');
+  await card().locator('[aria-controls="wa-forecast-1-content"]').click();
+  await card().locator('[data-page="temperature"]').click();await card().locator('#wa-current').waitFor();
+  await card().locator('[data-page="dashboard"]').click();await page.waitForFunction(()=>demo.card._dashboard&&!demo.card._busy);
+  assert.equal(await card().locator('[aria-controls="wa-forecast-1-content"]').getAttribute('aria-expanded'),'false');
+  await card().locator('[aria-controls="wa-forecast-1-content"]').click();
+  await page.evaluate(()=>demo.failForecast=true);await action('reload').click();await page.waitForFunction(()=>!demo.card._busy&&!demo.card._refreshing);
+  assert.match(await card().locator('#wa-dashboard-temperature').innerText(),/11,4/);
+  assert.match(await card().locator('#wa-dashboard-forecast-content').innerText(),/Wetterdienst nicht erreichbar/);
+  await page.evaluate(()=>{demo.failForecast=false;demo.forecastStale=true;});await action('reload').click();await page.waitForFunction(()=>!demo.card._busy&&!demo.card._refreshing);
+  assert.match(await card().locator('#wa-dashboard-forecast-content').innerText(),/letzte verfügbare Stand/);
+  await page.evaluate(()=>{demo.forecastStale=false;demo.failEntity='sensor.garden';});await action('reload').click();await page.waitForFunction(()=>!demo.card._busy&&!demo.card._refreshing);
+  assert.match(await card().locator('#wa-dashboard-temperature').innerText(),/Sensor nicht verfügbar/);
+  assert.match(await card().locator('#wa-dashboard-wind').innerText(),/18,0/);
+  assert.equal(await card().locator('#wa-forecast-1-content .setting-row').count(),8);
+  await page.evaluate(()=>demo.failEntity=null);
+  await card().locator('[data-page="temperature"]').click();await card().locator('#wa-current').waitFor();
   await action('compare-add').click();await page.waitForFunction(()=>demo.card._comparisonData?.entity_id==='sensor.north');
   assert.equal(await card().locator('.wa-chart .wa-series').count(),2);assert.equal(await card().locator('.wa-chart .wa-average-label').count(),2);
   assert.notEqual(await card().locator('.wa-series-primary .wa-line').getAttribute('d'),await card().locator('.wa-series-secondary .wa-line').getAttribute('d'));
@@ -206,6 +239,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
       assert((await card().locator('#wa-inspector').innerText()).includes({900:'15-Minuten',3600:'Stundenmittel',21600:'6-Stunden'}[interval]));
     }
     await action('period').filter({hasText:'Tag',exact:true}).click();await page.waitForFunction(()=>demo.card._data&&demo.card._comparisonData&&!demo.card._busy);
+    await action('previous-day').click();await page.waitForFunction(()=>demo.card._data&&!demo.card._busy);
     const box=await card().locator('.wa-chart').boundingBox();
     await page.mouse.move(box.x+box.width*.25,box.y+box.height*.55);
     assert(await card().locator('#wa-chart-tooltip').isVisible());
@@ -224,6 +258,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
     assert.equal(await page.evaluate(()=>demo.card.compareEntity),first);
     await card().locator('#wa-active-sensor').selectOption(first);
     await page.waitForFunction(entity=>demo.card._data?.entity_id===entity&&!demo.card._busy,first);
+    await action('today').click();await page.waitForFunction(()=>demo.card._data&&!demo.card._busy);
   }
   await card().locator('[data-page="temperature"]').click();await page.waitForFunction(()=>demo.card._data?.entity_id==='sensor.north'&&demo.card._comparisonData&&!demo.card._busy);
   const gapTime=await page.evaluate(()=>{const point=demo.card._data.chart[6];demo.gapEntity=demo.card.activeEntity;return (point.start+point.end)/2;});
@@ -236,11 +271,12 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await page.evaluate(()=>demo.gapEntity=null);await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing&&demo.card._data&&demo.card._comparisonData);
   for(const width of [1100,390,320])for(const dark of [false,true]){
    await page.setViewportSize({width,height:1100});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
-   for(const view of ['temperature','wind','illuminance','settings']){
+   for(const view of ['temperature','wind','illuminance','dashboard','settings']){
     await card().locator('[data-page="'+view+'"]').click();
-    if(view!=='settings'){await card().locator('#wa-current').waitFor();await action('period').filter({hasText:'Tag',exact:true}).click();await card().locator('#wa-current').waitFor();assert(await action('next-day').isDisabled());}
+    if(!['settings','dashboard'].includes(view)){await card().locator('#wa-current').waitFor();await action('period').filter({hasText:'Tag',exact:true}).click();await card().locator('#wa-current').waitFor();assert(await action('next-day').isDisabled());}
     assert.equal(await card().locator('.card-top [data-action="reload"]').count(),1);
-    if(view!=='settings'){const select=await card().locator('#wa-active-sensor').boundingBox(),title=await card().locator('.wa-title').boundingBox();assert(select.width<=151);assert(Math.abs(select.x-title.x)<2);assert.equal(await card().locator('.wa-series').count(),2);assert.equal(await card().locator('#wa-months-content,#wa-measurements-content').count(),0);}
+    if(!['settings','dashboard'].includes(view)){const select=await card().locator('#wa-active-sensor').boundingBox(),title=await card().locator('.wa-title').boundingBox();assert(select.width<=151);assert(Math.abs(select.x-title.x)<2);assert.equal(await card().locator('.wa-series').count(),2);assert.equal(await card().locator('#wa-months-content,#wa-measurements-content').count(),0);}
+    if(view==='dashboard'){await page.waitForFunction(()=>demo.card._dashboard&&!demo.card._busy);assert.equal(await card().locator('.fui-account-tile').count(),4);assert.equal(await card().locator('#wa-forecast-1-content .setting-row').count(),8);}
     await page.mouse.move(0,0);
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
@@ -316,6 +352,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await touchPage.evaluate(()=>demo.card.setConfig({card_id:'touch',entities:['sensor.garden','sensor.north']}));
   const touchCard=touchPage.locator('weather-analysis-card');await touchCard.locator('#wa-current').waitFor();
   await touchCard.locator('[data-action="compare-add"]').click();await touchPage.waitForFunction(()=>demo.card._comparisonData&&!demo.card._busy);
+  await touchCard.locator('[data-action="previous-day"]').click();await touchPage.waitForFunction(()=>demo.card._data&&!demo.card._busy);
   await touchCard.locator('.wa-chart').scrollIntoViewIfNeeded();const touchBox=await touchCard.locator('.wa-chart').boundingBox();
   const cdp=await touchContext.newCDPSession(touchPage),touchY=touchBox.y+touchBox.height*.55;
   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:touchBox.x+touchBox.width*.25,y:touchY,id:0}]});
@@ -341,7 +378,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.deepEqual(await touchPage.evaluate(()=>demo.saved.get('touch').entities),['sensor.north','sensor.garden']);
   await touchContext.close();
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:29,errors},null,2));
+  fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:35,errors},null,2));
   console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards and 3 widths × 2 themes.');
  }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

@@ -2,7 +2,7 @@ import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, select
   field, notice, versionInfo, bindUI, escapeHtml as esc, accountTile, accountTiles,
   statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle} from './family-ui/1.8.0/family-ui.js';
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['custom','Zeitraum']];
 const SENSOR_TYPES={temperature:{list:'entities',single:'entity',source:'_sensors',id:'wa-sensors',label:'Thermometer',title:'Temperatur'},wind:{list:'wind_entities',single:'wind_entity',source:'_windSensors',id:'wa-wind-sensors',label:'Windsensoren',title:'Wind'},illuminance:{list:'illuminance_entities',single:'illuminance_entity',source:'_illuminanceSensors',id:'wa-illuminance-sensors',label:'Helligkeitssensoren',title:'Helligkeit'}};
 const num = (value, digits=1) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('de-DE',{minimumFractionDigits:digits, maximumFractionDigits:digits});
@@ -17,7 +17,7 @@ export function calendarDates(period,key,today){const start=periodStart(period,k
 export function periodDates(period, timezone, now=new Date()) {
   const today=dateKey(now,timezone);
   if(period==='yesterday')return [shiftDay(today,-1),shiftDay(today,-1)];
-  if(period==='day')return [dateKey(new Date((Math.floor(now.getTime()/60000)+1)*60000-86400000),timezone),today];
+  if(period==='day')return [today,today];
   if(period==='week')return [shiftDay(today,-7),today];
   return period==='month'?calendarDates('month',today,today):[today,today];
 }
@@ -42,6 +42,7 @@ const CSS = `
 .wa-inspector{min-height:36px;padding:4px 0;overflow-wrap:anywhere}
 .wa-legend{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0}.wa-swatch{display:inline-block;width:16px;height:3px;background:var(--primary-color,#03a9f4);vertical-align:middle;margin-right:6px}.wa-swatch.band{height:10px;opacity:.25}
 .wa-chart .wa-average-line{fill:none;stroke:var(--primary-color,#03a9f4);stroke-width:1.5;stroke-dasharray:3 5;opacity:.75}.wa-chart .wa-average-label{fill:var(--primary-color,#03a9f4);stroke:var(--ha-card-background,var(--card-background-color,#fff));stroke-width:3;paint-order:stroke;stroke-linejoin:round}.wa-chart .wa-series-secondary .wa-average-line{stroke:var(--warning-color,#ff9800)}.wa-chart .wa-series-secondary .wa-average-label{fill:var(--warning-color,#ff9800)}
+.wa-forecast-reading{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.wa-forecast-reading ha-icon{display:inline-block;width:24px;height:24px}.wa-forecast-source{margin-top:12px}.wa-forecast-source a{color:var(--primary-color,#03a9f4)}
 .wa-current{margin:8px 0 12px}.wa-quality{margin-top:12px}.wa-setting-actions{margin-top:16px}
 `;
 
@@ -59,14 +60,14 @@ class WeatherAnalysisCard extends HTMLElement {
     this.period=PERIODS.some(([id])=>id===this.config.period)?this.config.period:this.config.period==='year'?'month':'day';
     this._periodStarts={};
     this._day=this.config.period==='yesterday'?shiftDay(dateKey(new Date(),this._hass?.config?.time_zone||'Europe/Berlin'),-1):null;
-    this._ready=false;this._data=null;this._comparisonData=null;this._comparisonError=null;this._settings={};this._active={};this._request++;
+    this._dashboard=null;this._forecast=null;this._forecastError=null;this._ready=false;this._data=null;this._comparisonData=null;this._comparisonError=null;this._settings={};this._active={};this._request++;
     if(this._hass)this._initialize();else this.render();
   }
   set hass(hass){
     this._hass=hass;
     if(!this.config)return;
     if(!this._ready){this._initialize();return;}
-    const signature=[this.activeEntity,this.compareEntity].filter(Boolean).map(entity=>{const state=hass.states[entity];return entity+'|'+state?.state+'|'+state?.last_updated;}).join(';');
+    const signature=(this.page==='dashboard'?Object.keys(SENSOR_TYPES).map(kind=>this._entityFor(kind)):[this.activeEntity,this.compareEntity]).filter(Boolean).map(entity=>{const state=hass.states[entity];return entity+'|'+state?.state+'|'+state?.last_updated;}).join(';');
     if(this._signature!==signature){this._signature=signature;this._schedule();}
   }
   get settings(){
@@ -81,7 +82,8 @@ class WeatherAnalysisCard extends HTMLElement {
   get unit(){return {temperature:'°C',wind:'km/h',illuminance:'lx'}[this.view];}
   get sensorConfig(){return SENSOR_TYPES[this.view];}
   get selectedEntities(){return this.settings[this.sensorConfig.list];}
-  get activeEntity(){const entities=this.selectedEntities,chosen=this._active[this.view]??this.settings[this.sensorConfig.single];return entities.includes(chosen)?chosen:entities[0]||'';}
+  _entityFor(kind){const config=SENSOR_TYPES[kind],entities=this.settings[config.list],chosen=this._active[kind]??this.settings[config.single];return entities.includes(chosen)?chosen:entities[0]||'';}
+  get activeEntity(){return this._entityFor(this.view);}
   get comparison(){return this._comparisons[this.view]||=( {enabled:false,entity:''} );}
   get compareEntity(){if(!this.comparison.enabled)return '';const entity=this.comparison.entity;return this.selectedEntities.includes(entity)&&entity!==this.activeEntity?entity:this.selectedEntities.find(e=>e!==this.activeEntity)||'';}
   _sensorName(entity,fallback=''){return this.settings.sensor_names?.[entity]||[...this._sensors,...this._windSensors,...this._illuminanceSensors].find(s=>s.entity_id===entity)?.name||fallback||entity;}
@@ -99,7 +101,7 @@ class WeatherAnalysisCard extends HTMLElement {
     this.shadowRoot.addEventListener('pointermove',this._chartMove);this.shadowRoot.addEventListener('pointerdown',this._chartDown);
     this.shadowRoot.addEventListener('pointerup',this._chartEnd);this.shadowRoot.addEventListener('pointercancel',this._chartEnd);this.shadowRoot.addEventListener('pointerleave',this._chartLeave,true);
     this._periodKey ||= event=>{
-      if(!['ArrowLeft','ArrowRight'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||['settings','help'].includes(this.page)||this.period==='custom'||event.target.closest?.('input,select,textarea,[contenteditable="true"]'))return;
+      if(!['ArrowLeft','ArrowRight'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||['settings','help','dashboard'].includes(this.page)||this.period==='custom'||event.target.closest?.('input,select,textarea,[contenteditable="true"]'))return;
       event.preventDefault();this._action({action:this.period==='day'?(event.key==='ArrowLeft'?'previous-day':'next-day'):(event.key==='ArrowLeft'?'previous-period':'next-period'),data:{}});
     };
     this.shadowRoot.addEventListener('keydown',this._periodKey);
@@ -125,16 +127,17 @@ class WeatherAnalysisCard extends HTMLElement {
     }catch(error){this._error='Weather Analysis ist noch nicht eingerichtet oder konnte nicht geladen werden. Bitte die Integration einmal unter Geräte & Dienste hinzufügen. '+(error.message||'');this.render();}
     finally{this._initializing=false;}
   }
-  _isRolling(period=this.period){return period==='day'?!this._day:period==='week'?!this._periodStarts.week:false;}
+  _isRolling(period=this.period){return period==='week'?!this._periodStarts.week:false;}
   get _chartLimit(){return this._data?.display_end??this._data?.end;}
   _dates(now=new Date()){
     const today=dateKey(now,this.timezone||'Europe/Berlin');
     if(this._isRolling())return periodDates(this.period,this.timezone||'Europe/Berlin',now);
-    if(this.period==='day')return [this._day,this._day];
+    if(this.period==='day'){const day=this._day||today;return [day,day];}
     if(['week','month'].includes(this.period))return calendarDates(this.period,this._periodStarts[this.period]||today,today);
     return this._custom||[today,today];
   }
   async _fetch(){
+    if(this.page==='dashboard')return this._fetchDashboard();
     if(!this._ready||!this.activeEntity||!this._hass)return;
     const now=new Date(),request=++this._request,[start_date,end_date]=this._dates(now);
     const window=this._isRolling()?{window:this.period,as_of:now.getTime()/1000}:{};
@@ -151,6 +154,15 @@ class WeatherAnalysisCard extends HTMLElement {
       this._comparisonError=responses[1]?.status==='rejected'?'Vergleichssensor: '+(responses[1].reason.message||String(responses[1].reason)):null;
     }catch(error){if(request===this._request){this._error=error.message||String(error);this._comparisonData=null;}}
     finally{if(request===this._request){this._busy=false;if(this.page!=='settings')this.render();}}
+  }
+  async _fetchDashboard(){
+    if(!this._ready||!this._hass)return;
+    const request=++this._request;this._busy=true;this._error=null;this.render();
+    const current=()=>request===this._request&&this.page==='dashboard';
+    const sensors=this._hass.callWS({type:'weather_analysis/dashboard',...Object.fromEntries(Object.keys(SENSOR_TYPES).map(kind=>[kind+'_entity',this._entityFor(kind)]))}).then(result=>{if(current()){this._dashboard=result;this.render();}}).catch(error=>{if(current()){this._error=error.message||String(error);this.render();}});
+    const prediction=this._hass.callWS({type:'weather_analysis/forecast'}).then(result=>{if(current()){this._forecast=result.forecast;this._forecastError=result.forecast_error;this.render();}}).catch(error=>{if(current()){this._forecastError=error.message||String(error);this.render();}});
+    await Promise.allSettled([sensors,prediction]);
+    if(current()){this._busy=false;this.render();}
   }
   async _action({action,data,value}){
     if(action==='order-sensors'&&this._admin&&SENSOR_TYPES[data.kind]){
@@ -284,15 +296,11 @@ class WeatherAnalysisCard extends HTMLElement {
   _periodControls(){
     const [start,end]=this._dates();
     return `<div class="wa-periods" role="group" aria-label="Auswertungszeitraum">${PERIODS.map(([id,label])=>filterButton({label,action:'period',selected:this.period===id,data:{period:id}})).join('')}</div>
-      ${this.period==='day'?dateNavigation({label:this._isRolling()?'24 Stunden':this._dateLabel(start),todayLabel:'Aktuell',previousLabel:'Vorheriger Tag',nextLabel:'Nächster Tag',previousAction:'previous-day',nextAction:'next-day',nextDisabled:this._isRolling()||start>=dateKey(new Date(),this.timezone||'Europe/Berlin')}):['week','month'].includes(this.period)?dateNavigation({label:this._isRolling()?'7 Tage + heute':this._periodLabel(start),previousLabel:this.period==='week'?'Vorherige Woche':'Vorheriger Monat',nextLabel:this.period==='week'?'Nächste Woche':'Nächster Monat',todayLabel:'Aktuell',todayAction:'current-period',nextDisabled:this._isRolling()||start>=periodStart(this.period,dateKey(new Date(),this.timezone||'Europe/Berlin'))}):''}
+      ${this.period==='day'?dateNavigation({label:this._dateLabel(start),todayLabel:'Aktuell',previousLabel:'Vorheriger Tag',nextLabel:'Nächster Tag',previousAction:'previous-day',nextAction:'next-day',nextDisabled:this._isRolling()||start>=dateKey(new Date(),this.timezone||'Europe/Berlin')}):['week','month'].includes(this.period)?dateNavigation({label:this._isRolling()?'7 Tage + heute':this._periodLabel(start),previousLabel:this.period==='week'?'Vorherige Woche':'Vorheriger Monat',nextLabel:this.period==='week'?'Nächste Woche':'Nächster Monat',todayLabel:'Aktuell',todayAction:'current-period',nextDisabled:this._isRolling()||start>=periodStart(this.period,dateKey(new Date(),this.timezone||'Europe/Berlin'))}):''}
       ${this.period==='custom'?`<div class="wa-date-fields">${field({id:'wa-from',label:'Von',type:'date',value:start})}${field({id:'wa-to',label:'Bis',type:'date',value:end,min:start})}</div><div class="toolbar">${button({label:'Anzeigen',action:'custom-apply',variant:'primary'})}</div>`:''}
       <p class="hint wa-range">${esc(this._rangeLabel(start,end))}</p>`;
   }
   _rangeLabel(start,end){
-    if(this.period==='day'&&this._isRolling()){
-      const stop=this._data?.display_end??(Math.floor(Date.now()/60000)+1)*60,first=this._data?.start??stop-86400;
-      return this._formatTime(first,true)+' – '+this._formatTime(stop-60,true);
-    }
     const range=this._dateLabel(start)+(start!==end?' – '+this._dateLabel(end):'');
     if(this.period==='day')return range+' · 00:00–23:59'+(this._data?.partial?' · bisher':'');
     return range+(this._isRolling()?' · bis jetzt':this._data?.partial?' · bisher':'');
@@ -415,6 +423,33 @@ class WeatherAnalysisCard extends HTMLElement {
       section({id:'wa-compare',title:'Zeitraumvergleich',content:Object.entries(d.comparisons).map(([key,value])=>row({title:key==='year'?'Gleicher Zeitraum im Vorjahr':'Vorheriger gleich langer Zeitraum',description:value.mean==null?'Keine Vergleichsdaten':`Ø ${this._num(value.mean)} ${this.unit} · Datenintervalle ${this._num(value.coverage*100,0)} %`,trailing:esc(this._delta(value.delta))})).join('')})+
       section({id:'wa-records',title:'Rekorde seit Aufzeichnung',content:['min','max'].map(kind=>{const r=d.records[kind];return row({title:wind?(kind==='min'?'Niedrigster Windwert':'Höchster Windwert'):this.view==='illuminance'?(kind==='min'?'Niedrigster Helligkeitswert':'Höchster Helligkeitswert'):(kind==='min'?'Kältester Messwert':'Wärmster Messwert'),description:r?.at?this._formatTime(r.at,true):'Datum in älteren Langzeitstatistiken nicht gespeichert',trailing:esc(r?this._num(r.value)+' '+this.unit:'—')});}).join('')})});
   }
+  _dashboardView(){
+    const d=this._dashboard,s=d?.sensors||{},temperature=s.temperature||{},wind=s.wind||{},light=s.illuminance||{};
+    const description=(kind,data)=>d?.errors?.[kind]||(data.entity_id?this._sensorName(data.entity_id)+(data.current==null?' · Sensor nicht verfügbar':''):'In Einstellungen auswählen');
+    const tile=(id,label,data,kind,unit,digits=1)=>accountTile({id,label,state:kind==='temperature'?'active':'',metrics:[{value:num(data.current,digits),unit,description:description(kind,data)}]});
+    const readings=accountTiles({label:'Wetter heute auf einen Blick',content:
+      tile('wa-dashboard-temperature','Aktuelle Temperatur',temperature,'temperature','°C')+
+      accountTile({id:'wa-dashboard-extrema',label:'Temperatur heute',metrics:[
+        {label:'Minimum',value:num(temperature.min),unit:'°C',description:temperature.min_at!=null?this._formatTime(temperature.min_at):temperature.min!=null?'Uhrzeit nicht gespeichert':'Noch keine heutigen Messwerte'},
+        {label:'Maximum',value:num(temperature.max),unit:'°C',description:temperature.max_at!=null?this._formatTime(temperature.max_at):temperature.max!=null?'Uhrzeit nicht gespeichert':'Noch keine heutigen Messwerte'}]})+
+      tile('wa-dashboard-wind','Wind aktuell',wind,'wind','km/h')+
+      tile('wa-dashboard-illuminance','Helligkeit aktuell',light,'illuminance','lx',0)});
+    let forecast;
+    if(!this._forecast)forecast=notice(this._forecastError||'Wettervorhersage wird geladen …',{error:Boolean(this._forecastError)});
+    else {
+      const f=this._forecast,time=timestamp=>new Intl.DateTimeFormat('de-DE',{timeZone:f.timezone,hour:'2-digit',minute:'2-digit'}).format(new Date(timestamp*1000));
+      forecast=(this._forecastError?notice(this._forecastError,{error:true}):'')+(f.stale?notice('Vorhersage konnte nicht aktualisiert werden. Angezeigt wird der letzte verfügbare Stand.'):'')+
+        f.days.map((day,index)=>section({id:'wa-forecast-'+index,title:day.label,content:day.slots.length?day.slots.map(slot=>row({
+          title:time(slot.start)+'–'+time(slot.end)+' Uhr · '+slot.condition,
+          description:'Regenrisiko max. '+num(slot.precipitation_probability,0)+' % · '+(slot.partial?'ca. ':'')+num(slot.precipitation)+' mm · Wind bis '+num(slot.wind_speed)+' km/h',
+          trailing:`<span class="wa-forecast-reading"><ha-icon icon="${esc(slot.icon)}" aria-hidden="true"></ha-icon><strong>${esc(num(slot.temperature))} °C</strong></span>`})).join(''):notice('Für diesen Zeitraum sind keine Vorhersagewerte verfügbar.')})).join('')+
+        `<p class="hint wa-forecast-source">Wetterdaten: <a href="${esc(f.source_url)}" target="_blank" rel="noopener noreferrer">${esc(f.source)}</a> · Stand ${esc(time(f.updated_at))}</p>`;
+    }
+    return `<p class="hint wa-range">Heute · ${esc(this._dateLabel(d?.date||dateKey(new Date(),this.timezone||'Europe/Berlin')))} · 00:00–23:59 Uhr</p>`+
+      (!d?notice('Aktuelle Messwerte werden geladen …'):'')+readings+
+      (!Object.keys(s).length&&this._admin?button({label:'Sensoren auswählen',action:'navigate',data:{page:'settings'}}):'')+
+      section({id:'wa-dashboard-forecast',title:'Wettervorhersage · 67459 Böhl-Iggelheim · 3 Stunden',content:forecast});
+  }
   _settingsView(){
     const s=this._settingsDraft||this.settings;
     return `${section({id:'wa-card-settings',title:'Karte einrichten',content:
@@ -427,21 +462,23 @@ class WeatherAnalysisCard extends HTMLElement {
   _help(){return section({id:'wa-help',title:'So funktioniert Weather Analysis',content:
     '<p>Temperatur, Wind und Helligkeit stammen direkt von deinen gewählten HA-Sensoren. Bereits bei der ersten Auswahl werden vorhandene Detailhistorie und Langzeitstatistik ausgewertet. Anschließend werden 15-Minuten-Werte, Stundenwerte und Extremwerte auch bei geschlossener Karte gespeichert.</p>'+
     row({title:'Sensoren auswählen und vergleichen',description:'Die Integration wird einmal eingerichtet. Sensoren aller drei Messarten wählst du ausschließlich in den Einstellungen der Karte. Ausgewählte Sensoren kannst du im jeweiligen Bereich für diese Karte umbenennen. Das Dropdown oben wechselt den Sensor; + fügt einen zweiten Sensor zum Vergleich hinzu. Mehrere Karten erhalten eigene Einstellungen über ihre Karten-ID.'})+
+    row({title:'Dashboard',description:'Die Übersicht zeigt die aktuell in den Messreitern gewählten Sensoren sowie Temperatur-Minimum und -Maximum von heute. Die Vorhersage für 67459 Böhl-Iggelheim kommt von Open-Meteo und wird alle 30 Minuten aktualisiert. Der erste 3-Stunden-Abschnitt beginnt jetzt. Regenrisiko und Wind zeigen die stündlichen Höchstwerte, Niederschlag die Menge im Abschnitt.'})+
     row({title:'Datenqualität',description:'≈ kennzeichnet Mittelwerte aus verdichteten HA-Statistiken. Grenzwertdauern und genaue Extremzeiten stammen aus vorhandener Detailhistorie und eigener Aufzeichnung. Fehlende Detaildaten werden nicht erfunden.'})+
     row({title:'Messlücken',description:'Unavailable/unknown und bekannte HA-Ausfallzeiten bleiben Lücken. Vergleiche sind nur bei ähnlicher Datenabdeckung aussagekräftig.'})+
     row({title:'Wind',description:'Windgeschwindigkeit wird einheitlich in km/h angezeigt. Unterstützt werden auch m/s, mph, Knoten und ft/s. Der höchste Sensorwert ist keine separat gemessene Windböe.'})+
-    row({title:'Zeitraum und Zeitzone',description:'Tag zeigt 15-Minuten-Mittel, Woche Stundenmittel und Monat 6-Stunden-Mittel. Aktuell zeigt bei Tag die letzten 24 Stunden und bei Woche heute plus die letzten sieben Tage. Die Pfeile wechseln zu vollständigen Kalendertagen oder Kalenderwochen (Montag bis Sonntag); vorwärts auf heute bleibt der volle Tag. Aktuell kehrt zur rollierenden Sicht zurück. Monat bleibt der Kalendermonat. Zukünftige Abschnitte der Zeitachse enthalten keine Messwerte. Tagesgrenzen und Uhrzeiten folgen der HA-Zeitzone. Freie Zeiträume dürfen höchstens ein Jahr umfassen.'})});}
+    row({title:'Zeitraum und Zeitzone',description:'Tag zeigt 15-Minuten-Mittel, Woche Stundenmittel und Monat 6-Stunden-Mittel. Aktuell zeigt bei Tag heute von 00:00 bis 23:59 Uhr und bei Woche heute plus die letzten sieben Tage. Die Pfeile wechseln zu vollständigen Kalendertagen oder Kalenderwochen (Montag bis Sonntag); vorwärts auf heute bleibt der volle Tag. Aktuell kehrt bei Tag zu heute und bei Woche zur rollierenden Wochensicht zurück. Monat bleibt der Kalendermonat. Zukünftige Abschnitte der Zeitachse enthalten keine Messwerte. Tagesgrenzen und Uhrzeiten folgen der HA-Zeitzone. Freie Zeiträume dürfen höchstens ein Jahr umfassen.'})});}
   render(){
     if(!this.config)return;
     this._rememberSections();
     let body;
-    if(this.page==='settings')body=this._settingsView();
+    if(this.page==='dashboard')body=this._dashboardView();
+    else if(this.page==='settings')body=this._settingsView();
     else if(this.page==='help')body=this._help();
     else body=(!this.activeEntity?notice('Bitte den Sensor in den Einstellungen der Karte auswählen.')+(this._admin?button({label:'Sensoren auswählen',action:'navigate',data:{page:'settings'}}):''):
       this._periodControls()+(this._data?this._overview()+this._statistics():notice(this._busy?'Vorhandene Historie und Messwerte werden geladen …':'Zeitraum auswählen und anzeigen.')));
-    const quality=this._data&&!['settings','help'].includes(this.page)?notice(`Datenintervalle: ${this._num(this._data.summary.coverage*100,0)} %${this._data.summary.estimated?' · teilweise aus HA-Langzeitstatistik (Messabdeckung unbekannt)':''}. Detailabdeckung: ${this._num(this._data.summary.duration_coverage*100,0)} % des Zeitraums.`):'';
+    const quality=this._data&&!['settings','help','dashboard'].includes(this.page)?notice(`Datenintervalle: ${this._num(this._data.summary.coverage*100,0)} %${this._data.summary.estimated?' · teilweise aus HA-Langzeitstatistik (Messabdeckung unbekannt)':''}. Detailabdeckung: ${this._num(this._data.summary.duration_coverage*100,0)} % des Zeitraums.`):'';
     this._renderedScope=this.page;
-    this.shadowRoot.innerHTML=`<style>${UI_CSS}${CSS}</style><ha-card>${navigation({label:'Weather Analysis',items:[{id:'temperature',label:'Temperatur'},{id:'wind',label:'Wind'},{id:'illuminance',label:'Helligkeit'}],active:this.page,settings:true,help:true,actions:[{icon:'refresh',label:'Aktualisieren',action:'reload',disabled:this._busy||this._refreshing}]})}<main>${!['settings','help'].includes(this.page)?`<div class="wa-title">${this._sensorPicker()}</div>`:''}${this._error&&this.page!=='settings'?notice(this._error,{error:true}):''}${body}<div class="wa-quality">${quality}</div></main></ha-card>`;
+    this.shadowRoot.innerHTML=`<style>${UI_CSS}${CSS}</style><ha-card>${navigation({label:'Weather Analysis',items:[{id:'dashboard',label:'Dashboard'},{id:'temperature',label:'Temperatur'},{id:'wind',label:'Wind'},{id:'illuminance',label:'Helligkeit'}],active:this.page,settings:true,help:true,actions:[{icon:'refresh',label:'Aktualisieren',action:'reload',disabled:this._busy||this._refreshing}]})}<main>${!['settings','help','dashboard'].includes(this.page)?`<div class="wa-title">${this._sensorPicker()}</div>`:''}${this._error&&this.page!=='settings'?notice(this._error,{error:true}):''}${body}<div class="wa-quality">${quality}</div></main></ha-card>`;
     this._restoreSections();
   }
 }

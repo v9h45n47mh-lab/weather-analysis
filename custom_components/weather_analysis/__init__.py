@@ -31,11 +31,13 @@ from homeassistant.helpers.recorder import get_instance
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from .forecast import ForecastClient, ForecastUnavailable
+
 from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -59,7 +61,7 @@ async def async_setup(hass, config):
         StaticPathConfig("/weather-analysis", str(Path(__file__).parent / "frontend"), False)
     ])
     frontend.add_extra_js_url(hass, f"/weather-analysis/weather-analysis-card.js?v={VERSION}")
-    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history):
+    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast):
         websocket_api.async_register_command(hass, command)
     return True
 
@@ -240,11 +242,13 @@ class Manager:
             if not isinstance(as_of,(int,float)) or not math.isfinite(as_of) or as_of < 0 or as_of > now+300:
                 raise ValueError("Bitte einen gültigen Zeitpunkt auswählen.")
             reference = min(as_of,now)
-            requested_end = math.floor(reference/60)*60+60
+            local = datetime.fromtimestamp(reference,tz)
             if window == "day":
-                start = requested_end-86400
+                midnight = local.replace(hour=0,minute=0,second=0,microsecond=0)
+                start = midnight.timestamp()
+                requested_end = (midnight+timedelta(days=1)).timestamp()
             else:
-                local = datetime.fromtimestamp(reference,tz)
+                requested_end = math.floor(reference/60)*60+60
                 start = (local.replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=7)).timestamp()
             start_local = datetime.fromtimestamp(start,tz)
         end = min(now, requested_end)
@@ -434,3 +438,55 @@ async def ws_import_history(hass, connection, msg):
             failed.append(entity)
         manager.cache.clear()
     connection.send_result(msg["id"], {"count": len(entities)-len(failed), "failed": failed})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "weather_analysis/dashboard",
+    vol.Optional("temperature_entity", default=""): str,
+    vol.Optional("wind_entity", default=""): str,
+    vol.Optional("illuminance_entity", default=""): str,
+})
+@websocket_api.async_response
+async def ws_dashboard(hass, connection, msg):
+    """Today's sensor overview and independent public location forecast."""
+    today = dt_util.utcnow().astimezone(ZoneInfo(hass.config.time_zone)).date().isoformat()
+    sensors, errors = {}, {}
+
+    async def reading(kind):
+        entity = msg.get(kind+"_entity", "")
+        if not entity:
+            return
+        if not may_read(connection,entity):
+            errors[kind] = "Kein Lesezugriff auf diesen Sensor."
+            return
+        state = hass.states.get(entity)
+        manager = next((item for item in hass.data[DOMAIN].values() if item.entity==entity),None)
+        if (state is not None and sensor_kind(entity,state.attributes)!=kind) or (state is None and (manager is None or manager.kind!=kind)):
+            errors[kind] = "Sensor nicht verfügbar oder unpassende Messart."
+            return
+        try:
+            manager = manager or await ensure_manager(hass,entity,kind)
+            data = {"entity_id":entity,"current":manager.state_value(),"unit":{"temperature":"°C","wind":"km/h","illuminance":"lx"}[kind],
+                "updated_at":state.last_updated.timestamp() if state is not None else None}
+            if kind=="temperature":
+                analysis = await manager.analyse({"start_date":today,"end_date":today,"chart_interval":900})
+                data.update({key:analysis["summary"].get(key) for key in ("min","max","min_at","max_at")})
+            sensors[kind] = data
+        except Exception:
+            _LOGGER.exception("Dashboard reading failed for %s",entity)
+            errors[kind] = "Die heutigen Messwerte konnten nicht geladen werden."
+
+    await asyncio.gather(*(reading(kind) for kind in SENSOR_FIELDS))
+    connection.send_result(msg["id"],{"version":VERSION,"date":today,"timezone":hass.config.time_zone,
+        "sensors":sensors,"errors":errors})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "weather_analysis/forecast"})
+@websocket_api.async_response
+async def ws_forecast(hass, connection, msg):
+    client = hass.data.setdefault(DOMAIN+"_forecast",ForecastClient(hass))
+    try:
+        prediction,error = await client.get(),None
+    except ForecastUnavailable as exception:
+        prediction,error = None,str(exception)
+    connection.send_result(msg["id"],{"forecast":prediction,"forecast_error":error})

@@ -50,7 +50,7 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.6.0",data
+            assert data["version"]=="1.7.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data
@@ -63,12 +63,16 @@ async def main():
                 assert detail["summary"]["min"]==-2,detail
             assert manager.dump()["history"]["quarters"]
             assert manager.dump()["history_resolution"]==900
+            dashboard_today=await manager.analyse({**request,"chart_interval":900,"window":"day"})
+            assert dashboard_today["summary"]["min"]==-2
+            assert dashboard_today["summary"]["max"]==12.3
+            assert dashboard_today["display_end"]>dashboard_today["end"]
             for window,interval in [("day",900),("week",3600)]:
                 rolling=await manager.analyse({**request,"window":window,"chart_interval":interval})
                 assert rolling["window"]==window,rolling
                 assert rolling["display_end"]>=rolling["end"],rolling
                 assert all(point["end"]<=rolling["end"] for point in rolling["chart"]),rolling
-                if window=="day":assert rolling["display_end"]-rolling["start"]==86400
+                if window=="day":assert datetime.fromtimestamp(rolling["start"],timezone.utc).hour==0
             assert "heating_degree_days" not in data["summary"]
             wind_manager=await ensure_manager(hass,"sensor.wind_test","wind")
             wind_data=await wind_manager.analyse(request)
