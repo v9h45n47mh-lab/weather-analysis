@@ -5,6 +5,7 @@ import importlib.util
 from pathlib import Path
 from types import ModuleType
 import sys,unittest
+import xml.etree.ElementTree as ET
 root=Path(__file__).parents[1]/'custom_components/weather_analysis'
 pkg=ModuleType('dwd_test_package');pkg.__path__=[str(root)];sys.modules[pkg.__name__]=pkg
 spec=importlib.util.spec_from_file_location('dwd_test_package.warnings',root/'warnings.py')
@@ -50,7 +51,11 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
   s=Session(payload(feature()));c=w.WarningsClient(None,s,lambda:NOW)
   values=await asyncio.gather(*(c.get(49.3806,8.3039) for _ in range(5)))
   self.assertEqual(len(s.calls),1);self.assertTrue(all(v['status']=='ok' for v in values))
-  self.assertEqual(s.calls[0][1]['params']['CQL_FILTER'],'INTERSECTS(THE_GEOM,POINT(8.3039 49.3806))')
+  filter=ET.fromstring(s.calls[0][1]['params']['FILTER'])
+  point=filter.find('.//{http://www.opengis.net/gml/3.2}Point')
+  self.assertEqual(point.attrib['srsName'],'urn:ogc:def:crs:OGC:1.3:CRS84')
+  self.assertEqual(point[0].text,'8.3039 49.3806')
+  self.assertNotIn('CQL_FILTER',s.calls[0][1]['params'])
   self.assertEqual(s.calls[0][1]['params']['typeNames'],'dwd:Warnungen_Gemeinden')
  async def test_empty_success_and_network_error_are_distinct(self):
   clock=[NOW];s=Session(payload());c=w.WarningsClient(None,s,lambda:clock[0])

@@ -10,6 +10,17 @@ SOURCE_URL = "https://www.dwd.de/warnungen"
 LEVELS = {"Minor":1,"Moderate":2,"Severe":3,"Extreme":4}
 LABELS = {0:"Warnung",1:"Wetterwarnung",2:"Markantes Wetter",3:"Unwetter",4:"Extremes Unwetter"}
 
+def query_params(latitude,longitude):
+    lat,lon=coordinates(latitude,longitude)
+    # The DWD layer's native EPSG:4326 uses latitude/longitude axis order.
+    # An explicit CRS84 point keeps longitude/latitude unambiguous in WFS 2.
+    point=(f'<fes:Filter xmlns:fes="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2">'
+        f'<fes:Intersects><fes:ValueReference>THE_GEOM</fes:ValueReference>'
+        f'<gml:Point srsName="urn:ogc:def:crs:OGC:1.3:CRS84"><gml:pos>{lon:.4f} {lat:.4f}</gml:pos></gml:Point>'
+        f'</fes:Intersects></fes:Filter>')
+    return {"service":"WFS","version":"2.0.0","request":"GetFeature","typeNames":"dwd:Warnungen_Gemeinden",
+        "outputFormat":"application/json","srsName":"EPSG:4326","count":100,"FILTER":point}
+
 class WarningsUnavailable(RuntimeError):
     pass
 
@@ -74,10 +85,8 @@ class WarningsClient:
                 if self.session is None:
                     from homeassistant.helpers.aiohttp_client import async_get_clientsession
                     self.session=async_get_clientsession(self.hass)
-                params={"service":"WFS","version":"2.0.0","request":"GetFeature","typeNames":"dwd:Warnungen_Gemeinden",
-                    "outputFormat":"application/json","srsName":"EPSG:4326","count":100,
-                    "CQL_FILTER":f"INTERSECTS(THE_GEOM,POINT({lon:.4f} {lat:.4f}))"}
-                async with asyncio.timeout(12):
+                params=query_params(lat,lon)
+                async with asyncio.timeout(20):
                     async with self.session.get(API_URL,params=params) as response:
                         response.raise_for_status();payload=await response.json()
                 alerts=parse_warnings(payload,now)

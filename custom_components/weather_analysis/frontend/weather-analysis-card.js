@@ -345,8 +345,8 @@ class WeatherAnalysisCard extends HTMLElement {
     if(action==='compare-add'){if(this.selectedEntities.length<2)return;this.comparison.enabled=true;this.comparison.entity=this.selectedEntities.find(e=>e!==this.activeEntity);this._comparisonData=null;this._data=null;this.render();await this._fetch();return;}
     if(action==='compare-remove'){this.comparison.enabled=false;this.comparison.entity='';this._comparisonData=null;this._comparisonError=null;this._request++;this._busy=false;this.render();await this._fetch();return;}
     if(action==='navigate'){
-      const oldView=this.view;if(data.page==='settings'&&this.page!=='settings'){this._draftNames={...this.settings.sensor_names};this._draftOrder=Object.fromEntries(Object.entries(SENSOR_TYPES).map(([kind,config])=>[kind,[...this.settings[config.list]]]));this._settingsDraft=null;this._networkDraft=null;this._networkMessage=null;}this.page=data.page;this._error=null;
-      if(this.view!==oldView||!['settings','help'].includes(this.page)){this._request++;this._data=null;this._busy=false;}
+      const oldPage=this.page,oldView=this.view;if(data.page==='settings'&&this.page!=='settings'){this._draftNames={...this.settings.sensor_names};this._draftOrder=Object.fromEntries(Object.entries(SENSOR_TYPES).map(([kind,config])=>[kind,[...this.settings[config.list]]]));this._settingsDraft=null;this._networkDraft=null;this._networkMessage=null;}this.page=data.page;this._error=null;
+      if(this.page!==oldPage||this.view!==oldView||!['settings','help'].includes(this.page)){this._request++;this._data=null;this._busy=false;}
       this.render();if(!['settings','help'].includes(this.page))await this._fetch();return;
     }
     if(action==='period'){this._request++;this._busy=false;this.period=data.period;this._data=null;this._error=null;this.render();if(this.period!=='custom')this._fetch();return;}
