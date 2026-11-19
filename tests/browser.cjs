@@ -749,7 +749,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await radarPage.evaluate(()=>{Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:49.38,longitude:8.3});demo.card.hass=demo.hass;const standalone=document.createElement('weather-radar-card');standalone.setConfig({type:'custom:weather-radar-card',card_id:'standalone-test'});standalone.hass=demo.hass;document.body.append(standalone);window.standaloneRadar=standalone;});
   const standalone=radarPage.locator('weather-radar-card');await radarPage.waitForFunction(()=>standaloneRadar._radarImage&&!standaloneRadar._busy);
   assert.equal(await standalone.locator('nav [data-page]').count(),1);assert.equal(await standalone.locator('[data-page="radar"]').getAttribute('aria-current'),'page');
-  await standalone.locator('[data-page="settings"]').click();assert.equal(await standalone.locator('#wa-card-settings-content').count(),0);assert.equal(await standalone.locator('#wa-location-settings').count(),1);
+  await standalone.locator('[data-page="settings"]').click();assert.equal(await standalone.locator('#wa-card-settings-content').count(),0);assert.equal(await standalone.locator('#wa-location-settings-content').count(),1);
   await standalone.getByRole('button',{name:'Zurück',exact:true}).click();await radarPage.waitForFunction(()=>standaloneRadar.page==='radar'&&standaloneRadar._radarImage&&!standaloneRadar._busy);
   await standalone.screenshot({path:path.join(screens,'radar-standalone-mobile.png')});
   await radarPage.evaluate(()=>standaloneRadar.remove());assert.equal(await radarPage.evaluate(()=>standaloneRadar._radarTimer),null);assert.equal(await radarPage.evaluate(()=>standaloneRadar._radar),null);await radarPage.close();

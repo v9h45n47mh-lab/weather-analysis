@@ -76,6 +76,14 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
   calls=len(self.session.calls)
   with self.assertRaises(r.RadarUnavailable):await self.client.get('alice',49.38,8.3)
   self.assertEqual(len(self.session.calls),calls)
+ async def test_cancelled_waiter_does_not_leave_completed_image_tasks(self):
+  data=await self.client.get('alice',49.38,8.3)
+  waiter=asyncio.create_task(self.client.image('alice',data['token'],'frame',0))
+  await asyncio.sleep(0);waiter.cancel()
+  with self.assertRaises(asyncio.CancelledError):await waiter
+  await asyncio.sleep(0);await asyncio.sleep(0);await asyncio.sleep(0)
+  self.assertEqual(self.client.inflight,{})
+  self.assertEqual(len(self.client.images),1)
  async def test_dynamic_coverage_and_bounded_tokens(self):
   self.assertEqual((await self.client.get('alice',35,139))['status'],'outside')
   for _ in range(132):await self.client.get('alice',49.38,8.3)

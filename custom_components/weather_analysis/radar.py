@@ -118,7 +118,13 @@ class RadarClient:
         url,params=image_request(window,kind,index);key=(url,tuple(sorted(params.items())))
         if key in self.images:
             self.images.move_to_end(key);return self.images[key]
-        if key not in self.inflight:self.inflight[key]=asyncio.create_task(self._image(url,params,key))
+        if key not in self.inflight:
+            task=asyncio.create_task(self._image(url,params,key))
+            self.inflight[key]=task
+            def finished(done):
+                if self.inflight.get(key) is done:self.inflight.pop(key,None)
+                if not done.cancelled():done.exception()
+            task.add_done_callback(finished)
         task=self.inflight[key]
         try:return await asyncio.shield(task)
         finally:
