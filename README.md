@@ -1,6 +1,6 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.15.0**, HA UI Kit **1.13.0** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.15.1**, HA UI Kit **1.13.0** lokal eingebunden.
 
 ## Funktionen
 
@@ -50,7 +50,7 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Sensoren und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.15.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.15.1-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
 
 ## Wetter und 3-Stunden-Sicht
 
@@ -123,7 +123,7 @@ Automatisierte Browserprüfungen nutzen synthetische Daten und prüfen alle drei
 MIT-Lizenz. Der gemeinsame UI-Baukasten wird unverändert mit eigener Lizenz ausgeliefert.
 
 
-Die Wettergrafiken und die komplette Darstellung stammen unverändert aus **HA UI Kit 1.13.0**. Keine Grafik wird zur Laufzeit nachgeladen. Messungen erhalten ein Thermometer-Symbol; Bewölkung/Regen werden ausschließlich aus der Vorhersage übernommen. Temperatur und Detailwerte beschreiben den Beginn eines Vorhersagezeitraums; Min/Max beziehen sich auf den ganzen Abschnitt. Wind zeigt die höchste stündliche Geschwindigkeit, Böen das Maximum der überlappenden Stunden. Luftdruck ist auf Meereshöhe bezogen. Fehlende Werte bleiben als „—“ sichtbar.
+Die Wettergrafiken und die komplette Darstellung stammen unverändert aus **HA UI Kit 1.13.0**. Die Wettersymbole werden lokal ausgeliefert; die Radaransicht lädt ihre Karten- und Niederschlagsbilder über die Integration. Messungen erhalten ein Thermometer-Symbol; Bewölkung/Regen werden ausschließlich aus der Vorhersage übernommen. Temperatur und Detailwerte beschreiben den Beginn eines Vorhersagezeitraums; Min/Max beziehen sich auf den ganzen Abschnitt. Wind zeigt die höchste stündliche Geschwindigkeit, Böen das Maximum der überlappenden Stunden. Luftdruck ist auf Meereshöhe bezogen. Fehlende Werte bleiben als „—“ sichtbar.
 
 
 Jeden 3-Stunden-Zeitraum in Wetter am Faltpfeil in seine **Stundenwerte** aufklappen. Die Daten stammen aus den nativen gemessenen Stundenwerten beziehungsweise aus den stündlichen Open-Meteo-Daten. Der laufende Abschnitt ist bis zum gemeinsamen Abfragezeitpunkt auf Ist und Forecast aufgeteilt. Stundenwerte bleiben zunächst eingeklappt und merken sich ihren Zustand bei Reiterwechsel und Aktualisierung. Fehlende Stunden werden nicht aus einem 3-Stunden-Mittel erfunden; Sommer-/Winterzeit folgt den tatsächlichen Stunden.
@@ -141,3 +141,6 @@ card_id: regenradar
 Beide Ansichten folgen dem Standort deiner HA-Person, dem hinterlegten Heim-WLAN oder einer bewusst gewählten Geräteposition. Das Radar benötigt keine eigene Sensorwahl. In der eigenen Karte sind Standort und Heim-WLAN über das Zahnrad erreichbar. Alle Hauptreiter sind nun Icons mit Tooltip und Screenreader-Beschriftung; Wetter bleibt Startreiter.
 
 Die Integration lädt Kartenbilder serverseitig über feste DWD-/BKG-Endpunkte und überträgt sie über die authentifizierte HA-Verbindung. Es werden keine Kartenskripte von CDNs eingebunden. Bildtoken sind je Benutzer gebunden, nur kurz gültig und erlauben keine beliebigen URLs. Bild- und Metadaten-Caches sind begrenzt. Kartendarstellung: © [BKG](https://www.bkg.bund.de) 2026 [dl-de/by-2-0](https://www.govdata.de/dl-de/by-2-0), [Datenquellen](https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_topplusopen.html). Radar: [Deutscher Wetterdienst](https://www.dwd.de/).
+
+
+Ab 1.15.1 verwendet das Regenradar eine reduzierte, helle BKG-Hintergrundkarte mit Standortmarker. Nur die Radarebene wird als DWD-Metadaten abgerufen. Die Karte und geladene Bilder bleiben im Arbeitsspeicher derselben Karteninstanz erhalten; Benutzer- oder Standortwechsel löschen diesen Speicher. Aktive Bildauswahl und Hintergrundabrufe teilen sich keine Warteschlange. Das automatische Nachladen folgt dem Fünf-Minuten-Raster und pausiert während einer Animation. Neue DWD-Vorhersageläufe erhalten eigene Bildschlüssel.

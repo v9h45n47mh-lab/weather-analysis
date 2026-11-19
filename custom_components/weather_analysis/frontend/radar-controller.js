@@ -2,7 +2,7 @@ import {radarMap,updateRadarMap,notice,panelHeader,escapeHtml as esc} from './fa
 
 /** App-owned location, data and playback, with the shared radar UI. */
 export const RadarController=Base=>class extends Base {
-  _clearRadar(){this._stopRadar();this._radar=null;this._radarError=null;this._radarFrameError='';this._radarBaseError='';this._radarImages=new Map();this._radarBase='';this._radarLegend='';this._radarImage='';this._radarFrameBusy=false;this._radarSelection=(this._radarSelection||0)+1;}
+  _clearRadar(){this._stopRadar();this._radar=null;this._radarError=null;this._radarFrameError='';this._radarBaseError='';this._radarImages=new Map();this._radarCache=new Map();this._radarBase='';this._radarLegend='';this._radarImage='';this._radarFrameBusy=false;this._radarSelection=(this._radarSelection||0)+1;}
   _stopRadar(){clearTimeout(this._radarTimer);this._radarTimer=null;this._radarPlaying=false;}
   _radarConnect(){
     this._radarInput ||= event=>{if(event.target.matches('.fui-radar input[type="range"]')){this._stopRadar();this._showRadarFrame(Number(event.target.value));}};
@@ -11,37 +11,50 @@ export const RadarController=Base=>class extends Base {
   _radarDisconnect(){this._request++;this._busy=false;this._clearRadar();this.shadowRoot.removeEventListener('input',this._radarInput);}
   _radarOptions(){return {id:'wa-radar',frames:this._radar?.frames||[],index:this._radarIndex||0,baseImage:this._radarBase,radarImage:this._radarImage,legendImage:this._radarLegend,playing:this._radarPlaying,busy:this._radarFrameBusy,error:this._radarFrameError||this._radarBaseError||'',now:this._radar?.now,zoom:this._radarZoom??1};}
   _paintRadar(){const root=this.shadowRoot.querySelector('#wa-radar');if(root)updateRadarMap(root,this._radarOptions());}
+  _refreshRadarIfDue(now=Date.now()/1000){
+    if(this.page==='radar'&&!this._busy&&!this._radarPlaying&&(!this._radar||now-this._radar.now>=300))return this._fetchRadar();
+  }
+  _radarKey(index){const frame=this._radar.frames[index];return this._radar.context+'|'+frame.time+'|'+frame.reference;}
   async _fetchRadar(){
-    if(!this._ready||!this._hass)return;
+    if(!this._ready||!this._hass||this._busy)return;
     const request=++this._request;this._busy=true;this._stopRadar();this._radarError=null;
     this.render();
     try{
       const result=await this._hass.callWS({type:'weather_analysis/radar',zoom:this._radarZoom??1,...(this._browserCoordinates||{})});
       if(request!==this._request||this.page!=='radar'||!this.isConnected)return;
-      this._clearRadar();this._location=result.location;this._radarCredits=result.credits;this._radar=result.radar;this._radarError=result.radar_error;
+      const previous=this._radar,selected=previous?.frames?.[this._radarIndex||0];
+      const followLatest=selected?.kind==='observation'&&selected.time===previous.latest;
+      const same=previous?.status==='ok'&&result.radar?.status==='ok'&&previous.context===result.radar.context;
+      if(!same)this._clearRadar();else {this._radarImages=new Map();this._radarSelection=(this._radarSelection||0)+1;}
+      this._location=result.location;this._radarCredits=result.credits;this._radar=result.radar;this._radarError=result.radar_error;
       this._locationError=!result.location.position_available&&result.location.via!=='home_wifi'?'Kein GPS-Standort verfügbar. Regenradar für Böhl-Iggelheim.':null;
       if(result.location.via==='home_wifi')this._pauseGPSForHomeWifi();this._gpsSignature=this._positionSignature();
       this._busy=false;this.render();
       if(this._radar?.status!=='ok')return;
       const token=this._radar.token;
       const current=()=>this.page==='radar'&&token===this._radar?.token&&this.isConnected;
-      const asset=async(kind,assign)=>{try{const r=await this._hass.callWS({type:'weather_analysis/radar_image',token,kind});if(current()){this[assign]=r.image;this._paintRadar();}}catch(error){if(current()&&kind==='base'){this._radarBaseError='Kartengrundlage nicht verfügbar. Bitte aktualisieren.';this._paintRadar();}}};
-      asset('base','_radarBase');asset('legend','_radarLegend');
+      const asset=async(kind,assign)=>{try{const r=await this._hass.callWS({type:'weather_analysis/radar_image',token,kind,background:kind==='legend'});if(current()){this[assign]=r.image;this._paintRadar();}}catch(error){if(current()&&kind==='base'){this._radarBaseError='Kartengrundlage nicht verfügbar. Bitte aktualisieren.';this._paintRadar();}}};
+      if(!this._radarBase)asset('base','_radarBase');
       const latest=Math.max(0,this._radar.frames.findLastIndex(f=>f.kind==='observation'));
-      await this._showRadarFrame(latest);
-      // Two workers preload the small, bounded three-hour sequence for smooth playback.
-      let next=0;
-      const preload=async()=>{while(current()&&next<this._radar.frames.length){const index=next++;try{await this._radarFrame(index);}catch{} }};
+      const retained=same&&!followLatest&&selected?this._radar.frames.findIndex(f=>f.time===selected.time):-1;
+      const chosen=retained>=0?retained:latest;
+      await this._showRadarFrame(chosen);
+      if(!current())return;
+      if(!this._radarLegend)asset('legend','_radarLegend');
+      // Fetch neighbours first; displayed frames have reserved server capacity.
+      const order=this._radar.frames.map((_,i)=>i).sort((a,b)=>Math.abs(a-chosen)-Math.abs(b-chosen));let next=0;
+      const preload=async()=>{while(current()&&next<order.length){const index=order[next++];try{await this._radarFrame(index,true);}catch{} }};
       preload();preload();
     }catch(error){if(request===this._request){this._clearRadar();this._radarError=error.message||'Regenradar konnte nicht geladen werden.';}}
     finally{if(request===this._request){this._busy=false;this.render();}}
   }
-  _radarFrame(index){
-    const token=this._radar.token;
+  _radarFrame(index,background=false){
+    const token=this._radar.token,key=this._radarKey(index),cache=this._radarCache||=new Map();
+    if(cache.has(key)){const image=cache.get(key);cache.delete(key);cache.set(key,image);return Promise.resolve(image);}
     this._radarImages ||= new Map();
     if(!this._radarImages.has(index)){
       const images=this._radarImages;
-      images.set(index,this._hass.callWS({type:'weather_analysis/radar_image',token,kind:'frame',index}).then(r=>r.image).catch(error=>{images.delete(index);throw error;}));
+      images.set(index,this._hass.callWS({type:'weather_analysis/radar_image',token,kind:'frame',index,background}).then(r=>{cache.set(key,r.image);while(cache.size>96)cache.delete(cache.keys().next().value);return r.image;}).catch(error=>{images.delete(index);throw error;}));
     }
     return this._radarImages.get(index);
   }
@@ -50,6 +63,8 @@ export const RadarController=Base=>class extends Base {
     index=Math.max(0,Math.min(this._radar.frames.length-1,Math.round(index)));
     const selection=this._radarSelection=(this._radarSelection||0)+1,token=this._radar.token;
     const current=()=>selection===this._radarSelection&&token===this._radar?.token&&this.page==='radar'&&this.isConnected;
+    const cached=this._radarCache?.get(this._radarKey(index));
+    if(cached){this._radarIndex=index;this._radarFrameBusy=false;this._radarFrameError='';this._radarImage=cached;this._paintRadar();return;}
     this._radarIndex=index;this._radarFrameBusy=true;this._radarFrameError='';this._radarImage='';this._paintRadar();
     try{const image=await this._radarFrame(index);if(current())this._radarImage=image;}
     catch(error){if(current()){this._radarFrameError=error.message||'Radarbild nicht verfügbar.';this._stopRadar();}}

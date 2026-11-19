@@ -4,7 +4,7 @@ import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, select
 
 import {RadarController} from './radar-controller.js';
 
-const VERSION = '1.15.0';
+const VERSION = '1.15.1';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['custom','Zeitraum']];
 const SENSOR_TYPES={temperature:{list:'entities',single:'entity',source:'_sensors',id:'wa-sensors',label:'Thermometer',title:'Temperatur'},wind:{list:'wind_entities',single:'wind_entity',source:'_windSensors',id:'wa-wind-sensors',label:'Windsensoren',title:'Wind'},illuminance:{list:'illuminance_entities',single:'illuminance_entity',source:'_illuminanceSensors',id:'wa-illuminance-sensors',label:'Helligkeitssensoren',title:'Helligkeit'}};
 const WEATHER_SENSOR_KINDS=['temperature','wind'];
@@ -123,7 +123,7 @@ class WeatherAnalysisCard extends RadarController(HTMLElement) {
       event.preventDefault();this._action({action:this.period==='day'?(event.key==='ArrowLeft'?'previous-day':'next-day'):(event.key==='ArrowLeft'?'previous-period':'next-period'),data:{}});
     };
     this.shadowRoot.addEventListener('keydown',this._periodKey);
-    this._timer ||= setInterval(()=>{if(this.page!=='settings')this._fetch();},60000);
+    this._timer ||= setInterval(()=>{if(this.page==='radar')this._refreshRadarIfDue();else if(this.page!=='settings')this._fetch();},60000);
     this._restoreLocationPreference(true);
     if(this._ready)this._fetch();else if(this._hass&&this.config)this._initialize();
   }

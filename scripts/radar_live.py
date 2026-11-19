@@ -12,7 +12,7 @@ spec=importlib.util.spec_from_file_location('live_radar.radar',root/'radar.py')
 r=importlib.util.module_from_spec(spec);sys.modules[spec.name]=r;spec.loader.exec_module(r)
 def get(url,params):
  with urlopen(url+'?'+urlencode(params),timeout=35) as response:return response.read()
-meta=r.capabilities(get(r.API_URL,{'service':'WMS','version':'1.3.0','request':'GetCapabilities'}))
+meta=r.capabilities(get(r.CAPABILITIES_URL,{'service':'WMS','version':'1.3.0','request':'GetCapabilities'}))
 now=datetime.now(timezone.utc).timestamp();frames=r.frame_window(meta,now)
 window={'bbox':r.map_box(49.3806,8.3039,1),'frames':frames}
 requests=[r.image_request(window,'frame',0),r.image_request(window,'frame',len(frames)-1),r.image_request(window,'base'),r.image_request(window,'legend')]

@@ -731,6 +731,13 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.equal(await radarCard.locator('nav').innerText(),'');
   assert(await radarPage.evaluate(()=>demo.card._radar.frames.at(0).time<=Date.now()/1000-7200&&demo.card._radar.frames.at(-1).time>=Date.now()/1000+3600));
   assert.equal(await radarCard.locator('.fui-panel-header strong').innerText(),'Böhl-Iggelheim');
+  await radarPage.waitForFunction(()=>demo.card._radarLegend&&demo.card._radarCache.size>=demo.card._radar.frames.length);
+  const imageTransfers=()=>radarPage.evaluate(()=>demo.calls.filter(c=>c.type==='weather_analysis/radar_image').length);
+  const loadedTransfers=await imageTransfers();await radarPage.evaluate(()=>demo.card._fetchRadar());await radarPage.waitForTimeout(50);
+  assert.equal(await imageTransfers(),loadedTransfers,'Refresh reuses all existing images');
+  await radarCard.locator('[data-page="wind"]').click();await radarCard.locator('#wa-current').waitFor();await radarCard.locator('[data-page="radar"]').click();
+  await radarPage.waitForFunction(()=>demo.card._radarImage&&!demo.card._busy);assert.equal(await imageTransfers(),loadedTransfers,'Reopening does not repeat image transfers');
+  assert.equal(await radarCard.locator('.fui-radar-marker').getAttribute('aria-label'),'Dein Standort');
   const slider=radarCard.getByRole('slider',{name:'Radarzeitpunkt'});await slider.focus();await slider.press('End');
   await radarPage.waitForFunction(()=>!demo.card._radarFrameBusy&&demo.card._radarIndex===demo.card._radar.frames.length-1);
   assert.match(await radarCard.locator('.fui-radar-time').innerText(),/Vorhersage/);assert(await slider.evaluate(el=>el.getRootNode().activeElement===el));
@@ -739,7 +746,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await radarCard.getByRole('button',{name:'Radar anhalten',exact:true}).click();const paused=await radarPage.evaluate(()=>demo.card._radarIndex);await radarPage.waitForTimeout(850);assert.equal(await radarPage.evaluate(()=>demo.card._radarIndex),paused);
   await radarCard.getByRole('button',{name:'Vergrößern',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radar?.zoom===2&&demo.card._radarImage&&!demo.card._busy);
   assert(await radarPage.evaluate(()=>demo.calls.some(c=>c.type==='weather_analysis/radar'&&c.zoom===2)));
-  await radarPage.evaluate(()=>{demo.radarFrameFailure=true;demo.card._radarImages.clear();return demo.card._showRadarFrame(0);});
+  await radarPage.evaluate(()=>{demo.radarFrameFailure=true;demo.card._radarImages.clear();demo.card._radarCache.clear();return demo.card._showRadarFrame(0);});
   assert.match(await radarCard.locator('.fui-radar-message').innerText(),/nicht verfügbar/);assert.equal(await radarCard.locator('.fui-radar-overlay').isVisible(),false);
   await radarPage.evaluate(()=>{demo.radarFrameFailure=false;return demo.card._showRadarFrame(0);});
   assert.equal(await radarCard.locator('.fui-radar-overlay').isVisible(),true);

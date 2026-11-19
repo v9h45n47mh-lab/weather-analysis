@@ -1,3 +1,11 @@
+## 1.15.1
+
+- Ruhige, deutlich reduzierte Radar-Hintergrundkarte in hellen Grautönen. Standortmarker, Niederschlag, Zeitregler und Zoom bleiben erhalten.
+- DWD-Metadaten nur für die benötigte Radarebene statt für den gesamten Dienst abrufen. Die vereinfachte BKG-Karte wird als kompaktes PNG geladen.
+- Bereits geladene Messbilder, Hintergrund und Legende bleiben bei Aktualisierungen und Reiterwechseln im Speicher. Neue Vorhersageläufe werden weiterhin neu geladen.
+- Aktuelle beziehungsweise ausgewählte Bilder erhalten reservierte Abrufkapazität. Nachbarbilder werden zuerst im Hintergrund geladen.
+- Automatische Radaraktualisierung passend zum Fünf-Minuten-Raster; laufende Animationen werden dabei nicht unterbrochen. Zwei Stunden Rückblick und eine Stunde Vorhersage bleiben erhalten.
+
 ## 1.15.0
 
 - Durchschnittliche Ist-Werte in der Wetterübersicht ohne ≈-Zeichen.

@@ -98,7 +98,7 @@ async def main():
             await asyncio.wait_for(saved.wait(),10)
             assert responses[-1]["warnings"]["status"]=="ok"
             async def radar_get(*args):return {"status":"ok","token":"native-smoke"}
-            async def radar_image(*args):return "data:image/png;base64,AAAA"
+            async def radar_image(*args,**kwargs):return "data:image/png;base64,AAAA"
             hass.data["weather_analysis_radar"]=SimpleNamespace(get=radar_get,image=radar_image)
             saved.clear()
             def radar_result(request,data):
@@ -127,7 +127,7 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.15.0",data
+            assert data["version"]=="1.15.1",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data

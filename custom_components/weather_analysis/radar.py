@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from .location import coordinates
 
 API_URL = "https://maps.dwd.de/geoserver/ows"
+CAPABILITIES_URL = "https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/wms"
 BASE_URL = "https://sgx.geodatenzentrum.de/wms_topplus_open"
 LAYER = "dwd:Niederschlagsradar"
 NS = {"w":"http://www.opengis.net/wms"}
@@ -29,7 +30,7 @@ def iso(value):
 def capabilities(xml):
     """Read exact analysis runs and dynamic coverage; EPSG:4326 is lat/lon in WMS 1.3."""
     root=ET.fromstring(xml)
-    layer=next(l for l in root.findall(".//w:Layer",NS) if l.findtext("w:Name",namespaces=NS)==LAYER)
+    layer=next(l for l in root.findall(".//w:Layer",NS) if l.findtext("w:Name",namespaces=NS) in (LAYER,LAYER.split(":")[-1]))
     dims={d.get("name"):d for d in layer.findall("w:Dimension",NS)}
     refs={instant(t.strip()) for t in dims["REFERENCE_TIME"].text.split(",")}
     latest=instant(dims["REFERENCE_TIME"].get("default"))
@@ -63,7 +64,7 @@ def map_box(latitude,longitude,zoom):
 def image_request(window,kind,index=0):
     params={"service":"WMS","version":"1.3.0","request":"GetMap","crs":"EPSG:3857",
         "bbox":window["bbox"],"width":512,"height":512,"format":"image/png","styles":""}
-    if kind=="base":return BASE_URL,{**params,"layers":"web"}
+    if kind=="base":return BASE_URL,{**params,"layers":"web_light_grau","format":"image/png8"}
     if kind=="legend":return API_URL,{"service":"WMS","version":"1.3.0","request":"GetLegendGraphic","layer":LAYER,"format":"image/png"}
     frame=window["frames"][index]
     return API_URL,{**params,"layers":LAYER,"transparent":"true","time":iso(frame["time"]),"dim_REFERENCE_TIME":iso(frame["reference"])}
@@ -75,7 +76,7 @@ class RadarClient:
         self.clock=clock or (lambda:datetime.now(timezone.utc).timestamp())
         self.meta=None;self.updated=0;self.attempt=None;self.lock=asyncio.Lock()
         self.windows=OrderedDict();self.images=OrderedDict();self.image_bytes=0
-        self.inflight={};self.semaphore=asyncio.Semaphore(4)
+        self.inflight={};self.foreground=asyncio.Semaphore(2);self.background=asyncio.Semaphore(2)
 
     def _session(self):
         if self.session is None:
@@ -91,7 +92,7 @@ class RadarClient:
             self.attempt=now
             try:
                 async with asyncio.timeout(30):
-                    async with self._session().get(API_URL,params={"service":"WMS","version":"1.3.0","request":"GetCapabilities"}) as response:
+                    async with self._session().get(CAPABILITIES_URL,params={"service":"WMS","version":"1.3.0","request":"GetCapabilities"}) as response:
                         response.raise_for_status();xml=await response.read()
                         if len(xml)>16000000:raise ValueError("Oversize capabilities")
                 meta=capabilities(xml)
@@ -109,9 +110,9 @@ class RadarClient:
         token=uuid4().hex;window={"owner":owner,"created":now,"bbox":map_box(lat,lon,zoom),"frames":frames}
         self.windows[token]=window
         while len(self.windows)>128:self.windows.popitem(last=False)
-        return {"status":"ok","token":token,"frames":frames,"now":now,"latest":meta["latest"],"updated_at":self.updated,"zoom":zoom}
+        return {"status":"ok","token":token,"frames":frames,"now":now,"latest":meta["latest"],"updated_at":self.updated,"zoom":zoom,"context":"light-grey-v1|"+window["bbox"]}
 
-    async def image(self,owner,token,kind,index=0):
+    async def image(self,owner,token,kind,index=0,background=False):
         window=self.windows.get(token)
         if not window or window["owner"]!=owner or self.clock()-window["created"]>900:raise RadarUnavailable("Radarzeitraum abgelaufen. Bitte aktualisieren.")
         if kind not in ("base","legend","frame") or not isinstance(index,int) or not 0<=index<len(window["frames"]):raise ValueError("Invalid radar image")
@@ -119,7 +120,7 @@ class RadarClient:
         if key in self.images:
             self.images.move_to_end(key);return self.images[key]
         if key not in self.inflight:
-            task=asyncio.create_task(self._image(url,params,key))
+            task=asyncio.create_task(self._image(url,params,key,background))
             self.inflight[key]=task
             def finished(done):
                 if self.inflight.get(key) is done:self.inflight.pop(key,None)
@@ -130,9 +131,9 @@ class RadarClient:
         finally:
             if task.done():self.inflight.pop(key,None)
 
-    async def _image(self,url,params,key):
+    async def _image(self,url,params,key,background=False):
         try:
-            async with self.semaphore,asyncio.timeout(30):
+            async with (self.background if background else self.foreground),asyncio.timeout(30):
                 async with self._session().get(url,params=params) as response:
                     response.raise_for_status();raw=await response.read()
             if not raw.startswith(PNG) or len(raw)>2000000:raise ValueError("Invalid WMS image")

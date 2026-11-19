@@ -30,6 +30,7 @@ class Session:
 class WindowTests(unittest.TestCase):
  def test_capabilities_reads_dynamic_bbox_and_latest_run(self):
   self.assertEqual(r.capabilities(xml()),metadata())
+  self.assertEqual(r.capabilities(xml().replace(r.LAYER.encode(),b"Niederschlagsradar")),metadata())
  def test_two_hour_history_and_one_hour_forecast_even_between_grid_points(self):
   for offset in (0,25,299):
    frames=r.frame_window(metadata(),NOW+offset)
@@ -53,6 +54,11 @@ class WindowTests(unittest.TestCase):
    self.assertEqual(p['dim_REFERENCE_TIME'],r.iso(window['frames'][index]['reference']))
   a=[float(v) for v in r.map_box(49.38,8.3,1).split(',')];b=[float(v) for v in r.map_box(49.38,8.3,2).split(',')]
   self.assertAlmostEqual(a[2]-a[0],2*(b[2]-b[0]),places=1)
+ def test_simplified_map_uses_compact_palette_and_keeps_the_same_extent(self):
+  window={'bbox':r.map_box(49.38,8.3,1),'frames':r.frame_window(metadata(),NOW)}
+  url,p=r.image_request(window,'base')
+  self.assertEqual(url,r.BASE_URL);self.assertEqual(p['layers'],'web_light_grau');self.assertEqual(p['format'],'image/png8')
+  self.assertEqual(p['bbox'],r.image_request(window,'frame')[1]['bbox'])
 class ClientTests(unittest.IsolatedAsyncioTestCase):
  async def asyncSetUp(self):self.session=Session();self.now=NOW;self.client=r.RadarClient(None,self.session,clock=lambda:self.now)
  async def test_cache_singleflight_and_user_bound_token(self):
@@ -84,6 +90,32 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
   await asyncio.sleep(0);await asyncio.sleep(0);await asyncio.sleep(0)
   self.assertEqual(self.client.inflight,{})
   self.assertEqual(len(self.client.images),1)
+ async def test_slow_preloads_do_not_block_the_selected_frame(self):
+  data=await self.client.get('alice',49.38,8.3);gate=asyncio.Event();entered=0
+  slow={r.iso(data['frames'][0]['time']),r.iso(data['frames'][1]['time'])}
+  original=self.session.get
+  def get(url,params):
+   nonlocal entered
+   response=original(url,params)
+   if params.get('time') in slow:
+    async def read():
+     nonlocal entered
+     entered+=1;await gate.wait();return r.PNG+b'slow-image'
+    response.read=read
+   return response
+  self.session.get=get
+  tasks=[asyncio.create_task(self.client.image('alice',data['token'],'frame',index,background=True)) for index in (0,1)]
+  try:
+   while entered<2:await asyncio.sleep(0)
+   image=await asyncio.wait_for(self.client.image('alice',data['token'],'frame',3),1)
+   self.assertTrue(image.startswith('data:image/png;base64,'));self.assertTrue(all(not task.done() for task in tasks))
+  finally:
+   gate.set();await asyncio.gather(*tasks)
+ async def test_metadata_is_scoped_and_image_context_changes_with_zoom(self):
+  first=await self.client.get('alice',49.38,8.3,1)
+  second=await self.client.get('alice',49.38,8.3,2)
+  self.assertEqual(self.session.calls[0][0],r.CAPABILITIES_URL)
+  self.assertNotEqual(first['context'],second['context'])
  async def test_dynamic_coverage_and_bounded_tokens(self):
   self.assertEqual((await self.client.get('alice',35,139))['status'],'outside')
   for _ in range(132):await self.client.get('alice',49.38,8.3)

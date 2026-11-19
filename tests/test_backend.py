@@ -130,7 +130,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         provider.get.assert_awaited_with("test-user",49.3806,8.3039,2)
         self.assertEqual(conn.results[-1][1]["location"]["via"],"home_wifi")
         await backend.ws_radar_image(self.hass,conn,{"id":2,"token":"opaque","kind":"frame","index":3})
-        provider.image.assert_awaited_with("test-user","opaque","frame",3)
+        provider.image.assert_awaited_with("test-user","opaque","frame",3,background=False)
         provider.image.side_effect=backend.RadarUnavailable("Bild fehlt")
         await backend.ws_radar_image(self.hass,conn,{"id":3,"token":"opaque","kind":"frame","index":3})
         self.assertEqual(conn.errors[-1][1],"radar_unavailable")

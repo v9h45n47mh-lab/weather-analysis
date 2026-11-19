@@ -41,7 +41,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.15.0"
+VERSION = "1.15.1"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -670,12 +670,12 @@ async def ws_radar(hass,connection,msg):
 
 
 @websocket_api.websocket_command({vol.Required("type"):"weather_analysis/radar_image",vol.Required("token"):str,
-    vol.Required("kind"):vol.In(("frame","base","legend")),vol.Optional("index",default=0):vol.All(vol.Coerce(int),vol.Range(min=0,max=40))})
+    vol.Required("kind"):vol.In(("frame","base","legend")),vol.Optional("background",default=False):bool,vol.Optional("index",default=0):vol.All(vol.Coerce(int),vol.Range(min=0,max=40))})
 @websocket_api.async_response
 async def ws_radar_image(hass,connection,msg):
     try:
         client=hass.data.setdefault(DOMAIN+"_radar",RadarClient(hass))
-        image=await client.image(connection.user.id,msg["token"],msg["kind"],msg.get("index",0))
+        image=await client.image(connection.user.id,msg["token"],msg["kind"],msg.get("index",0),background=msg.get("background",False))
         connection.send_result(msg["id"],{"image":image})
     except (ValueError,RadarUnavailable) as error:connection.send_error(msg["id"],"radar_unavailable",str(error))
 
