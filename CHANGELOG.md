@@ -1,3 +1,11 @@
+## 1.9.0
+
+- Wetter zeigt anschauliche 3-Stunden-Spalten mit großen Wettersymbolen, Temperaturen, Min/Max und verständlichen Symbolzeilen statt technischer Datenlisten.
+- Regenrisiko/-menge, Windrichtung und Böen, gefühlte Temperatur, Luftfeuchtigkeit und Luftdruck ergänzen die Vorhersage für 67459 Böhl-Iggelheim.
+- Messwerte bleiben blau, Vorhersagen schwarz. Vergangene Zeiträume verwenden ausschließlich Sensordaten; keine erfundenen Wetterlagen.
+- Wetterspalten per Maus, Tastatur und Touch durchblättern. Scrollpositionen und geöffnete Bereiche bleiben beim Wechseln und Nachladen erhalten.
+- Neue originale SVG-Wettergrafiken und gemeinsame Wetterbausteine aus HA UI Kit 1.10.0 lokal eingebunden, einschließlich Prüfsummen und Lizenz.
+
 # Changelog
 
 ## 1.8.0

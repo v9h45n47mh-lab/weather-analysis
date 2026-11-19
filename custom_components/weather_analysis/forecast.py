@@ -13,7 +13,8 @@ LOCATION = {"postal_code": "67459", "name": "Böhl-Iggelheim", "latitude": 49.38
 TIMEZONE = "Europe/Berlin"
 API_URL = "https://api.open-meteo.com/v1/forecast"
 SOURCE_URL = "https://open-meteo.com/"
-VARIABLES = ("temperature_2m", "weather_code", "is_day", "wind_speed_10m", "precipitation_probability", "precipitation")
+VARIABLES = ("temperature_2m", "weather_code", "is_day", "wind_speed_10m", "precipitation_probability", "precipitation",
+    "apparent_temperature", "relative_humidity_2m", "pressure_msl", "wind_direction_10m", "wind_gusts_10m")
 CONDITIONS = {
     0: ("Klar", "sunny", 0), 1: ("Überwiegend klar", "partly-cloudy", 1),
     2: ("Wolkig", "partly-cloudy", 2), 3: ("Bedeckt", "cloudy", 3),
@@ -38,7 +39,10 @@ def build_forecast(payload, now):
     """Hourly precipitation/probability refer to the preceding hour.
 
     Temperature is interpolated at the start of a window. Rain is accumulated,
-    probability and wind use their hourly maxima. The first remaining window
+    probability, gusts and wind use their hourly maxima. Gusts, like rain,
+    describe the preceding hour. Other details describe the window start.
+    Temperature ranges include both window boundaries and hourly instants.
+    The first remaining window
     starts now; fractional-hour rain is apportioned by its remaining duration.
     """
     hourly = payload.get("hourly", {})
@@ -49,7 +53,8 @@ def build_forecast(payload, now):
         if not isinstance(hourly.get(name), list) or len(hourly[name]) != len(times):
             raise ValueError("Incomplete forecast variables")
     units = payload.get("hourly_units", {})
-    if any(units.get(key) != value for key, value in {"temperature_2m": "°C", "wind_speed_10m": "km/h", "precipitation": "mm"}.items()):
+    if any(units.get(key) != value for key, value in {"temperature_2m": "°C", "wind_speed_10m": "km/h", "precipitation": "mm",
+            "apparent_temperature": "°C", "relative_humidity_2m": "%", "pressure_msl": "hPa", "wind_direction_10m": "°", "wind_gusts_10m": "km/h"}.items()):
         raise ValueError("Unexpected forecast units")
     tz = ZoneInfo(TIMEZONE)
     local = now.astimezone(tz)
@@ -65,7 +70,14 @@ def build_forecast(payload, now):
         if i == 0 or i == len(times) or times[i] - times[i-1] > 7200:
             return None
         left, right = number(hourly[name][i-1]), number(hourly[name][i])
-        return None if left is None or right is None else left + (right-left) * (timestamp-times[i-1]) / (times[i]-times[i-1])
+        if left is None or right is None:
+            return None
+        fraction = (timestamp-times[i-1]) / (times[i]-times[i-1])
+        if name == "wind_direction_10m":
+            if not 0 <= left <= 360 or not 0 <= right <= 360:
+                return None
+            return (left + ((right-left+180) % 360-180) * fraction) % 360
+        return left + (right-left) * fraction
 
     days = []
     for offset in (0, 1):
@@ -85,22 +97,38 @@ def build_forecast(payload, now):
             condition, icon, _ = CONDITIONS.get(code, ("Keine Wetterangabe", "cloudy", 0))
             if code in (0, 1, 2) and hourly["is_day"][nearest] == 0:
                 icon = "night" if code == 0 else "night-partly-cloudy"
-            rain, probabilities, covered, probability_covered = [], [], 0., 0.
+            rain, probabilities, gusts, covered, probability_covered, gust_covered = [], [], [], 0., 0., 0.
             for i, timestamp in enumerate(times):
                 overlap = max(0, min(end, timestamp) - max(start, timestamp-3600))
                 if not overlap:
                     continue
                 amount = number(hourly["precipitation"][i])
                 probability = number(hourly["precipitation_probability"][i])
+                gust = number(hourly["wind_gusts_10m"][i])
                 if amount is not None and amount >= 0:
                     rain.append(amount * overlap / 3600)
                     covered += overlap
                 if probability is not None and 0 <= probability <= 100:
                     probabilities.append(probability)
                     probability_covered += overlap
+                if gust is not None and gust >= 0:
+                    gusts.append(gust)
+                    gust_covered += overlap
             winds = [number(hourly["wind_speed_10m"][i]) for i in instants] + [at("wind_speed_10m", start)]
+            temperatures = [number(hourly["temperature_2m"][i]) for i in instants] + [at("temperature_2m", start),at("temperature_2m", end)]
+            complete_temperatures = all(value is not None for value in temperatures) and not any(
+                right-left > 7200 for left,right in zip(times,times[1:]) if left < end and right > start)
+            humidity, direction, pressure = at("relative_humidity_2m", start), at("wind_direction_10m", start), at("pressure_msl", start)
             slots.append({"start": start, "end": end, "partial": start > begin,
                 "temperature": at("temperature_2m", start), "condition": condition, "icon": "mdi:weather-"+icon,
+                "weather_code": code, "is_day": hourly["is_day"][nearest] != 0,
+                "temperature_min": min(temperatures) if complete_temperatures else None,
+                "temperature_max": max(temperatures) if complete_temperatures else None,
+                "apparent_temperature": at("apparent_temperature",start),
+                "humidity": humidity if humidity is not None and 0 <= humidity <= 100 else None,
+                "pressure": pressure if pressure is not None and pressure > 0 else None,
+                "wind_direction": direction if direction is not None and 0 <= direction <= 360 else None,
+                "wind_gusts": max(gusts,default=None) if gust_covered >= end-start-1 else None,
                 "precipitation": sum(rain) if rain and covered >= end-start-1 else None,
                 "precipitation_probability": max(probabilities, default=None) if probability_covered >= end-start-1 else None,
                 "wind_speed": max((wind for wind in winds if wind is not None and wind >= 0), default=None)})

@@ -1,10 +1,10 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.8.0**, HA UI Kit **1.8.0** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.9.0**, HA UI Kit **1.10.0** lokal eingebunden.
 
 ## Funktionen
 
-- **Wetter** mit einer gemeinsamen 3-Stunden-Zeitliste: Ist-Daten blau, Forecast schwarz. Aktuelle Messwerte und Temperatur-Minimum/-Maximum von heute stehen in einer kompakten Zeile statt Kacheln. Daneben **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigener Sensorauswahl aus den Karteneinstellungen.
+- **Wetter** mit anschaulichen 3-Stunden-Wetterspalten: große lokale Wettersymbole, Temperaturen, Min/Max und kompakte Symbolzeilen. Gemessene Sensorwerte erscheinen blau, Vorhersagen schwarz auf weißer Lesefläche. Regenrisiko/-menge, Windrichtung, Wind/Böen, gefühlte Temperatur, Luftfeuchte und Luftdruck ergänzen die Vorhersage. Aktuelle Sensorwerte und Min/Max heute stehen als kompakte Übersicht darüber. Zeitspalten per Wischen, Scrollen oder Tastatur durchblättern; ihre Position bleibt beim Nachladen erhalten. Daneben **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigener Sensorauswahl aus den Karteneinstellungen.
 - Relevante Sensoren aller drei Messarten im einklappbaren Bereich „Sensorauswahl“ vorauswählen, je Karte eigene Namen vergeben und per Ziehen sortieren. Die Reihenfolge gilt auch für die Dropdowns. Die ursprünglichen HA-Entitätsnamen bleiben erhalten.
 - Schmale, links ausgerichtete Sensordropdowns und ein Aktualisieren-Symbol in der Kopfleiste aller Reiter. Kein Kartentitel und kein Feld Anzeigename.
 - Zwei Kacheln über dem Chart: Aktuell mit Veränderung in 1 Std. sowie Minimum/Maximum.
@@ -50,7 +50,7 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Sensoren und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.8.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.9.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
 
 ## Wetter und 3-Stunden-Sicht
 
@@ -82,7 +82,7 @@ Karteneinstellungen sowie 15-Minuten- und Stundenarchive liegen im HA-Konfigurat
 
 ## Berechtigungen und UI
 
-Die WebSocket-Endpunkte prüfen das native HA-Leserecht für jeden Sensor. Nur zugängliche Sensoren werden angeboten. Karteneinstellungen dürfen HA-Administratoren speichern. Sensorauswahl, Mehrfachauswahl, Navigation, Buttons, Listen und Klappbereiche verwenden das unveränderte gemeinsame **HA UI Kit 1.8.0**. Die Datumsnavigation unterstützt ab 1.7.1 einzeln deaktivierbare Pfeile; Darstellung und bisherige Aufrufe bleiben unverändert.
+Die WebSocket-Endpunkte prüfen das native HA-Leserecht für jeden Sensor. Nur zugängliche Sensoren werden angeboten. Karteneinstellungen dürfen HA-Administratoren speichern. Sensorauswahl, Mehrfachauswahl, Navigation, Buttons, Listen und Klappbereiche verwenden das unveränderte gemeinsame **HA UI Kit 1.10.0**. Die Datumsnavigation unterstützt ab 1.7.1 einzeln deaktivierbare Pfeile; Darstellung und bisherige Aufrufe bleiben unverändert.
 
 Brand-Icons werden lokal in `brand/` mitgeliefert. Die Anzeige im HACS-Marktplatz hängt von der lokalen Brand-Unterstützung der installierten HACS-Version ab.
 
@@ -101,3 +101,6 @@ npm run package
 Automatisierte Browserprüfungen nutzen synthetische Daten und prüfen alle drei Ansichten, unabhängige Karten, Vorauswahl und eigene Sensornamen, Vergleich zweier Sensoren aller drei Messarten, Maus-/Touchdetails und Messlücken, Kalenderpfeile, rollierende und vollständige Zeitfenster einschließlich 06:40-Beispiel, Auflösungen sowie Ziehsortierung und einklappbare Auswahl, erhaltene Klappzustände, Rechte, schmale Bildschirme und beide Themes. Der HA-Test läuft im offiziellen Container und prüft insbesondere die native Recorder-Historie vor der ersten Sensorwahl.
 
 MIT-Lizenz. Der gemeinsame UI-Baukasten wird unverändert mit eigener Lizenz ausgeliefert.
+
+
+Die Wettergrafiken und die komplette Darstellung stammen unverändert aus **HA UI Kit 1.10.0**. Keine Grafik wird zur Laufzeit nachgeladen. Messungen erhalten ein Thermometer-Symbol; Bewölkung/Regen werden ausschließlich aus der Vorhersage übernommen. Temperatur und Detailwerte beschreiben den Beginn eines Vorhersagezeitraums; Min/Max beziehen sich auf den ganzen Abschnitt. Wind zeigt die höchste stündliche Geschwindigkeit, Böen das Maximum der überlappenden Stunden. Luftdruck ist auf Meereshöhe bezogen. Fehlende Werte bleiben als „—“ sichtbar.

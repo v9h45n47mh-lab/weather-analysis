@@ -179,13 +179,21 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.match(await card().locator('.wa-range').innerText(),/18\.11\.2026.*00:00–23:59/s);
   await page.waitForFunction(()=>demo.card._forecast&&!demo.card._busy);
   await page.evaluate(()=>demo.forecastDelay=0);
-  assert.match(await card().locator('#wa-dashboard-forecast-content').innerText(),/Heute · Ist und Forecast/);
-  assert.equal(await card().locator('#wa-forecast-1-content .setting-row').count(),8);
+  assert.match(await card().locator('#wa-dashboard-forecast-content').innerText(),/Heute · Gemessen und Vorhersage/);
+  assert.equal(await card().locator('#wa-forecast-1-content .fui-weather-period').count(),8);
   assert.equal(await card().locator('#wa-forecast-0-content [data-weather-kind="actual"]').count(),3);
   assert.equal(await card().locator('#wa-forecast-0-content [data-weather-kind="forecast"]').count(),6);
   const split=await card().evaluate(el=>{const root=el.shadowRoot;return {actual:Number([...root.querySelectorAll('#wa-forecast-0-content [data-weather-kind="actual"]')].at(-1).dataset.end),forecast:Number(root.querySelector('#wa-forecast-0-content [data-weather-kind="forecast"]').dataset.start)};});assert.equal(split.actual,split.forecast);
-  assert.match(await card().locator('#wa-forecast-0-content [data-weather-kind="actual"]').first().innerText(),/00:00–03:00.*Ist/);
-  assert.match(await card().locator('#wa-forecast-0-content [data-weather-kind="forecast"]').first().innerText(),/06:40–09:00.*Forecast/);
+  assert.match(await card().locator('#wa-forecast-0-content [data-weather-kind="actual"]').first().innerText(),/00:00–03:00.*Gemessen/s);
+  assert.match(await card().locator('#wa-forecast-0-content [data-weather-kind="forecast"]').first().innerText(),/06:40–09:00.*Vorhersage/s);
+  assert.equal(await card().locator('#wa-forecast-1-content .fui-weather-graphic').count(),8);
+  assert.match(await card().locator('#wa-forecast-1-content').innerText(),/Böen 42 km\/h/);
+  assert.match(await card().locator('#wa-forecast-1-content').innerText(),/Gefühlt.*87 %.*1.013 hPa/s);
+  assert.equal(await card().locator('#wa-forecast-0-content [data-weather-kind="actual"] [data-weather-graphic="thermometer"]').count(),3);
+  const timeline=card().locator('#wa-forecast-0-content .fui-weather-strip');
+  await timeline.evaluate(e=>e.scrollLeft=500);const beforeWeatherScroll=await timeline.evaluate(e=>e.scrollLeft);
+  await action('reload').click();await page.waitForFunction(()=>!demo.card._busy&&!demo.card._refreshing);
+  assert(Math.abs(await timeline.evaluate(e=>e.scrollLeft)-beforeWeatherScroll)<2,'Weather scroll survives reload');
   assert.equal(await card().locator('.wa-forecast-source a').getAttribute('href'),'https://open-meteo.com/');
   await card().locator('[aria-controls="wa-forecast-1-content"]').click();
   await card().locator('[data-page="temperature"]').click();await card().locator('#wa-current').waitFor();
@@ -200,7 +208,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await page.evaluate(()=>{demo.forecastStale=false;demo.failEntity='sensor.garden';});await action('reload').click();await page.waitForFunction(()=>!demo.card._busy&&!demo.card._refreshing);
   assert.match(await card().locator('main').innerText(),/Sensor nicht verfügbar/);
   assert.match(await card().locator('#wa-weather-current').innerText(),/Wind 18,0/);
-  assert.equal(await card().locator('#wa-forecast-1-content .setting-row').count(),8);
+  assert.equal(await card().locator('#wa-forecast-1-content .fui-weather-period').count(),8);
   await page.evaluate(()=>demo.failEntity=null);
   await card().locator('[data-page="temperature"]').click();await card().locator('#wa-current').waitFor();
   await action('compare-add').click();await page.waitForFunction(()=>demo.card._comparisonData?.entity_id==='sensor.north');
@@ -286,12 +294,12 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
       assert.equal(await card().locator('[data-weather-kind="actual"]').first().evaluate(el=>getComputedStyle(el).color),'rgb(2, 119, 189)');
       assert.equal(await card().locator('[data-weather-kind="forecast"]').first().evaluate(el=>getComputedStyle(el).color),'rgb(0, 0, 0)');
       assert.equal(await card().locator('[data-weather-kind="forecast"] small').first().evaluate(el=>getComputedStyle(el).color),'rgb(0, 0, 0)');
-      assert.equal(await card().locator('.wa-weather-timeline').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');assert.equal(await card().locator('#wa-forecast-1-content .setting-row').count(),8);}
+      assert.equal(await card().locator('.fui-weather-strip').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');assert.equal(await card().locator('#wa-forecast-1-content .fui-weather-period').count(),8);}
     await page.mouse.move(0,0);
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
    }
-   assert.match(await card().locator('.version-info').innerText(),/1\.8\.0/);
+   assert.match(await card().locator('.version-info').innerText(),/1\.9\.0/);
   }
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
   assert.match(await card().locator('#wa-current').innerText(),/1.235/);assert.match(await card().locator('#wa-current').innerText(),/lx/);assert.equal(await card().getByText('Temperaturspanne',{exact:true}).count(),0);

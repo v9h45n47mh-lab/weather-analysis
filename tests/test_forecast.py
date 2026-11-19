@@ -56,6 +56,32 @@ class ForecastTests(unittest.TestCase):
         self.assertIsNone(slot["precipitation"])
         self.assertIsNone(slot["precipitation_probability"])
 
+    def test_visual_details_keep_units_ranges_and_circular_wind_direction(self):
+        hourly=self.payload["hourly"]
+        left=hourly["time"].index(self.now.timestamp()-1800)
+        hourly["wind_direction_10m"][left:left+2]=[350,10]
+        hourly["temperature_2m"][left:left+3]=[10,12,9]
+        # A gust before the remaining window must not inflate the period's maximum.
+        hourly["wind_gusts_10m"][left]=99
+        slot=forecast.build_forecast(self.payload,self.now)["days"][0]["slots"][0]
+        self.assertEqual(slot["wind_direction"],0)
+        self.assertEqual(slot["wind_gusts"],24)
+        self.assertEqual((slot["temperature_min"],slot["temperature_max"]),(9,12))
+        self.assertEqual(slot["apparent_temperature"],8)
+        self.assertEqual(slot["humidity"],80)
+        self.assertEqual(slot["pressure"],1013)
+        self.assertEqual(slot["weather_code"],3)
+
+    def test_unknown_or_invalid_visual_details_are_not_invented(self):
+        hourly=self.payload["hourly"]
+        for key,value in [("relative_humidity_2m",101),("pressure_msl",-1),("wind_direction_10m",500),("wind_gusts_10m",None),("apparent_temperature",None),("temperature_2m",None)]:
+            hourly[key]=[value]*len(hourly["time"])
+        # Keep tomorrow valid so the core forecast is still useful.
+        hourly["temperature_2m"][24:]=[10.]*(len(hourly["time"])-24)
+        slot=forecast.build_forecast(self.payload,self.now)["days"][0]["slots"][0]
+        for name in ["humidity","pressure","wind_direction","wind_gusts","apparent_temperature","temperature_min","temperature_max"]:
+            self.assertIsNone(slot[name])
+
     def test_dst_uses_local_three_hour_blocks_and_full_days(self):
         for now,hours in [(datetime(2026,3,28,12,tzinfo=timezone.utc),23),(datetime(2026,10,24,12,tzinfo=timezone.utc),25)]:
             slots=forecast.build_forecast(weather_payload(now),now)["days"][1]["slots"]

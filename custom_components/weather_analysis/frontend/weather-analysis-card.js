@@ -1,8 +1,8 @@
 import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, selectField,
   field, notice, versionInfo, bindUI, escapeHtml as esc, accountTile, accountTiles,
-  statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle} from './family-ui/1.8.0/family-ui.js';
+  statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle, weatherNow, weatherStrip} from './family-ui/1.10.0/family-ui.js';
 
-const VERSION = '1.8.0';
+const VERSION = '1.9.0';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['custom','Zeitraum']];
 const SENSOR_TYPES={temperature:{list:'entities',single:'entity',source:'_sensors',id:'wa-sensors',label:'Thermometer',title:'Temperatur'},wind:{list:'wind_entities',single:'wind_entity',source:'_windSensors',id:'wa-wind-sensors',label:'Windsensoren',title:'Wind'},illuminance:{list:'illuminance_entities',single:'illuminance_entity',source:'_illuminanceSensors',id:'wa-illuminance-sensors',label:'Helligkeitssensoren',title:'Helligkeit'}};
 const num = (value, digits=1) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('de-DE',{minimumFractionDigits:digits, maximumFractionDigits:digits});
@@ -42,7 +42,7 @@ const CSS = `
 .wa-inspector{min-height:36px;padding:4px 0;overflow-wrap:anywhere}
 .wa-legend{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0}.wa-swatch{display:inline-block;width:16px;height:3px;background:var(--primary-color,#03a9f4);vertical-align:middle;margin-right:6px}.wa-swatch.band{height:10px;opacity:.25}
 .wa-chart .wa-average-line{fill:none;stroke:var(--primary-color,#03a9f4);stroke-width:1.5;stroke-dasharray:3 5;opacity:.75}.wa-chart .wa-average-label{fill:var(--primary-color,#03a9f4);stroke:var(--ha-card-background,var(--card-background-color,#fff));stroke-width:3;paint-order:stroke;stroke-linejoin:round}.wa-chart .wa-series-secondary .wa-average-line{stroke:var(--warning-color,#ff9800)}.wa-chart .wa-series-secondary .wa-average-label{fill:var(--warning-color,#ff9800)}
-.wa-forecast-reading{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.wa-forecast-reading ha-icon{display:inline-block;width:24px;height:24px}.wa-forecast-source{margin-top:12px}.wa-forecast-source a{color:var(--primary-color,#03a9f4)}.wa-weather-timeline{background:#fff;border-radius:var(--ha-card-border-radius,12px);padding:4px 12px}.wa-weather-timeline .is-actual{color:#0277bd}.wa-weather-timeline .is-forecast{color:#000}.wa-weather-timeline .row-text small{color:inherit}.wa-weather-legend{display:flex;gap:16px;flex-wrap:wrap;padding:4px 0}
+.wa-forecast-source{margin-top:12px}.wa-forecast-source a{color:var(--primary-color,#03a9f4)}
 .wa-current{margin:8px 0 12px}.wa-quality{margin-top:12px}.wa-setting-actions{margin-top:16px}
 `;
 
@@ -423,43 +423,53 @@ class WeatherAnalysisCard extends HTMLElement {
       section({id:'wa-compare',title:'Zeitraumvergleich',content:Object.entries(d.comparisons).map(([key,value])=>row({title:key==='year'?'Gleicher Zeitraum im Vorjahr':'Vorheriger gleich langer Zeitraum',description:value.mean==null?'Keine Vergleichsdaten':`Ø ${this._num(value.mean)} ${this.unit} · Datenintervalle ${this._num(value.coverage*100,0)} %`,trailing:esc(this._delta(value.delta))})).join('')})+
       section({id:'wa-records',title:'Rekorde seit Aufzeichnung',content:['min','max'].map(kind=>{const r=d.records[kind];return row({title:wind?(kind==='min'?'Niedrigster Windwert':'Höchster Windwert'):this.view==='illuminance'?(kind==='min'?'Niedrigster Helligkeitswert':'Höchster Helligkeitswert'):(kind==='min'?'Kältester Messwert':'Wärmster Messwert'),description:r?.at?this._formatTime(r.at,true):'Datum in älteren Langzeitstatistiken nicht gespeichert',trailing:esc(r?this._num(r.value)+' '+this.unit:'—')});}).join('')})});
   }
-  _weatherRow(slot,kind,timezone){
+  _weatherPeriod(slot,kind,timezone){
     const time=timestamp=>new Intl.DateTimeFormat('de-DE',{timeZone:timezone,hour:'2-digit',minute:'2-digit'}).format(new Date(timestamp*1000));
     const end=time(slot.end)==='00:00'?'24:00':time(slot.end),actual=kind==='actual';
-    const title=time(slot.start)+'–'+end+' Uhr · '+(actual?'Ist':'Forecast')+(actual?'':' · '+slot.condition);
-    const description=actual?
-      'Min/Max '+num(slot.temperature_min)+' / '+num(slot.temperature_max)+' °C · Wind Ø '+num(slot.wind_speed)+' km/h · Helligkeit Ø '+num(slot.illuminance,0)+' lx':
-      'Regenrisiko max. '+num(slot.precipitation_probability,0)+' % · '+(slot.partial?'ca. ':'')+num(slot.precipitation)+' mm · Wind bis '+num(slot.wind_speed)+' km/h';
-    return `<div class="wa-weather-row is-${kind}" role="listitem" data-weather-kind="${kind}" data-start="${slot.start}" data-end="${slot.end}">${row({title,description,
-      trailing:`<span class="wa-forecast-reading">${!actual?`<ha-icon icon="${esc(slot.icon)}" aria-hidden="true"></ha-icon>`:''}<strong>${actual?(slot.estimated?'≈ ':'')+'Ø ':''}${esc(num(slot.temperature))} °C</strong></span>`})}</div>`;
+    const direction=Number.isFinite(slot.wind_direction)?['N','NO','O','SO','S','SW','W','NW'][Math.round(slot.wind_direction/45)%8]+' · ':'';
+    const metrics=actual?[
+      {icon:'wind',label:'Wind im Zeitraum',value:'Ø '+num(slot.wind_speed)+' km/h',detail:'Max. '+num(slot.wind_max)+' km/h'},
+      {icon:'light',label:'Helligkeit im Zeitraum',value:'Ø '+num(slot.illuminance,0)+' lx'}
+    ]:[
+      {icon:'rain',label:'Regenrisiko und Niederschlag',value:num(slot.precipitation_probability,0)+' % · '+(slot.partial?'ca. ':'')+num(slot.precipitation)+' mm'},
+      {icon:'wind',label:'Wind bis',value:direction+num(slot.wind_speed,0)+' km/h',detail:'Böen '+num(slot.wind_gusts,0)+' km/h'},
+      {icon:'feels',label:'Gefühlte Temperatur',value:'Gefühlt '+num(slot.apparent_temperature)+' °C'},
+      {icon:'humidity',label:'Luftfeuchtigkeit',value:num(slot.humidity,0)+' %'},
+      {icon:'pressure',label:'Luftdruck auf Meereshöhe',value:num(slot.pressure,0)+' hPa'}
+    ];
+    return {time:time(slot.start)+'–'+end+' Uhr',kind,start:slot.start,end:slot.end,
+      temperature:(actual&&slot.estimated?'≈ ':'')+num(slot.temperature)+' °C',temperatureLabel:actual?'Ø im Zeitraum':'Zum Beginn des Zeitraums',
+      range:'Min. '+num(slot.temperature_min)+'° · Max. '+num(slot.temperature_max)+'°',
+      condition:actual?'Sensorwerte':slot.condition,graphic:actual?{kind:'thermometer'}:{code:slot.weather_code,isDay:slot.is_day,windy:slot.wind_gusts>=40},metrics};
   }
   _dashboardView(){
     const d=this._dashboard,s=d?.sensors||{},temperature=s.temperature||{},wind=s.wind||{},light=s.illuminance||{},f=this._forecast;
     const timezone=d?.timezone||this.timezone||'Europe/Berlin',today=d?.date||dateKey(new Date(),timezone);
     const sourceNames=Object.keys(SENSOR_TYPES).filter(kind=>s[kind]?.entity_id).map(kind=>SENSOR_TYPES[kind].title+': '+this._sensorName(s[kind].entity_id)).join(' · ');
-    const current=d?`<div id="wa-weather-current" class="wa-weather-row is-actual" role="listitem">${row({title:'Jetzt · Ist',
-      description:'Min/Max heute '+num(temperature.min)+' / '+num(temperature.max)+' °C · Wind '+num(wind.current)+' km/h · Helligkeit '+num(light.current,0)+' lx',
-      trailing:`<strong>${esc(num(temperature.current))} °C</strong>`})}</div>`:notice('Aktuelle Messwerte werden geladen …');
+    const current=d?weatherNow({id:'wa-weather-current',label:'Jetzt · Gemessen',temperature:num(temperature.current)+' °C',
+      range:'Min/Max heute '+num(temperature.min)+' / '+num(temperature.max)+' °C',metrics:[
+        {icon:'wind',label:'Wind aktuell',value:'Wind '+num(wind.current)+' km/h'},
+        {icon:'light',label:'Helligkeit aktuell',value:num(light.current,0)+' lx'}]}):notice('Aktuelle Messwerte werden geladen …');
     const actual=(d?.intervals||[]).map(slot=>({...slot,kind:'actual'}));
     const forecastToday=f?.days?.find(day=>day.date===today);
     const rows=[...actual,...(forecastToday?.slots||[]).map(slot=>({...slot,kind:'forecast'}))].sort((a,b)=>a.start-b.start);
-    const todayRows=rows.map(slot=>this._weatherRow(slot,slot.kind,slot.kind==='actual'?timezone:f.timezone)).join('');
+    const todayItems=rows.map(slot=>this._weatherPeriod(slot,slot.kind,slot.kind==='actual'?timezone:f.timezone));
     let future='';
     if(!f)future=notice(this._forecastError||'Wettervorhersage wird geladen …',{error:Boolean(this._forecastError)});
     else {
       const time=timestamp=>new Intl.DateTimeFormat('de-DE',{timeZone:f.timezone,hour:'2-digit',minute:'2-digit'}).format(new Date(timestamp*1000));
       future=(this._forecastError?notice(this._forecastError,{error:true}):'')+(f.stale?notice('Vorhersage konnte nicht aktualisiert werden. Angezeigt wird der letzte verfügbare Stand.'):'')+
         f.days.filter(day=>day.date!==today).map((day,index)=>section({id:'wa-forecast-'+(index+1),title:day.label,content:
-          `<div class="wa-weather-timeline" role="list" aria-label="${esc(day.label)} · Forecast">${day.slots.map(slot=>this._weatherRow(slot,'forecast',f.timezone)).join('')}</div>`})).join('')+
+          weatherStrip({label:day.label+' · 3 Stunden',items:day.slots.map(slot=>this._weatherPeriod(slot,'forecast',f.timezone))})})).join('')+
         `<p class="hint wa-forecast-source">Wetterdaten: <a href="${esc(f.source_url)}" target="_blank" rel="noopener noreferrer">${esc(f.source)}</a> · Stand ${esc(time(f.updated_at))}</p>`;
     }
     const errors=Object.entries(d?.errors||{}).map(([kind,message])=>SENSOR_TYPES[kind].title+': '+message).join(' · ');
     return `<p class="hint wa-range">Heute · ${esc(this._dateLabel(today))} · 00:00–23:59 Uhr</p>`+
-      `<div class="wa-weather-timeline"><div class="hint wa-weather-legend"><span class="is-actual">Blau: Ist</span><span class="is-forecast">Schwarz: Forecast</span></div>${current}</div>`+
+      current+
       (sourceNames?`<p class="hint wa-forecast-source">${esc(sourceNames)}</p>`:'')+(errors?notice(errors,{error:true}):'')+
       (!Object.keys(s).length&&this._admin?button({label:'Sensoren auswählen',action:'navigate',data:{page:'settings'}}):'')+
       section({id:'wa-dashboard-forecast',title:'Wetter · 67459 Böhl-Iggelheim · 3 Stunden',content:
-        section({id:'wa-forecast-0',title:'Heute · Ist und Forecast',content:`<div class="wa-weather-timeline" role="list" aria-label="Heute · 3 Stunden">${todayRows||notice('Noch keine Messwerte verfügbar.')}</div>`})+future});
+        section({id:'wa-forecast-0',title:'Heute · Gemessen und Vorhersage',content:todayItems.length?weatherStrip({label:'Heute · 3 Stunden',items:todayItems}):notice('Noch keine Messwerte verfügbar.')})+future});
   }
   _settingsView(){
     const s=this._settingsDraft||this.settings;
@@ -473,7 +483,7 @@ class WeatherAnalysisCard extends HTMLElement {
   _help(){return section({id:'wa-help',title:'So funktioniert Weather Analysis',content:
     '<p>Temperatur, Wind und Helligkeit stammen direkt von deinen gewählten HA-Sensoren. Bereits bei der ersten Auswahl werden vorhandene Detailhistorie und Langzeitstatistik ausgewertet. Anschließend werden 15-Minuten-Werte, Stundenwerte und Extremwerte auch bei geschlossener Karte gespeichert.</p>'+
     row({title:'Sensoren auswählen und vergleichen',description:'Die Integration wird einmal eingerichtet. Sensoren aller drei Messarten wählst du ausschließlich in den Einstellungen der Karte. Ausgewählte Sensoren kannst du im jeweiligen Bereich für diese Karte umbenennen. Das Dropdown oben wechselt den Sensor; + fügt einen zweiten Sensor zum Vergleich hinzu. Mehrere Karten erhalten eigene Einstellungen über ihre Karten-ID.'})+
-    row({title:'Wetter',description:'Ohne Kacheln zeigt die Übersicht die aktuell gewählten Sensoren und ihre gemessenen 3-Stunden-Mittelwerte in Blau. Der laufende Abschnitt endet mit dem gemeinsamen Abfragezeitpunkt; Forecast beginnt genau dort und erscheint schwarz auf hellem Grund. Jetzt zeigt aktuelle Werte sowie Temperatur-Minimum und -Maximum von heute. Die Vorhersage für 67459 Böhl-Iggelheim kommt von Open-Meteo und wird alle 30 Minuten aktualisiert. Der erste 3-Stunden-Abschnitt beginnt jetzt. Regenrisiko und Wind zeigen die stündlichen Höchstwerte, Niederschlag die Menge im Abschnitt.'})+
+    row({title:'Wetter',description:'Ohne Kacheln zeigt die Übersicht die aktuell gewählten Sensoren und ihre gemessenen 3-Stunden-Mittelwerte in Blau. Der laufende Abschnitt endet mit dem gemeinsamen Abfragezeitpunkt; Forecast beginnt genau dort und erscheint schwarz auf hellem Grund. Jetzt zeigt aktuelle Werte sowie Temperatur-Minimum und -Maximum von heute. Die Vorhersage für 67459 Böhl-Iggelheim kommt von Open-Meteo und wird alle 30 Minuten aktualisiert. Die Wetterspalten lassen sich horizontal durchblättern. Große Symbole veranschaulichen die Vorhersage. Temperatur und gefühlte Temperatur beziehen sich auf den Beginn des Abschnitts; Min/Max auf seinen gesamten Verlauf. Regenrisiko, Wind und Böen zeigen die stündlichen Höchstwerte, Niederschlag die Menge im Abschnitt. Luftfeuchte und Luftdruck ergänzen die Vorhersage.'})+
     row({title:'Datenqualität',description:'≈ kennzeichnet Mittelwerte aus verdichteten HA-Statistiken. Grenzwertdauern und genaue Extremzeiten stammen aus vorhandener Detailhistorie und eigener Aufzeichnung. Fehlende Detaildaten werden nicht erfunden.'})+
     row({title:'Messlücken',description:'Unavailable/unknown und bekannte HA-Ausfallzeiten bleiben Lücken. Vergleiche sind nur bei ähnlicher Datenabdeckung aussagekräftig.'})+
     row({title:'Wind',description:'Windgeschwindigkeit wird einheitlich in km/h angezeigt. Unterstützt werden auch m/s, mph, Knoten und ft/s. Der höchste Sensorwert ist keine separat gemessene Windböe.'})+
@@ -481,6 +491,8 @@ class WeatherAnalysisCard extends HTMLElement {
   render(){
     if(!this.config)return;
     this._rememberSections();
+    this._weatherScroll ||= new Map();
+    for(const strip of this.shadowRoot.querySelectorAll('.fui-weather-strip'))this._weatherScroll.set(strip.getAttribute('aria-label'),strip.scrollLeft);
     let body;
     if(this.page==='dashboard')body=this._dashboardView();
     else if(this.page==='settings')body=this._settingsView();
@@ -491,6 +503,7 @@ class WeatherAnalysisCard extends HTMLElement {
     this._renderedScope=this.page;
     this.shadowRoot.innerHTML=`<style>${UI_CSS}${CSS}</style><ha-card>${navigation({label:'Weather Analysis',items:[{id:'dashboard',label:'Wetter'},{id:'temperature',label:'Temperatur'},{id:'wind',label:'Wind'},{id:'illuminance',label:'Helligkeit'}],active:this.page,settings:true,help:true,actions:[{icon:'refresh',label:'Aktualisieren',action:'reload',disabled:this._busy||this._refreshing}]})}<main>${!['settings','help','dashboard'].includes(this.page)?`<div class="wa-title">${this._sensorPicker()}</div>`:''}${this._error&&this.page!=='settings'?notice(this._error,{error:true}):''}${body}<div class="wa-quality">${quality}</div></main></ha-card>`;
     this._restoreSections();
+    for(const strip of this.shadowRoot.querySelectorAll('.fui-weather-strip'))strip.scrollLeft=this._weatherScroll.get(strip.getAttribute('aria-label'))||0;
   }
 }
 
