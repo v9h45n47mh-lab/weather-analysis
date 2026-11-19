@@ -361,7 +361,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
    }
-   assert.match(await card().locator('.version-info').innerText(),/1\.15\.0/);
+   assert.match(await card().locator('.version-info').innerText(),/1\.16\.0/);
   }
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
   assert.match(await card().locator('#wa-current').innerText(),/1.235/);assert.match(await card().locator('#wa-current').innerText(),/lx/);assert.equal(await card().getByText('Temperaturspanne',{exact:true}).count(),0);
@@ -784,7 +784,18 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   const touchRadar=foldTouch.locator('weather-analysis-card');await touchRadar.locator('[data-page="radar"]').tap();await foldTouch.waitForFunction(()=>demo.card._radarImage&&!demo.card._busy);
   const touchSlider=touchRadar.getByRole('slider',{name:'Radarzeitpunkt'});await touchSlider.scrollIntoViewIfNeeded();const sliderBox=await touchSlider.boundingBox();
   await foldTouch.touchscreen.tap(sliderBox.x+sliderBox.width-8,sliderBox.y+sliderBox.height/2);await foldTouch.waitForFunction(()=>demo.card._radarIndex>=demo.card._radar.frames.length-3&&!demo.card._radarFrameBusy);
-  assert.match(await touchRadar.locator('.fui-radar-time').innerText(),/Vorhersage/);await touchRadar.screenshot({path:path.join(screens,'radar-touch.png')});await foldTouchContext.close();
+  assert.match(await touchRadar.locator('.fui-radar-time').innerText(),/Vorhersage/);await touchRadar.screenshot({path:path.join(screens,'radar-touch.png')});
+  await touchRadar.getByRole('button',{name:'12 Std.',exact:true}).tap();await foldTouch.waitForFunction(()=>demo.card._radar?.horizon===12&&demo.card._radarImage&&!demo.card._busy);
+  const futureTimes=await foldTouch.evaluate(()=>demo.card._radar.frames.filter(f=>f.time>Date.now()/1000).map(f=>f.time));assert(futureTimes.at(-1)>=await foldTouch.evaluate(()=>Date.now()/1000+43200));assert(futureTimes.slice(1).every((at,i)=>at-futureTimes[i]===1800));
+  const map=touchRadar.locator('.fui-radar-map');await map.scrollIntoViewIfNeeded();const mapBox=await map.boundingBox(),mid={x:mapBox.x+mapBox.width/2,y:mapBox.y+mapBox.height/2};
+  const gesture=await foldTouch.context().newCDPSession(foldTouch),touches=spread=>[{x:mid.x-spread,y:mid.y,id:1},{x:mid.x+spread,y:mid.y,id:2}];
+  const pinch=async(from,to)=>{await gesture.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:touches(from)});for(let i=1;i<=5;i++)await gesture.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:touches(from+(to-from)*i/5)});await gesture.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});};
+  const pageScale=await foldTouch.evaluate(()=>visualViewport.scale);await pinch(35,70);await foldTouch.waitForFunction(()=>demo.card._radar?.zoom===3&&demo.card._radarImage&&!demo.card._busy);assert.equal(await foldTouch.evaluate(()=>demo.card._radar.horizon),12);
+  const centered=await touchRadar.locator('.fui-radar-marker').boundingBox(),mapAfter=await map.boundingBox();assert(Math.abs(centered.x+centered.width/2-mapAfter.x-mapAfter.width/2)<1&&Math.abs(centered.y+centered.height/2-mapAfter.y-mapAfter.height/2)<1);assert.equal(await foldTouch.evaluate(()=>visualViewport.scale),pageScale);
+  await pinch(70,35);await foldTouch.waitForFunction(()=>demo.card._radar?.zoom===2&&demo.card._radarImage&&!demo.card._busy);
+  await foldTouch.evaluate(()=>demo.card._showRadarFrame(demo.card._radar.frames.length-1));assert.match(await touchRadar.locator('.fui-radar-time').innerText(),/Modellvorhersage/);await touchRadar.screenshot({path:path.join(screens,'radar-twelve-hour-pinch.png')});
+  await touchRadar.getByRole('button',{name:'1 Std.',exact:true}).tap();await foldTouch.waitForFunction(()=>demo.card._radar?.horizon===1&&demo.card._radarImage&&!demo.card._busy);assert.equal(await foldTouch.evaluate(()=>demo.card._radar.zoom),2);
+  await foldTouchContext.close();
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:fs.readdirSync(screens).filter(name=>name.endsWith(".png")).length,errors},null,2));
   console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards, per-user GPS home/away/unknown/device permission/cleanup/races and 3 widths × 2 themes.');

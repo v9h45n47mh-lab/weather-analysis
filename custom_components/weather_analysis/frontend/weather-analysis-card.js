@@ -1,10 +1,10 @@
 import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, selectField,
   field, notice, versionInfo, bindUI, escapeHtml as esc, accountTile, accountTiles,
-  statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle, weatherList, panelHeader, statusBadge} from './family-ui/1.15.0/family-ui.js';
+  statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle, weatherList, panelHeader, statusBadge} from './family-ui/1.16.0/family-ui.js';
 
 import {RadarController} from './radar-controller.js';
 
-const VERSION = '1.16.1';
+const VERSION = '1.17.0';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['custom','Zeitraum']];
 const SENSOR_TYPES={temperature:{list:'entities',single:'entity',source:'_sensors',id:'wa-sensors',label:'Thermometer',title:'Temperatur'},wind:{list:'wind_entities',single:'wind_entity',source:'_windSensors',id:'wa-wind-sensors',label:'Windsensoren',title:'Wind'},illuminance:{list:'illuminance_entities',single:'illuminance_entity',source:'_illuminanceSensors',id:'wa-illuminance-sensors',label:'Helligkeitssensoren',title:'Helligkeit'}};
 const WEATHER_SENSOR_KINDS=['temperature','wind'];
@@ -318,7 +318,7 @@ class WeatherAnalysisCard extends RadarController(HTMLElement) {
     finally{if(request===this._request){this._busy=false;this.render();}}
   }
   async _action({action,data={},value}){
-    if(action.startsWith('radar-')){await this._radarAction(action);return;}
+    if(action.startsWith('radar-')){await this._radarAction(action,data);return;}
     if(action==='navigate'&&data.page!=='radar')this._stopRadar();
     if(action==='cancel-settings'&&this._radarOnly){this.page='radar';this._request++;this._busy=false;this.render();await this._fetch();return;}
     if(action==='choose-home-ssids'&&this._admin){this._networkDraft=value;return;}
@@ -741,6 +741,7 @@ class WeatherAnalysisCard extends RadarController(HTMLElement) {
     row({title:'Zeitraum und Zeitzone',description:'Tag zeigt 15-Minuten-Mittel, Woche Stundenmittel und Monat 6-Stunden-Mittel. Aktuell zeigt bei Tag heute von 00:00 bis 23:59 Uhr und bei Woche heute plus die letzten sieben Tage. Die Pfeile wechseln zu vollständigen Kalendertagen oder Kalenderwochen (Montag bis Sonntag); vorwärts auf heute bleibt der volle Tag. Aktuell kehrt bei Tag zu heute und bei Woche zur rollierenden Wochensicht zurück. Monat bleibt der Kalendermonat. Zukünftige Abschnitte der Zeitachse enthalten keine Messwerte. Tagesgrenzen und Uhrzeiten folgen der HA-Zeitzone. Freie Zeiträume dürfen höchstens ein Jahr umfassen.'})});}
   render(){
     if(!this.config)return;
+    if(this.page==='radar'&&this._radarGestureActive){this._radarRenderDeferred=true;return;}
     const viewport=this._captureViewport();
     this._rememberSections();
     let body;
@@ -755,6 +756,7 @@ class WeatherAnalysisCard extends RadarController(HTMLElement) {
     this._renderedScope=this._isWeatherPage?this.page+'|'+(this._location?[this._location.country_code,this._location.postal_code,this._location.name].join(':'):'pending'):this.page;
     this.shadowRoot.innerHTML=`<style>${UI_CSS}${CSS}</style><ha-card>${navigation({label:'Weather Analysis',items:this._radarOnly?[{id:'radar',label:'Regenradar',icon:'radar'}]:[{id:'dashboard',label:'Wetter',icon:'weather'},{id:'warnings',label:'Warnungen',icon:'warning'},{id:'radar',label:'Regenradar',icon:'radar'},{id:'temperature',label:'Temperatur',icon:'temperature'},{id:'wind',label:'Wind',icon:'wind'},{id:'illuminance',label:'Helligkeit',icon:'illuminance'}],active:this.page,settings:true,help:true,actions:[{icon:'refresh',label:'Aktualisieren',action:'reload',disabled:this._busy||this._refreshing}]})}<main>${!['settings','help','dashboard','warnings','radar'].includes(this.page)?`<div class="wa-title">${this._sensorPicker()}</div>`:''}${this._error&&this.page!=='settings'?notice(this._error,{error:true}):''}${body}<div class="wa-quality">${quality}</div></main></ha-card>`;
     this._restoreSections();this._restoreViewport(viewport);
+    this._bindRadarMap();
   }
 }
 

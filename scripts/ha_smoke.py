@@ -32,6 +32,15 @@ async def main():
                 grid=(np.array([[0,0]]),np.array([[0,1]]),np.ones((1,2),dtype=bool))
                 image=render(raw,meta,grid,fixture["SCALE"])
                 assert image.startswith(PNG) and len(image)>50
+                import sys
+                sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tests"))
+                from test_radar_model import grib,UUID
+                from custom_components.weather_analysis.radar_model import decode,native_grid,model_sampling,model_image
+                raw=grib();meta,values=decode(raw,"TOT_PR");assert abs(values[1]-3.6)<.001
+                grid=native_grid(grib("CLAT",[49,49,49.04,49.04],lead=0),grib("CLON",[8,8.04,8,8.04],lead=0),UUID)
+                index,valid=model_sampling(grid,"890500,6274800,890610,6274900",size=1)
+                assert index.shape==(1,1)
+                assert model_image(raw,meta["reference"],meta["valid"],grid,(np.array([[0,1]]),np.ones((1,2),dtype=bool)),fixture["SCALE"]).startswith(PNG)
             await hass.async_add_executor_job(verify_native_radar)
             print("Native raw DWD decoder and local radar renderer passed")
             await hass.async_start()
@@ -138,7 +147,7 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.16.1",data
+            assert data["version"]=="1.17.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data

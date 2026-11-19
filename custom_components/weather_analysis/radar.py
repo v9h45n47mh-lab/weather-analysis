@@ -11,10 +11,11 @@ from uuid import uuid4
 from .location import coordinates
 from .radar_data import RadarUnavailable,metadata,sampling_grid,render,project_map
 from .radar_store import RawRadarStore,DATA_URL
+from .radar_model import ModelRadarStore,decode,model_sampling,model_image
 
 MAX_ZOOM=3
 DEFAULT_ZOOM=2
-UI_VERSION='1.15.0'
+UI_VERSION='1.16.0'
 
 def instant(value):
     date=datetime.fromisoformat(value.replace('Z','+00:00'))
@@ -23,12 +24,17 @@ def instant(value):
 
 def iso(value):return datetime.fromtimestamp(value,timezone.utc).isoformat().replace('+00:00','Z')
 
-def frame_window(meta,now):
+def frame_window(meta,now,horizon=1,model=None):
     reference=meta['reference'];anchor=int(now//300)*300
     if not 0<=now-reference<=2700:raise RadarUnavailable('DWD-Radardaten sind derzeit zu alt.')
     end=math.ceil((now+3600)/300)*300
     if end>reference+7200:raise RadarUnavailable('Der DWD stellt den vollständigen Vorhersagezeitraum noch nicht bereit.')
-    return [{'time':valid,'reference':valid if valid<=reference else reference,'kind':'observation' if valid<=reference else 'prediction'} for valid in range(anchor-7200,end+1,300)]
+    if horizon not in (1,12):raise ValueError('Invalid forecast horizon')
+    times=list(range(anchor-7200,anchor+1,300))
+    step=300 if horizon==1 else 1800
+    times+=list(range((anchor//step+1)*step,math.ceil((now+horizon*3600)/step)*step+1,step))
+    return [{'time':valid,'reference':valid if valid<=reference else reference if valid<=end else model['reference'] if model else None,
+        'kind':'observation' if valid<=reference else 'prediction' if valid<=end else 'model'} for valid in times]
 
 def map_box(latitude,longitude,zoom):
     lat,lon=coordinates(latitude,longitude)
@@ -44,11 +50,13 @@ class RadarClient:
     def __init__(self,hass,session=None,clock=None):
         self.hass=hass;self.clock=clock or (lambda:datetime.now(timezone.utc).timestamp())
         self.store=RawRadarStore(hass,session,clock=self.clock)
+        self.model=ModelRadarStore(hass,session,clock=self.clock)
         self.windows=OrderedDict();self.images=OrderedDict();self.image_bytes=0;self.inflight={}
         self.grids=OrderedDict();self.foreground=asyncio.Semaphore(2);self.background=asyncio.Semaphore(2)
-        self.assets=None;self.asset_lock=asyncio.Lock()
+        self.assets=None;self.asset_lock=asyncio.Lock();self.model_grids=OrderedDict()
 
     async def warm(self):
+        self.model.ensure()
         self.store.ensure()
         if self.store.refresh:await asyncio.shield(self.store.refresh)
 
@@ -57,28 +65,33 @@ class RadarClient:
             if self.assets is None:self.assets=await self.store.execute(read_assets)
         return self.assets
 
-    async def get(self,owner,latitude,longitude,zoom=DEFAULT_ZOOM):
+    async def get(self,owner,latitude,longitude,zoom=DEFAULT_ZOOM,horizon=1):
         lat,lon=coordinates(latitude,longitude)
         if not isinstance(zoom,int) or not 0<=zoom<=MAX_ZOOM:raise ValueError('Invalid radar zoom')
+        if horizon not in (1,12):raise ValueError('Invalid forecast horizon')
         now=self.clock()
         if not (44<=lat<=58 and 0<=lon<=22):return {'status':'outside','now':now,'zoom':zoom,'context':f'outside|{lat}|{lon}','basemap':{}}
         bbox=map_box(lat,lon,zoom);data,_=await self._assets();basemap=await self.store.execute(project_map,bbox,data)
-        base={'context':'raw-rv-v1|'+bbox,'basemap':basemap,'zoom':zoom,'now':now}
+        base={'context':'raw-rv-v1|'+bbox,'basemap':basemap,'zoom':zoom,'now':now,'horizon':horizon,'center':{'latitude':lat,'longitude':lon}}
+        if horizon==12:self.model.ensure()
+        model=self.model.available() if horizon==12 else None
         self.store.ensure();meta=self.store.latest
         if not meta:
             return {**base,'status':'error' if self.store.error else 'loading','error':self.store.error,'frames':[],'refreshing':True}
         if not (meta['south']<=lat<=meta['north'] and meta['west']<=lon<=meta['east']):return {**base,'status':'outside'}
-        try:frames=frame_window(meta,now)
+        try:frames=frame_window(meta,now,horizon,model)
         except RadarUnavailable as error:return {**base,'status':'error','error':str(error),'frames':[],'refreshing':True}
         token=uuid4().hex;self.windows[token]={'owner':owner,'created':now,'bbox':bbox,'frames':frames}
         while len(self.windows)>128:self.windows.popitem(last=False)
-        return {**base,'status':'ok','token':token,'frames':frames,'latest':meta['reference'],'refreshing':bool(self.store.refresh and not self.store.refresh.done())}
+        return {**base,'status':'ok','token':token,'frames':frames,'latest':meta['reference'],'model_reference':model['reference'] if model else None,
+            'model_loading':horizon==12 and not model and not self.model.error,'model_error':self.model.error if horizon==12 and not model else None,
+            'refreshing':bool(self.store.refresh and not self.store.refresh.done())}
 
     async def image(self,owner,token,kind,index=0,background=False):
         window=self.windows.get(token)
         if not window or window['owner']!=owner or self.clock()-window['created']>900:raise RadarUnavailable('Radarzeitraum abgelaufen. Bitte aktualisieren.')
         if kind!='frame' or not isinstance(index,int) or not 0<=index<len(window['frames']):raise ValueError('Bitte die Karte vollständig neu laden.')
-        frame=window['frames'][index];key=(window['bbox'],frame['time'],frame['reference'])
+        frame=window['frames'][index];key=(window['bbox'],frame['time'],frame['reference'],frame['kind'])
         if key in self.images:self.images.move_to_end(key);return self.images[key]
         if key not in self.inflight:
             task=asyncio.create_task(self._image(window,frame,key,background));self.inflight[key]=task
@@ -90,6 +103,20 @@ class RadarClient:
 
     async def _image(self,window,frame,key,background):
         async with (self.background if background else self.foreground):
+            if frame['kind']=='model':
+                reference=frame['reference']
+                if reference is None:raise RadarUnavailable(self.model.error or 'Die 12-Stunden-Vorhersage wird vorbereitet. Bitte kurz warten.')
+                raw=await self.model.get_field(reference,(frame['time']-reference)//60)
+                try:
+                    meta,_=await self.model.execute(decode,raw,'TOT_PR',reference,frame['time'])
+                    grid=await self.model.get_grid(reference,meta['uuid']);grid_key=(window['bbox'],meta['uuid'])
+                    if grid_key not in self.model_grids:
+                        self.model_grids[grid_key]=await self.model.execute(model_sampling,grid,window['bbox'])
+                        while len(self.model_grids)>16:self.model_grids.popitem(last=False)
+                    _,scale=await self._assets()
+                    png=await self.model.execute(model_image,raw,reference,frame['time'],grid,self.model_grids[grid_key],scale)
+                except Exception as error:raise RadarUnavailable('Für diesen Zeitpunkt sind keine verlässlichen Modellwerte verfügbar.') from error
+                return self._cache_image(key,png)
             reference=frame['reference'];lead=(frame['time']-reference)//60
             raw=await self.store.get_field(reference,lead)
             try:
@@ -101,14 +128,18 @@ class RadarClient:
                 _,scale=await self._assets()
                 png=await self.store.execute(render,raw,meta,self.grids[grid_key],scale)
             except Exception as error:raise RadarUnavailable('Für dieses Bild sind keine verlässlichen Radardaten verfügbar.') from error
-            image='data:image/png;base64,'+base64.b64encode(png).decode('ascii')
-            self.images[key]=image;self.image_bytes+=len(image)
-            while self.image_bytes>24000000 or len(self.images)>160:
-                _,old=self.images.popitem(last=False);self.image_bytes-=len(old)
-            return image
+            return self._cache_image(key,png)
+
+    def _cache_image(self,key,png):
+        image='data:image/png;base64,'+base64.b64encode(png).decode('ascii')
+        self.images[key]=image;self.image_bytes+=len(image)
+        while self.image_bytes>24000000 or len(self.images)>160:
+            _,old=self.images.popitem(last=False);self.image_bytes-=len(old)
+        return image
 
     async def close(self):
         tasks=list(self.inflight.values())
         for task in tasks:task.cancel()
         if tasks:await asyncio.gather(*tasks,return_exceptions=True)
         await self.store.close()
+        await self.model.close()

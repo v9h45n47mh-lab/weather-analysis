@@ -53,3 +53,12 @@ test('new cards request one zoom level below maximum and locally generated graph
 test('loading metadata exposes the local map before the first weather image',async()=>{const {card,calls}=fixture();card._hass.callWS=async message=>{calls.push(message);return {location:{position_available:false,name:'Test'},radar:{status:'loading',now:500,zoom:3,basemap:{},frames:[]}};};await card._fetchRadar();assert(card._radarBase.startsWith('data:image/svg+xml;base64,'));assert.equal(calls.filter(c=>c.kind==='frame').length,0);card._clearRadar();});
 
 test('playback starts at the selected current frame',async()=>{const {card}=fixture();await card._fetchRadar();await settle();assert.equal(card._radarIndex,1);await card._radarAction('radar-play');await settle();assert.equal(card._radarIndex,1);card._stopRadar();});
+
+test('forecast horizon and pinch zoom stay independent and clamp at map limits',async()=>{
+  const {card,calls}=fixture();await card._fetchRadar();await settle();
+  await card._radarAction('radar-horizon',{hours:'12'});await settle();assert.equal(calls.filter(c=>c.type==='weather_analysis/radar').at(-1).horizon,12);
+  await card._zoomRadar(2);await settle();let request=calls.filter(c=>c.type==='weather_analysis/radar').at(-1);assert.equal(request.zoom,3);assert.equal(request.horizon,12);
+  const count=calls.length;await card._zoomRadar(1);assert.equal(calls.length,count);
+  await card._zoomRadar(-3);await settle();assert.equal(calls.filter(c=>c.type==='weather_analysis/radar').at(-1).zoom,0);
+  await card._radarAction('radar-horizon',{hours:'1'});await settle();assert.equal(card._radarZoom,0);assert.equal(card._radarHorizon,1);card._clearRadar();
+});

@@ -98,11 +98,16 @@ def render(raw,meta,grid,scale):
     known=valid&(values!=meta['nodata'])
     if not known.any():raise ValueError("No radar coverage in this view")
     rate=np.maximum(0,(values.astype('float64')*meta['gain']+meta['offset'])*12)
-    wet=known&(values!=meta['undetect'])&(rate>0)
+    rate[values==meta['undetect']]=0
+    return colour_image(rate,known,scale)
+
+def colour_image(rate,known,scale):
+    import numpy as np
+    wet=known&(rate>0)
     indices=(np.searchsorted([item['min'] for item in scale],rate,side='right')-1).clip(0,len(scale)-1)
     colours=np.asarray([[int(item['color'][i:i+2],16) for i in (1,3,5)]+[255] for item in scale],dtype='uint8')
-    image=np.zeros((*values.shape,4),dtype='uint8');image[wet]=colours[indices[wet]]
-    yy,xx=np.indices(values.shape);missing=~known&((xx+yy)%12<2)
+    image=np.zeros((*rate.shape,4),dtype='uint8');image[wet]=colours[indices[wet]]
+    yy,xx=np.indices(rate.shape);missing=~known&((xx+yy)%12<2)
     image[missing]=[120,130,140,65]
     return png(image)
 

@@ -15,7 +15,7 @@ def get(url,start=None,end=None):
 begin=time.perf_counter();archive=get(DATA_URL+'composite_rv_LATEST.tar');download=time.perf_counter()-begin
 fields=archive_fields(archive);reference=max(key[0] for key in fields)
 meta=metadata(fields[(reference,0)],(reference,0));frames=frame_window(meta,datetime.now(timezone.utc).timestamp())
-scale=json.loads((root/'frontend/family-ui/1.15.0/radar-scale.json').read_text());bbox=map_box(49.3806,8.3039,3)
+scale=json.loads((root/'frontend/family-ui/1.16.0/radar-scale.json').read_text());bbox=map_box(49.3806,8.3039,3)
 grid=sampling_grid(meta,bbox);begin=time.perf_counter();images=[]
 for lead in range(0,76,5):images.append(render(fields[(reference,lead)],meta,grid,scale))
 elapsed=time.perf_counter()-begin

@@ -41,7 +41,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.16.1"
+VERSION = "1.17.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -679,20 +679,20 @@ def radar_user_location(hass,connection,msg):
 
 @websocket_api.websocket_command({vol.Required("type"):"weather_analysis/radar",
     vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float),
-    vol.Optional("zoom",default=2):vol.All(vol.Coerce(int),vol.Range(min=0,max=3))})
+    vol.Optional("zoom",default=2):vol.All(vol.Coerce(int),vol.Range(min=0,max=3)),vol.Optional("horizon",default=1):vol.In((1,12))})
 @websocket_api.async_response
 async def ws_radar(hass,connection,msg):
     try:
         location=radar_user_location(hass,connection,msg)
         client=hass.data.setdefault(DOMAIN+"_radar",RadarClient(hass))
-        result=await client.get(connection.user.id,location["latitude"],location["longitude"],msg.get("zoom",2))
+        result=await client.get(connection.user.id,location["latitude"],location["longitude"],msg.get("zoom",2),msg.get("horizon",1))
         connection.send_result(msg["id"],{"radar":result,"radar_error":None,"location":location,"credits":{"dwd":"https://www.dwd.de/","map_label":"Natural Earth","map_url":"https://www.naturalearthdata.com/","license":"https://www.naturalearthdata.com/about/terms-of-use/"}})
     except ValueError as error:connection.send_error(msg["id"],"invalid_location",str(error))
     except RadarUnavailable as error:connection.send_result(msg["id"],{"radar":None,"radar_error":str(error),"location":location})
 
 
 @websocket_api.websocket_command({vol.Required("type"):"weather_analysis/radar_image",vol.Required("token"):str,
-    vol.Required("kind"):vol.In(("frame","base","legend")),vol.Optional("background",default=False):bool,vol.Optional("index",default=0):vol.All(vol.Coerce(int),vol.Range(min=0,max=40))})
+    vol.Required("kind"):vol.In(("frame","base","legend")),vol.Optional("background",default=False):bool,vol.Optional("index",default=0):vol.All(vol.Coerce(int),vol.Range(min=0,max=80))})
 @websocket_api.async_response
 async def ws_radar_image(hass,connection,msg):
     try:
