@@ -43,6 +43,10 @@ def fallback():
         "resolved": True, "key": "fallback-67459"}
 
 
+def home_location():
+    return {**fallback(),"is_home":True,"key":"home-wifi-67459","via":"home_wifi"}
+
+
 class LocationClient:
     """Bounded RAM cache, shared lock and retry delay for the reverse lookup."""
     def __init__(self, hass, session=None, clock=time.monotonic):

@@ -466,9 +466,10 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   gpsPage.on('pageerror',error=>errors.push(error.message));
   await gpsPage.addInitScript(freezeDate);
   await gpsPage.addInitScript(()=>{
-    window.testGeo={watches:0,cleared:[],success:null,error:null};
+    window.testGeo={watches:0,queries:0,cleared:[],success:null,error:null,permission:sessionStorage.getItem('geo-permission')||'prompt'};
+    Object.defineProperty(navigator,'permissions',{configurable:true,value:{async query(){testGeo.queries++;return {state:testGeo.permission};}}});
     Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
-      watchPosition(success,error){testGeo.success=success;testGeo.error=error;return ++testGeo.watches;},
+      watchPosition(success,error){testGeo.success=success;testGeo.error=error;if(testGeo.permission==='granted')setTimeout(()=>success({coords:{latitude:35.6812,longitude:139.7671}}),0);return ++testGeo.watches;},
       clearWatch(id){testGeo.cleared.push(id);}
     }});
   });
@@ -533,6 +534,24 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.equal(await gpsPage.evaluate(()=>demo.card._browserCoordinates),null);
   assert((await gpsPage.evaluate(()=>testGeo.cleared.length))>=2);
   await gpsCard.locator('[data-page="dashboard"]').click();await gpsReady('Hamburg');
+  // A selected home SSID, or own router presence, overrides away GPS without browser prompts.
+  await gpsPage.evaluate(()=>demo.hass.states['sensor.phone_ssid'].state='Home WiFi');
+  await gpsCard.locator('[data-page="settings"]').click();await gpsCard.locator('[data-action="reload"]').click();
+  await gpsPage.waitForFunction(()=>!demo.card._refreshing);
+  await gpsCard.locator('#wa-home-ssids input[value="Home WiFi"]').check();
+  for(const dark of [false,true]){await gpsPage.evaluate(dark=>document.body.classList.toggle('dark',dark),dark);await gpsPage.screenshot({path:path.join(screens,'wifi-settings-390-'+(dark?'dark':'light')+'.png'),fullPage:true});}
+  await gpsCard.locator('[data-action="save-settings"]').click();await gpsCard.locator('#wa-current').waitFor();
+  assert.deepEqual(await gpsPage.evaluate(()=>demo.saved.get('test-garden').home_ssids),['Home WiFi']);
+  await gpsCard.locator('[data-page="dashboard"]').click();await gpsReady('Böhl-Iggelheim');
+  assert.equal(await gpsPage.evaluate(()=>demo.card._location.via),'home_wifi');await gpsCard.locator('#wa-weather-current').waitFor();
+  const watchCount=await gpsPage.evaluate(()=>testGeo.watches);
+  await gpsPage.evaluate(()=>{demo.hass.states['sensor.phone_ssid'].state='Hotel WiFi';demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
+  await gpsReady('Hamburg');assert.equal(await gpsCard.locator('#wa-weather-current').count(),0);
+  assert.equal(await gpsPage.evaluate(()=>testGeo.watches),watchCount);
+  await gpsPage.evaluate(()=>{demo.hass.states['device_tracker.router_phone'].state='home';demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
+  await gpsReady('Böhl-Iggelheim');await gpsCard.locator('#wa-weather-current').waitFor();
+  await gpsPage.evaluate(()=>{demo.hass.states['device_tracker.router_phone'].state='not_home';demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
+  await gpsReady('Hamburg');
   // Tracker updates must not cancel an in-flight temperature history request.
   await gpsPage.evaluate(()=>demo.delayNext=300);
   await gpsCard.locator('[data-page="temperature"]').click();
@@ -546,6 +565,27 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   const watcher=await gpsPage.evaluate(()=>demo.card._gpsWatch);
   await gpsPage.evaluate(()=>demo.card.remove());
   assert(await gpsPage.evaluate(id=>testGeo.cleared.includes(id),watcher));
+  // Remember only the mode, scoped to this user/card. Reuse only an already granted permission.
+  assert.equal(await gpsPage.evaluate(()=>localStorage.getItem(demo.card._locationStorageKey())),'device');
+  await gpsPage.evaluate(()=>sessionStorage.setItem('geo-permission','granted'));
+  await gpsPage.reload();await gpsReady('Tokio');
+  assert.equal(await gpsPage.evaluate(()=>testGeo.watches),1);
+  assert.equal(await gpsPage.evaluate(()=>localStorage.getItem(demo.card._locationStorageKey())),'device');
+  await gpsPage.evaluate(()=>sessionStorage.setItem('geo-permission','prompt'));
+  await gpsPage.reload();await gpsReady('Böhl-Iggelheim');
+  assert.equal(await gpsPage.evaluate(()=>testGeo.watches),0,'Expired permission never opens another automatic prompt');
+  assert.match(await gpsCard.locator('main').innerText(),/Standortfreigabe muss am Gerät erneuert/);
+  await gpsPage.evaluate(()=>sessionStorage.setItem('geo-permission','denied'));
+  await gpsPage.reload();await gpsReady('Böhl-Iggelheim');
+  assert.equal(await gpsPage.evaluate(()=>testGeo.watches),0,'Denied permission is not retried automatically');
+  await gpsCard.locator('[data-page="settings"]').click();
+  assert(!(await gpsCard.locator('[data-action="location-auto"]').isDisabled()));
+  await gpsCard.locator('[data-action="location-auto"]').click();
+  assert.equal(await gpsPage.evaluate(()=>localStorage.getItem(demo.card._locationStorageKey())),null);
+  await gpsPage.evaluate(()=>sessionStorage.setItem('geo-permission','granted'));
+  await gpsPage.reload();await gpsReady('Böhl-Iggelheim');
+  assert.equal(await gpsPage.evaluate(()=>testGeo.watches),0);
+  assert.equal(await gpsPage.evaluate(()=>testGeo.queries),0,'HA mode does not query browser permission');
   await gpsPage.close();
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:fs.readdirSync(screens).filter(name=>name.endsWith(".png")).length,errors},null,2));
   console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards, per-user GPS home/away/unknown/device permission/cleanup/races and 3 widths × 2 themes.');

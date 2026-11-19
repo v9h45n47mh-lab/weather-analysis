@@ -49,6 +49,7 @@ module("homeassistant.components.recorder.util", session_scope=lambda *args, **k
 module("homeassistant.core", callback=lambda f:f)
 module("homeassistant.const", EVENT_HOMEASSISTANT_STOP="stop")
 module("homeassistant.helpers")
+module("homeassistant.helpers.entity_registry",async_get=lambda hass:hass.registry)
 module("homeassistant.helpers.event", async_track_state_change_event=lambda *args:lambda:None,
        async_track_time_interval=lambda *args:lambda:None)
 module("homeassistant.helpers.recorder", get_instance=lambda hass:hass.recorder)
@@ -90,6 +91,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         async def executor(func, *args): return func(*args)
         self.hass = SimpleNamespace(
             config=SimpleNamespace(time_zone="Europe/Berlin"),
+            registry=SimpleNamespace(entities={}),
             states=SimpleNamespace(get=self.states.get, async_all=lambda domain:list(self.states.values())),
             config_entries=SimpleNamespace(async_entries=lambda domain:[]),
             bus=SimpleNamespace(async_listen_once=lambda *args:lambda:None),
@@ -97,6 +99,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             data={backend.DOMAIN:{}, backend.DOMAIN+"_settings":{},
                   backend.DOMAIN+"_store":Store(), backend.DOMAIN+"_lock":asyncio.Lock(),
                   backend.DOMAIN+"_entries":set()})
+        self.hass.registry.async_get=self.hass.registry.entities.get
         self.history_patch = patch.object(backend.Manager, "read_history", return_value=backend.Archive())
         self.history_read = self.history_patch.start()
         self.addCleanup(self.history_patch.stop)
@@ -109,6 +112,76 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             "user_id":user_id,"device_trackers":[tracker],"source":tracker},last_updated=now)
         self.states[tracker] = SimpleNamespace(entity_id=tracker,state="home",attributes={
             "source_type":"gps","latitude":latitude,"longitude":longitude},last_updated=now)
+
+    def add_wifi_registry(self, user_id="test-user", person="person.test", tracker="device_tracker.phone", ssid_entity="sensor.phone_ssid", device="phone", ssid="Home WiFi", unique="webhook_ssid"):
+        self.add_position(user_id,person,tracker,53.55,10.0)
+        self.states[ssid_entity]=SimpleNamespace(entity_id=ssid_entity,name=ssid_entity,state=ssid,last_updated=now,attributes={})
+        for entity,uid in [(tracker,"tracker-id"),(ssid_entity,unique)]:
+            self.hass.registry.entities[entity]=SimpleNamespace(entity_id=entity,device_id=device,unique_id=uid,platform="mobile_app")
+
+    async def test_home_router_presence_overrides_away_gps_and_needs_no_geocoder(self):
+        self.add_position(latitude=53.55,longitude=10.0)
+        self.states["person.test"].attributes["device_trackers"].append("device_tracker.router_phone")
+        self.states["device_tracker.router_phone"]=SimpleNamespace(entity_id="device_tracker.router_phone",state="home",attributes={"source_type":"router"},last_updated=now)
+        with patch.object(backend,"resolve_place",new_callable=AsyncMock) as resolve:
+            conn=Connection()
+            await backend.ws_location(self.hass,conn,{"id":1,"latitude":35.68,"longitude":139.69})
+            self.assertTrue(conn.results[-1][1]["location"]["is_home"])
+            self.assertEqual(conn.results[-1][1]["location"]["via"],"home_wifi")
+            self.assertEqual(conn.results[-1][1]["location"]["name"],"Böhl-Iggelheim")
+            resolve.assert_not_awaited()
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection(denied={"device_tracker.router_phone"})))
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection(user_id="other")))
+        self.states["device_tracker.router_phone"].state="not_home"
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection()))
+        self.assertEqual(backend.user_position(self.hass,Connection()),(53.55,10.0))
+
+    async def test_ssid_is_matched_to_owned_device_and_explicit_home_network(self):
+        self.add_wifi_registry()
+        self.add_wifi_registry("other","person.other","device_tracker.other","sensor.other_ssid","other-phone",ssid="Home WiFi")
+        self.hass.data[backend.DOMAIN+"_settings"]["card"]={"home_ssids":["Home WiFi"]}
+        self.assertEqual([x["entity_id"] for x in backend.wifi_sensors(self.hass,Connection())],["sensor.phone_ssid"])
+        self.assertTrue(backend.on_home_wifi(self.hass,Connection(),"card"))
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection(),"different-card"))
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection(denied={"sensor.phone_ssid"}),"card"))
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection(denied={"device_tracker.phone"}),"card"))
+        self.states["sensor.phone_ssid"].state="Hotel WiFi"
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection(),"card"))
+        for value in ("unknown","unavailable","Not Connected","<unknown ssid>"):
+            self.states["sensor.phone_ssid"].state=value
+            self.assertIsNone(backend.wifi_sensors(self.hass,Connection())[0]["ssid"])
+        self.states["sensor.phone_ssid"].state="Home WiFi"
+        entry=self.hass.registry.entities["sensor.phone_ssid"]
+        entry.unique_id="webhook_wifi_connection"
+        self.assertTrue(backend.on_home_wifi(self.hass,Connection(),"card"))
+        entry.platform="unrelated_integration"
+        self.assertFalse(backend.wifi_sensors(self.hass,Connection()))
+
+    async def test_wifi_sensors_discovered_even_when_gps_is_unavailable(self):
+        self.add_wifi_registry()
+        self.states["device_tracker.phone"].state="unavailable"
+        self.hass.data[backend.DOMAIN+"_settings"]["card"]={"home_ssids":["Home WiFi"]}
+        self.assertTrue(backend.on_home_wifi(self.hass,Connection(),"card"))
+        conn=Connection()
+        await backend.ws_sensors(self.hass,conn,{"id":1,"card_id":"card"})
+        self.assertEqual(conn.results[-1][1]["wifi_sensors"][0]["ssid"],"Home WiFi")
+        with patch.object(backend,"resolve_place",new_callable=AsyncMock) as resolve:
+            await backend.ws_location(self.hass,conn,{"id":2,"card_id":"card"})
+            self.assertTrue(conn.results[-1][1]["location"]["is_home"])
+            resolve.assert_not_awaited()
+
+    async def test_home_ssids_are_saved_per_card_by_admin_and_bounded(self):
+        msg={"id":1,"card_id":"card","title":"Weather Analysis","home_ssids":["Home WiFi","Home WiFi","Home 5G"]}
+        conn=Connection()
+        await backend.ws_save_card(self.hass,conn,msg)
+        self.assertEqual(conn.errors[-1][1],"unauthorized")
+        await backend.ws_save_card(self.hass,Connection(admin=True),msg)
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_settings"]["card"]["home_ssids"],["Home WiFi","Home 5G"])
+        await backend.ws_save_card(self.hass,Connection(admin=True),{**msg,"card_id":"other","home_ssids":[]})
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_settings"]["other"]["home_ssids"],[])
+        conn=Connection(admin=True)
+        await backend.ws_save_card(self.hass,conn,{**msg,"home_ssids":[str(i) for i in range(21)]})
+        self.assertEqual(conn.errors[-1][1],"invalid_wifi")
 
     async def test_location_only_uses_current_users_permitted_gps(self):
         self.add_position()

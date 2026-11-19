@@ -45,7 +45,7 @@ async def main():
             assert result["type"]=="create_entry",result
             assert result["title"]=="Weather Analysis",result
             await hass.async_block_till_done()
-            from custom_components.weather_analysis import ensure_manager, user_position, ws_location
+            from custom_components.weather_analysis import ensure_manager, user_position, ws_location, on_home_wifi
             # Native HA states and permission objects; no network or actual user coordinates.
             hass.states.async_set("device_tracker.gps_test","not_home",{"source_type":"gps","latitude":53.55,"longitude":10})
             hass.states.async_set("person.gps_test","not_home",{"user_id":"gps-test","device_trackers":["device_tracker.gps_test"],"source":"device_tracker.gps_test"})
@@ -59,12 +59,29 @@ async def main():
             await hass.async_block_till_done()
             assert not responses[-1]["location"]["is_home"]
             assert not responses[-1]["location"]["position_available"]
+            from homeassistant.helpers import entity_registry as er, device_registry as dr
+            registry=er.async_get(hass)
+            device=dr.async_get(hass).async_get_or_create(config_entry_id=result["result"].entry_id,identifiers={("weather_analysis","wifi-smoke")})
+            tracker=registry.async_get_or_create("device_tracker","mobile_app","wifi-smoke-tracker",device_id=device.id,suggested_object_id="wifi_smoke_phone")
+            ssid=registry.async_get_or_create("sensor","mobile_app","wifi-smoke_ssid",device_id=device.id,suggested_object_id="wifi_smoke_ssid")
+            hass.states.async_set(tracker.entity_id,"not_home",{"source_type":"gps","latitude":53.55,"longitude":10})
+            hass.states.async_set(ssid.entity_id,"Home test")
+            hass.states.async_set("person.gps_test","not_home",{"user_id":"gps-test","device_trackers":[tracker.entity_id],"source":tracker.entity_id})
+            hass.data["weather_analysis_settings"]["wifi-smoke"]={"home_ssids":["Home test"]}
+            conn.user.id="gps-test"
+            assert on_home_wifi(hass,conn,"wifi-smoke")
+            ws_location(hass,conn,{"id":2,"card_id":"wifi-smoke"})
+            await hass.async_block_till_done()
+            assert responses[-1]["location"]["is_home"]
+            assert responses[-1]["location"]["via"]=="home_wifi"
+            hass.states.async_set(ssid.entity_id,"Hotel test")
+            assert not on_home_wifi(hass,conn,"wifi-smoke")
             manager=await ensure_manager(hass,"sensor.outdoor_test","temperature")
             today=datetime.now(timezone.utc).date().isoformat()
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.12.0",data
+            assert data["version"]=="1.13.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data

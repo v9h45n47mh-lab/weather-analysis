@@ -33,13 +33,13 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .forecast import ForecastClient, ForecastUnavailable
-from .location import LocationClient, coordinates, fallback
+from .location import LocationClient, coordinates, fallback, home_location
 
 from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.12.0"
+VERSION = "1.13.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -337,7 +337,7 @@ async def ws_sensors(hass, connection, msg):
         if "sensor_names" in settings:
             settings["sensor_names"] = {entity: name for entity, name in settings["sensor_names"].items() if entity in allowed}
     connection.send_result(msg["id"], {"sensors": groups["temperature"], "wind_sensors": groups["wind"], "illuminance_sensors": groups["illuminance"], "version": VERSION,
-        "timezone": hass.config.time_zone, "admin": connection.user.is_admin, "settings": settings})
+        "timezone": hass.config.time_zone, "admin": connection.user.is_admin, "settings": settings, "wifi_sensors": wifi_sensors(hass,connection)})
 
 
 @websocket_api.websocket_command({
@@ -345,6 +345,7 @@ async def ws_sensors(hass, connection, msg):
     vol.Required("card_id"): vol.All(str, vol.Length(min=1, max=100)),
     vol.Optional("entity", default=""): str,
     vol.Optional("entities"): [str],
+    vol.Optional("home_ssids", default=[]): [vol.All(str,vol.Length(min=1,max=64))],
     vol.Optional("sensor_names", default={}): {str: vol.All(str, vol.Length(max=100))},
     vol.Optional("wind_entities"): [str],
     vol.Optional("wind_entity", default=""): str,
@@ -361,6 +362,9 @@ async def ws_save_card(hass, connection, msg):
     if any(len(entities) > 100 for entities in chosen.values()):
         connection.send_error(msg["id"], "invalid_sensor", "Bitte höchstens 100 Sensoren je Messart auswählen.")
         return
+    home_ssids = list(dict.fromkeys(value for value in msg.get("home_ssids",[]) if value.strip()))
+    if len(home_ssids)>20:
+        connection.send_error(msg["id"],"invalid_wifi","Bitte höchstens 20 Heim-WLANs auswählen.");return
     selected = [(entity, kind) for kind, entities in chosen.items() for entity in entities]
     for entity, kind in selected:
         state = hass.states.get(entity)
@@ -370,7 +374,7 @@ async def ws_save_card(hass, connection, msg):
     all_entities = {entity for entity, kind in selected}
     sensor_names = {entity: name.strip() for entity, name in msg.get("sensor_names", {}).items()
                     if entity in all_entities and name.strip()}
-    settings = {"title": msg["title"], "sensor_names": sensor_names}
+    settings = {"title": msg["title"], "sensor_names": sensor_names, "home_ssids":home_ssids}
     for kind, (plural, single) in SENSOR_FIELDS.items():
         entities = chosen[kind]
         settings[plural] = entities
@@ -516,13 +520,56 @@ async def ws_dashboard(hass, connection, msg):
         "sensors":sensors,"errors":errors,"intervals":intervals})
 
 
+def user_people(hass, connection):
+    user_id = getattr(connection.user,"id",None)
+    return [p for p in hass.states.async_all("person") if user_id and p.entity_id.startswith("person.")
+        and p.attributes.get("user_id")==user_id and may_read(connection,p.entity_id)]
+
+
+def user_tracker_ids(hass, connection):
+    result=set()
+    for person in user_people(hass,connection):
+        trackers=person.attributes.get("device_trackers",[])
+        values=list(trackers) if isinstance(trackers,list) else []
+        values.append(person.attributes.get("source"))
+        result.update(value for value in values if isinstance(value,str) and value.startswith("device_tracker.") and may_read(connection,value))
+    return result
+
+
+def wifi_sensors(hass, connection):
+    """SSID entities from the same mobile devices as the user's linked trackers."""
+    from homeassistant.helpers import entity_registry as er
+    registry=er.async_get(hass)
+    devices={entry.device_id for entity in user_tracker_ids(hass,connection)
+        if (entry:=registry.async_get(entity)) and entry.device_id}
+    result=[]
+    for entry in registry.entities.values():
+        if entry.device_id not in devices or entry.platform!="mobile_app" or not entry.entity_id.startswith("sensor.") or not may_read(connection,entry.entity_id):
+            continue
+        unique=entry.unique_id
+        if unique not in ("ssid","wifi_connection") and not unique.endswith(("_ssid","_wifi_connection")):
+            continue
+        if (state:=hass.states.get(entry.entity_id)) is not None:
+            ssid=state.state
+            if ssid.casefold() in ("unknown","unavailable","not connected","nicht verbunden","<unknown ssid>","none",""):
+                ssid=None
+            result.append({"entity_id":entry.entity_id,"name":state.name,"ssid":ssid})
+    return sorted(result,key=lambda item:item["entity_id"])
+
+
+def on_home_wifi(hass, connection, card_id="default"):
+    # A router tracker only reports home for its configured home network.
+    for entity in user_tracker_ids(hass,connection):
+        state=hass.states.get(entity)
+        if state and state.state=="home" and state.attributes.get("source_type")=="router":
+            return True
+    ssids=hass.data.get(DOMAIN+"_settings",{}).get(card_id,{}).get("home_ssids",[])
+    return bool(ssids) and any(sensor["ssid"] in ssids for sensor in wifi_sensors(hass,connection))
+
+
 def user_position(hass, connection):
     """Read only the logged-in user's linked person and permitted GPS trackers."""
-    user_id = getattr(connection.user, "id", None)
-    if not user_id:
-        return None
-    people = [p for p in hass.states.async_all("person") if p.entity_id.startswith("person.")
-        and p.attributes.get("user_id") == user_id and may_read(connection,p.entity_id)]
+    people = user_people(hass,connection)
     candidates = []
     for person in people:
         ids = person.attributes.get("device_trackers", [])
@@ -560,13 +607,16 @@ async def resolve_place(hass, latitude, longitude):
 
 
 @websocket_api.websocket_command({vol.Required("type"):"weather_analysis/location",
-    vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float)})
+    vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float),
+    vol.Optional("card_id",default="default"):str})
 @websocket_api.async_response
 async def ws_location(hass, connection, msg):
     try:
         point = coordinates(msg.get("latitude"),msg.get("longitude")) if "latitude" in msg or "longitude" in msg else user_position(hass,connection)
     except ValueError as error:
         connection.send_error(msg["id"],"invalid_location",str(error));return
+    if on_home_wifi(hass,connection,msg.get("card_id","default")):
+        connection.send_result(msg["id"],{"location":home_location(),"location_error":None});return
     if point is None:
         connection.send_result(msg["id"],{"location":fallback(),"location_error":"Kein GPS-Standort verfügbar. Angezeigt wird die Vorhersage für Böhl-Iggelheim."})
         return
