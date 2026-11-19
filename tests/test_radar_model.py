@@ -45,12 +45,17 @@ class ModelDataTests(unittest.TestCase):
                 result=d.project_map(r.map_box(lat,lon,zoom),{'lines':[{'kind':'river','points':[[lon,lat],[lon+.001,lat]]}],'places':[]})
                 self.assertEqual(result['lines'][0]['points'][0],[256,256])
 
-    def test_long_view_has_half_hour_future_and_does_not_extrapolate_radar(self):
+    def test_continuous_future_changes_from_five_to_thirty_minutes_after_first_hour(self):
         now=NOW+137;frames=r.frame_window({'reference':NOW-600},now,12,{'reference':NOW-3600})
         future=[f for f in frames if f['time']>now]
         self.assertGreaterEqual(future[-1]['time'],now+43200)
-        self.assertTrue(all(b['time']-a['time']==1800 for a,b in zip(future,future[1:])))
-        self.assertTrue(all(f['kind']=='model' and f['reference']==NOW-3600 for f in future if f['time']>now+3600))
+        transition=((int(now)+3600+299)//300)*300
+        near=[f for f in future if f['time']<=transition];far=[f for f in future if f['time']>transition]
+        self.assertTrue(all(b['time']-a['time']==300 for a,b in zip(near,near[1:])))
+        self.assertTrue(all(b['time']-a['time']==1800 for a,b in zip([near[-1]]+far,far)))
+        self.assertEqual(len(far),22)
+        self.assertEqual(len({f['time'] for f in frames}),len(frames))
+        self.assertTrue(all(f['kind']=='model' and f['reference']==NOW-3600 for f in future if f['time']>transition))
         short=r.frame_window({'reference':NOW-600},now,1)
         self.assertTrue(all(b['time']-a['time']==300 for a,b in zip(short,short[1:])))
         self.assertFalse(any(f['kind']=='model' for f in short))

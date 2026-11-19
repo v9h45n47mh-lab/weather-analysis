@@ -16,11 +16,11 @@ async def main():
     store._download=download
     try:
         store.ensure();await store.refresh;run=store.available();assert run,store.error
-        reference=run['reference'];valid=math.ceil((store.clock()+43200)/1800)*1800
+        reference=run['reference'];valid=math.ceil((store.clock()+3600)/300)*300+39600
         begin=time.perf_counter();raw=await store.get_field(reference,(valid-reference)//60)
         meta,values=decode(raw,'TOT_PR',reference,valid);grid=await store.get_grid(reference,meta['uuid'])
         sampling=await store.execute(model_sampling,grid,map_box(49.3806,8.3039,2))
-        scale=json.loads((root/'frontend/family-ui/1.16.0/radar-scale.json').read_text())
+        scale=json.loads((root/'frontend/family-ui/1.16.1/radar-scale.json').read_text())
         image=await store.execute(model_image,raw,reference,valid,grid,sampling,scale)
         assert image.startswith(b'\x89PNG') and sampling[1][128,128]
         Path('/tmp/dwd-model-live.png').write_bytes(image)

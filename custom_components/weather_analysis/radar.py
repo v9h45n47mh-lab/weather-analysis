@@ -15,7 +15,7 @@ from .radar_model import ModelRadarStore,decode,model_sampling,model_image
 
 MAX_ZOOM=3
 DEFAULT_ZOOM=2
-UI_VERSION='1.16.0'
+UI_VERSION='1.16.1'
 
 def instant(value):
     date=datetime.fromisoformat(value.replace('Z','+00:00'))
@@ -31,8 +31,8 @@ def frame_window(meta,now,horizon=1,model=None):
     if end>reference+7200:raise RadarUnavailable('Der DWD stellt den vollständigen Vorhersagezeitraum noch nicht bereit.')
     if horizon not in (1,12):raise ValueError('Invalid forecast horizon')
     times=list(range(anchor-7200,anchor+1,300))
-    step=300 if horizon==1 else 1800
-    times+=list(range((anchor//step+1)*step,math.ceil((now+horizon*3600)/step)*step+1,step))
+    times+=list(range(anchor+300,end+1,300))
+    if horizon==12:times+=list(range(end+1800,end+11*3600+1,1800))
     return [{'time':valid,'reference':valid if valid<=reference else reference if valid<=end else model['reference'] if model else None,
         'kind':'observation' if valid<=reference else 'prediction' if valid<=end else 'model'} for valid in times]
 

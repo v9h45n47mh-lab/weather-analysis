@@ -1,4 +1,4 @@
-import {radarMap,updateRadarMap,radarBackground,radarLegend,bindRadarGestures,notice,panelHeader,escapeHtml as esc} from './family-ui/1.16.0/family-ui.js';
+import {radarMap,updateRadarMap,radarBackground,radarLegend,bindRadarGestures,notice,panelHeader,escapeHtml as esc} from './family-ui/1.16.1/family-ui.js';
 
 /** App-owned location, data and playback, with the shared radar UI. */
 export const RadarController=Base=>class extends Base {
@@ -15,7 +15,7 @@ export const RadarController=Base=>class extends Base {
     this._radarGestureCleanup?.();this._radarGestureMap=map;
     this._radarGestureCleanup=map?bindRadarGestures(map,delta=>this._zoomRadar(delta),active=>{this._radarGestureActive=active;if(!active&&this._radarRenderDeferred){this._radarRenderDeferred=false;queueMicrotask(()=>{if(this.isConnected)this.render();});}}):null;
   }
-  _radarOptions(){return {id:'wa-radar',frames:this._radar?.frames||[],index:this._radarIndex||0,baseImage:this._radarBase,radarImage:this._radarImage,legendImage:this._radarLegend,playing:this._radarPlaying,busy:this._radarFrameBusy,error:this._radarFrameError||this._radarBaseError||'',now:this._radar?.now,zoom:this._radarZoom??2,horizon:this._radarHorizon||1,horizonChoices:true,markerLabel:this._location?.position_available?'Dein Standort':this._location?.name||'Angezeigter Standort'};}
+  _radarOptions(){return {id:'wa-radar',frames:this._radar?.frames||[],index:this._radarIndex||0,baseImage:this._radarBase,radarImage:this._radarImage,legendImage:this._radarLegend,playing:this._radarPlaying,busy:this._radarFrameBusy,error:this._radarFrameError||this._radarBaseError||'',now:this._radar?.now,zoom:this._radarZoom??2,horizon:12,horizonChoices:false,markerLabel:this._location?.position_available?'Dein Standort':this._location?.name||'Angezeigter Standort'};}
   _paintRadar(){const root=this.shadowRoot.querySelector('#wa-radar');if(root)updateRadarMap(root,this._radarOptions());}
   _refreshRadarIfDue(now=Date.now()/1000){
     if(this.page==='radar'&&!this._busy&&!this._radarPlaying&&(!this._radar||now-this._radar.now>=(this._radar.refreshing?30:300)))return this._fetchRadar();
@@ -26,7 +26,7 @@ export const RadarController=Base=>class extends Base {
     const request=++this._request;this._busy=true;this._stopRadar();this._radarError=null;
     this.render();
     try{
-      const result=await this._hass.callWS({type:'weather_analysis/radar',zoom:this._radarZoom??2,horizon:this._radarHorizon||1,...(this._browserCoordinates||{})});
+      const result=await this._hass.callWS({type:'weather_analysis/radar',zoom:this._radarZoom??2,horizon:12,...(this._browserCoordinates||{})});
       if(request!==this._request||this.page!=='radar'||!this.isConnected)return;
       const previous=this._radar,selected=previous?.frames?.[this._radarIndex||0];
       const followLatest=selected?.kind==='observation'&&selected.time===previous.latest;
@@ -98,10 +98,6 @@ export const RadarController=Base=>class extends Base {
     this._radarZoom=zoom;this._request++;this._busy=false;this._clearRadar();await this._fetchRadar();
   }
   async _radarAction(action,data={}){
-    if(action==='radar-horizon'){
-      const hours=Number(data.hours);if(![1,12].includes(hours)||hours===(this._radarHorizon||1))return;
-      this._radarHorizon=hours;this._request++;this._busy=false;this._stopRadar();await this._fetchRadar();return;
-    }
     if(action==='radar-play'){
       if(this._radarPlaying){this._stopRadar();this._paintRadar();return;}
       this._radarPlaying=true;this._paintRadar();
@@ -126,7 +122,7 @@ export const RadarController=Base=>class extends Base {
     if(this._radar?.status==='ok'){
       const latest=new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(this._radar.latest*1000));
       content+=notice('Letzte DWD-Messung: '+latest+' Uhr. Spätere Bilder sind Vorhersagen. Randbereiche des Radargebiets können ohne Daten sein.');
-      if((this._radarHorizon||1)===12)content+=notice(this._radar.model_error||'Erste Stunde: Radarvorhersage. Danach: DWD ICON-D2-RUC, Modellvorhersage in 30-Minuten-Schritten.');
+      content+=notice(this._radar.model_error||'Erste Stunde: Radarvorhersage. Danach: DWD ICON-D2-RUC, Modellvorhersage in 30-Minuten-Schritten.');
     }
     return panelHeader({title,menu:false,reload:false,save:false})+(this._locationError?notice(this._locationError):'')+content+`<p class="hint wa-forecast-source">Radar und Vorhersage: <a href="${esc(this._radarCredits?.dwd||'#')}" target="_blank" rel="noopener noreferrer">DWD</a> · Karte: <a href="${esc(this._radarCredits?.map_url||'#')}" target="_blank" rel="noopener noreferrer">${esc(this._radarCredits?.map_label||'Natural Earth')}</a> · <a href="${esc(this._radarCredits?.license||'#')}" target="_blank" rel="noopener noreferrer">Public Domain</a></p>`;
   }

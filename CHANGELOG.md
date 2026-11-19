@@ -1,3 +1,9 @@
+## 1.17.1
+
+- Durchgehende Radarzeitleiste ohne Auswahlbuttons für 1 oder 12 Stunden. Erste Stunde in 5-Minuten-Schritten; danach automatisch 30-Minuten-Schritte bis zwölf Stunden.
+- Der Übergang erfolgt lückenlos am Ende der ersten Stunde. Quellenkennzeichnung, mittiger Standort und Zwei-Finger-Zoom bleiben erhalten.
+- HA UI Kit 1.16.1 mit passender Zeitachsenbeschriftung und Vorschauhinweis.
+
 ## 1.17.0
 
 - Radarvorschau umschaltbar: eine Stunde in 5-Minuten-Schritten oder zwölf Stunden in 30-Minuten-Schritten. Zwei Stunden Messhistorie bleiben erhalten.

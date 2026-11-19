@@ -78,7 +78,8 @@ class ModelRadarStore(RawRadarStore):
                 url=self.url(reference,'TOT_PR').rsplit('/',1)[0]+'/'
                 listing=(await self._download(url)).decode('utf-8')
                 leads={int(hour)*60+int(minute) for hour,minute in STEP.findall(listing)}
-                required=set(range(math.ceil((self.clock()+3600-reference)/1800)*30,math.ceil((self.clock()+43200-reference)/1800)*30+1,30))
+                transition=math.ceil((self.clock()+3600)/300)*300
+                required={(valid-reference)//60 for valid in range(transition+1800,transition+39600+1,1800)}
                 if required<=leads:
                     self.latest={'reference':reference,'leads':leads};self.error=None;return
             raise ValueError('No complete fresh twelve-hour model run')
@@ -87,7 +88,7 @@ class ModelRadarStore(RawRadarStore):
             self.error='Die DWD-Modellvorhersage für zwölf Stunden ist derzeit nicht verfügbar.'
 
     def available(self):
-        return self.latest if self.latest and 0<=self.clock()-self.latest['reference']<=14400 and math.ceil((self.clock()+43200-self.latest['reference'])/1800)*30 in self.latest['leads'] else None
+        return self.latest if self.latest and 0<=self.clock()-self.latest['reference']<=14400 and (math.ceil((self.clock()+3600)/300)*300+39600-self.latest['reference'])//60 in self.latest['leads'] else None
 
     def _read(self,name):
         if self.directory is None:return None

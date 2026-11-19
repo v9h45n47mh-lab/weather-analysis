@@ -1,6 +1,6 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.17.0**, HA UI Kit **1.16.0** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.17.1**, HA UI Kit **1.16.1** lokal eingebunden.
 
 ## Funktionen
 
@@ -50,7 +50,7 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Sensoren und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.17.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.17.1-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
 
 ## Wetter und 3-Stunden-Sicht
 
@@ -102,7 +102,7 @@ Karteneinstellungen sowie 15-Minuten- und Stundenarchive liegen im HA-Konfigurat
 
 ## Berechtigungen und UI
 
-Die WebSocket-Endpunkte prüfen das native HA-Leserecht für jeden Sensor. Nur zugängliche Sensoren werden angeboten. Karteneinstellungen dürfen HA-Administratoren speichern. Sensorauswahl, Mehrfachauswahl, Navigation, Buttons, Listen und Klappbereiche verwenden das unveränderte gemeinsame **HA UI Kit 1.16.0**. Die Datumsnavigation unterstützt ab 1.7.1 einzeln deaktivierbare Pfeile; Darstellung und bisherige Aufrufe bleiben unverändert.
+Die WebSocket-Endpunkte prüfen das native HA-Leserecht für jeden Sensor. Nur zugängliche Sensoren werden angeboten. Karteneinstellungen dürfen HA-Administratoren speichern. Sensorauswahl, Mehrfachauswahl, Navigation, Buttons, Listen und Klappbereiche verwenden das unveränderte gemeinsame **HA UI Kit 1.16.1**. Die Datumsnavigation unterstützt ab 1.7.1 einzeln deaktivierbare Pfeile; Darstellung und bisherige Aufrufe bleiben unverändert.
 
 Brand-Icons werden lokal in `brand/` mitgeliefert. Die Anzeige im HACS-Marktplatz hängt von der lokalen Brand-Unterstützung der installierten HACS-Version ab.
 
@@ -123,7 +123,7 @@ Automatisierte Browserprüfungen nutzen synthetische Daten und prüfen alle drei
 MIT-Lizenz. Der gemeinsame UI-Baukasten wird unverändert mit eigener Lizenz ausgeliefert.
 
 
-Die Wettergrafiken und die komplette Darstellung stammen unverändert aus **HA UI Kit 1.16.0**. Die Wettersymbole werden lokal ausgeliefert; die Radaransicht lädt ihre Karten- und Niederschlagsbilder über die Integration. Messungen erhalten ein Thermometer-Symbol; Bewölkung/Regen werden ausschließlich aus der Vorhersage übernommen. Temperatur und Detailwerte beschreiben den Beginn eines Vorhersagezeitraums; Min/Max beziehen sich auf den ganzen Abschnitt. Wind zeigt die höchste stündliche Geschwindigkeit, Böen das Maximum der überlappenden Stunden. Luftdruck ist auf Meereshöhe bezogen. Fehlende Werte bleiben als „—“ sichtbar.
+Die Wettergrafiken und die komplette Darstellung stammen unverändert aus **HA UI Kit 1.16.1**. Die Wettersymbole werden lokal ausgeliefert; die Radaransicht lädt ihre Karten- und Niederschlagsbilder über die Integration. Messungen erhalten ein Thermometer-Symbol; Bewölkung/Regen werden ausschließlich aus der Vorhersage übernommen. Temperatur und Detailwerte beschreiben den Beginn eines Vorhersagezeitraums; Min/Max beziehen sich auf den ganzen Abschnitt. Wind zeigt die höchste stündliche Geschwindigkeit, Böen das Maximum der überlappenden Stunden. Luftdruck ist auf Meereshöhe bezogen. Fehlende Werte bleiben als „—“ sichtbar.
 
 
 Jeden 3-Stunden-Zeitraum in Wetter am Faltpfeil in seine **Stundenwerte** aufklappen. Die Daten stammen aus den nativen gemessenen Stundenwerten beziehungsweise aus den stündlichen Open-Meteo-Daten. Der laufende Abschnitt ist bis zum gemeinsamen Abfragezeitpunkt auf Ist und Forecast aufgeteilt. Stundenwerte bleiben zunächst eingeklappt und merken sich ihren Zustand bei Reiterwechsel und Aktualisierung. Fehlende Stunden werden nicht aus einem 3-Stunden-Mittel erfunden; Sommer-/Winterzeit folgt den tatsächlichen Stunden.
@@ -136,9 +136,9 @@ type: custom:weather-radar-card
 card_id: regenradar
 ```
 
-Die separate Karte und der Radar-Reiter starten eine Stufe unter dem maximalen Zoom und zentriert auf dem Aufenthaltsort. Die Karte ist weiß; Niederschlag erscheint je nach Stärke in zunehmend dunklem Blau. Das lokale Kartenbild zeigt nur Flüsse, Ländergrenzen und höchstens vier größere Orte. Der Standort bleibt bei jeder Zoomstufe im Kartenmittelpunkt. Zwei Finger vergrößern oder verkleinern die Karte; mit einem Finger bleibt die Seite scrollbar. Standortmarker, Zoom, Zeitregler und Animation kommen aus HA UI Kit 1.16.0. Der Hintergrund und die Legende entstehen ohne Netzwerkabruf.
+Die separate Karte und der Radar-Reiter starten eine Stufe unter dem maximalen Zoom und zentriert auf dem Aufenthaltsort. Die Karte ist weiß; Niederschlag erscheint je nach Stärke in zunehmend dunklem Blau. Das lokale Kartenbild zeigt nur Flüsse, Ländergrenzen und höchstens vier größere Orte. Der Standort bleibt bei jeder Zoomstufe im Kartenmittelpunkt. Zwei Finger vergrößern oder verkleinern die Karte; mit einem Finger bleibt die Seite scrollbar. Standortmarker, Zoom, Zeitregler und Animation kommen aus HA UI Kit 1.16.1. Der Hintergrund und die Legende entstehen ohne Netzwerkabruf.
 
-DWD-RV-Daten kommen direkt vom [offiziellen Open-Data-Server](https://opendata.dwd.de/weather/radar/composite/rv/). Die Integration verarbeitet ODIM-HDF5-Dateien lokal mit der Projektion, Skalierung und Gültigkeit aus den Dateien. Fünf-Minuten-Niederschlagshöhen werden in mm/h umgerechnet. Es werden die letzten zwei Stunden dargestellt. Die Vorschau lässt sich zwischen einer Stunde in 5-Minuten-Schritten und zwölf Stunden in 30-Minuten-Schritten wechseln. Die erste Stunde nutzt Radar-Nowcast, danach wird die Niederschlagsrate des DWD-Modells ICON-D2-RUC verwendet und als Modellvorhersage gekennzeichnet. Prognosen kommen aus dem DWD-Lauf, nicht aus einer eigenen Verschiebung der Messdaten. Die räumliche Auflösung beträgt 1 km. Die Zeitleiste nennt Bildzeit und Quelle Messung/Vorhersage; Schraffuren kennzeichnen Datenlücken.
+DWD-RV-Daten kommen direkt vom [offiziellen Open-Data-Server](https://opendata.dwd.de/weather/radar/composite/rv/). Die Integration verarbeitet ODIM-HDF5-Dateien lokal mit der Projektion, Skalierung und Gültigkeit aus den Dateien. Fünf-Minuten-Niederschlagshöhen werden in mm/h umgerechnet. Es werden die letzten zwei Stunden dargestellt. Die durchgehende Vorschau zeigt die erste Stunde in 5-Minuten-Schritten und danach bis zwölf Stunden in 30-Minuten-Schritten. Die Umstellung erfolgt automatisch in derselben Zeitleiste. Die erste Stunde nutzt Radar-Nowcast, danach wird die Niederschlagsrate des DWD-Modells ICON-D2-RUC verwendet und als Modellvorhersage gekennzeichnet. Prognosen kommen aus dem DWD-Lauf, nicht aus einer eigenen Verschiebung der Messdaten. Die räumliche Auflösung beträgt 1 km. Die Zeitleiste nennt Bildzeit und Quelle Messung/Vorhersage; Schraffuren kennzeichnen Datenlücken.
 
 Die Kartengrundlage ist sofort lokal verfügbar; neue Radardaten und der Ortsname laden unabhängig. Der gemeinsame Vorhersagelauf ersetzt viele langsame WMS-Abfragen. Öffentliche Rohdaten werden beim Start vorbereitet und begrenzt zwischengespeichert (bis 64 MB Rohdaten im Speicher, bis 128 MB auf Festplatte unter `.storage/weather_analysis.radar`). Die Hintergrundhistorie wird vorbereitet. Das erste vollständige Einlesen einer noch nicht vorhandenen Historie hängt von der DWD-Verbindung ab. Nutzerstandorte werden nicht in diesem Cache gespeichert. Bei Ausfällen erscheinen keine erfundenen trockenen Bilder.
 

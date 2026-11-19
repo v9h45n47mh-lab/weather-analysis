@@ -1,10 +1,10 @@
 import {UI_CSS, UI_VERSION, navigation, section, row, button, iconButton, selectField,
   field, notice, versionInfo, bindUI, escapeHtml as esc, accountTile, accountTiles,
-  statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle, weatherList, panelHeader, statusBadge} from './family-ui/1.16.0/family-ui.js';
+  statisticsTable, filterButton, multiSelect, dateNavigation, orderHandle, weatherList, panelHeader, statusBadge} from './family-ui/1.16.1/family-ui.js';
 
 import {RadarController} from './radar-controller.js';
 
-const VERSION = '1.17.0';
+const VERSION = '1.17.1';
 const PERIODS = [['day','Tag'],['week','Woche'],['month','Monat'],['custom','Zeitraum']];
 const SENSOR_TYPES={temperature:{list:'entities',single:'entity',source:'_sensors',id:'wa-sensors',label:'Thermometer',title:'Temperatur'},wind:{list:'wind_entities',single:'wind_entity',source:'_windSensors',id:'wa-wind-sensors',label:'Windsensoren',title:'Wind'},illuminance:{list:'illuminance_entities',single:'illuminance_entity',source:'_illuminanceSensors',id:'wa-illuminance-sensors',label:'Helligkeitssensoren',title:'Helligkeit'}};
 const WEATHER_SENSOR_KINDS=['temperature','wind'];

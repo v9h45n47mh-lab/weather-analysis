@@ -13,7 +13,7 @@ from radar_test_package import radar as r,radar_data as d
 from radar_test_package.radar_store import RawRadarStore
 NOW=int(datetime(2026,11,19,12,tzinfo=timezone.utc).timestamp())
 PROJECTION='+proj=stere +lat_ts=60 +lat_0=90 +lon_0=10 +x_0=543196.83521776402 +y_0=3622588.8619310022 +units=m +a=6378137 +b=6356752.3142451802 +no_defs'
-SCALE=json.loads((root/'frontend/family-ui/1.16.0/radar-scale.json').read_text())
+SCALE=json.loads((root/'frontend/family-ui/1.16.1/radar-scale.json').read_text())
 def hdf(reference=NOW-600,lead=0,quantity='ACRR'):
  values=np.asarray([[0,1001,4294967295,1]]*4,dtype='uint32');height,width=values.shape;out=io.BytesIO()
  inverse=Transformer.from_crs(PROJECTION,'EPSG:4326',always_xy=True)
