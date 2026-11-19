@@ -1,3 +1,14 @@
+## 1.15.0
+
+- Durchschnittliche Ist-Werte in der Wetterübersicht ohne ≈-Zeichen.
+
+- Neues standortabhängiges Regenradar als eigener Reiter und separate Lovelace-Karte `custom:weather-radar-card`.
+- DWD RV: letzte zwei Stunden Messhistorie und nächste Stunde Vorhersage in Fünf-Minuten-Schritten. Abspielen/Pause, Einzelbildnavigation, Zeitregler, Zoom und Standortmarker auf BKG-Karte.
+- Messung und Vorhersage bleiben ausdrücklich getrennt; exakte lokale Bildzeit, letzter Messstand, Original-DWD-Farbskala und Quellenangaben. Fehlende oder veraltete Bilder werden nicht als trockene Wetterlage dargestellt.
+- Standort folgt derselben HA-Person-/Heim-WLAN-Logik wie Wetter; keine zusätzliche automatische Standortfreigabe.
+- Alle Hauptreiter verwenden passende gemeinsame Symbole mit Tooltips und zugänglichen Beschriftungen. Wetter bleibt Startreiter.
+- HA UI Kit auf die neue veröffentlichte Version 1.13.0 mit gemeinsamem Radarbaustein und Wetter-, Warnungs-, Radar- und Windsymbolen aktualisiert.
+
 ## 1.14.0
 
 - Neuer Reiter Warnungen: amtliche DWD-Wetterwarnungen anhand des ermittelten Standorts mit Warnstufe, Gültigkeit, Warngebiet und Hinweisen. Räumliche Filterung über den offiziellen DWD-Gemeindewarnungsdienst, Quelle und Abrufstand in der Karte.

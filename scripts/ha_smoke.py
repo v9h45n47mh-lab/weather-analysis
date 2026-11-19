@@ -45,7 +45,7 @@ async def main():
             assert result["type"]=="create_entry",result
             assert result["title"]=="Weather Analysis",result
             await hass.async_block_till_done()
-            from custom_components.weather_analysis import ensure_manager, user_position, ws_location, on_home_wifi, ws_save_network, ws_network, ws_warnings
+            from custom_components.weather_analysis import ensure_manager, user_position, ws_location, on_home_wifi, ws_save_network, ws_network, ws_warnings, ws_radar, ws_radar_image
             # Native HA states and permission objects; no network or actual user coordinates.
             hass.states.async_set("device_tracker.gps_test","not_home",{"source_type":"gps","latitude":53.55,"longitude":10})
             hass.states.async_set("person.gps_test","not_home",{"user_id":"gps-test","device_trackers":["device_tracker.gps_test"],"source":"device_tracker.gps_test"})
@@ -97,6 +97,25 @@ async def main():
             ws_warnings(hass,conn,{"id":5})
             await asyncio.wait_for(saved.wait(),10)
             assert responses[-1]["warnings"]["status"]=="ok"
+            async def radar_get(*args):return {"status":"ok","token":"native-smoke"}
+            async def radar_image(*args):return "data:image/png;base64,AAAA"
+            hass.data["weather_analysis_radar"]=SimpleNamespace(get=radar_get,image=radar_image)
+            saved.clear()
+            def radar_result(request,data):
+                responses.append(data)
+                if request==6:saved.set()
+            conn.send_result=radar_result
+            ws_radar(hass,conn,{"id":6,"zoom":1})
+            await asyncio.wait_for(saved.wait(),10)
+            assert responses[-1]["radar"]["status"]=="ok"
+            saved.clear()
+            def image_result(request,data):
+                responses.append(data)
+                if request==7:saved.set()
+            conn.send_result=image_result
+            ws_radar_image(hass,conn,{"id":7,"token":"native-smoke","kind":"frame","index":0})
+            await asyncio.wait_for(saved.wait(),10)
+            assert responses[-1]["image"].startswith("data:image/png")
             ws_location(hass,conn,{"id":2,"card_id":"wifi-smoke"})
             await hass.async_block_till_done()
             assert responses[-1]["location"]["is_home"]
@@ -108,7 +127,7 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.14.0",data
+            assert data["version"]=="1.15.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data

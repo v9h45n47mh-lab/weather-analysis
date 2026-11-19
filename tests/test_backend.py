@@ -31,7 +31,7 @@ class Store:
 
 
 module("probatio", Required=lambda x, **kw:x, Optional=lambda x, **kw:x,
-       Schema=Schema, All=Schema, Coerce=Schema, Range=Schema, Length=Schema)
+       Schema=Schema, All=Schema, Coerce=Schema, Range=Schema, Length=Schema, In=Schema)
 module("homeassistant")
 module("homeassistant.auth"); module("homeassistant.auth.permissions")
 module("homeassistant.auth.permissions.const", POLICY_READ="read")
@@ -119,6 +119,21 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.states[ssid_entity]=SimpleNamespace(entity_id=ssid_entity,name=ssid_entity,state=ssid,last_updated=now,attributes={})
         for entity,uid in [(tracker,"tracker-id"),(ssid_entity,unique)]:
             self.hass.registry.entities[entity]=SimpleNamespace(entity_id=entity,device_id=device,unique_id=uid,platform="mobile_app")
+
+    async def test_radar_ws_reuses_home_location_and_authenticated_owner(self):
+        self.add_wifi_registry()
+        self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Home WiFi"]}
+        provider=SimpleNamespace(get=AsyncMock(return_value={"status":"ok","token":"opaque"}),image=AsyncMock(return_value="data:image/png;base64,AAAA"))
+        self.hass.data[backend.DOMAIN+"_radar"]=provider
+        conn=Connection()
+        await backend.ws_radar(self.hass,conn,{"id":1,"latitude":53.55,"longitude":10,"zoom":2})
+        provider.get.assert_awaited_with("test-user",49.3806,8.3039,2)
+        self.assertEqual(conn.results[-1][1]["location"]["via"],"home_wifi")
+        await backend.ws_radar_image(self.hass,conn,{"id":2,"token":"opaque","kind":"frame","index":3})
+        provider.image.assert_awaited_with("test-user","opaque","frame",3)
+        provider.image.side_effect=backend.RadarUnavailable("Bild fehlt")
+        await backend.ws_radar_image(self.hass,conn,{"id":3,"token":"opaque","kind":"frame","index":3})
+        self.assertEqual(conn.errors[-1][1],"radar_unavailable")
 
     async def test_dwd_warnings_use_current_location_and_handle_outage(self):
         self.add_wifi_registry()

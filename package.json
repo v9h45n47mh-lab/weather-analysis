@@ -1,10 +1,10 @@
 {
   "name": "weather-analysis",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node --check custom_components/weather_analysis/frontend/weather-analysis-card.js",
+    "build": "node --check custom_components/weather_analysis/frontend/weather-analysis-card.js && node --check custom_components/weather_analysis/frontend/radar-controller.js",
     "check": "python3 scripts/check.py",
     "test": "python3 -m unittest discover -s tests -p 'test_*.py' -v",
     "test:browser": "node tests/browser.cjs",

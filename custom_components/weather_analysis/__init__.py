@@ -32,6 +32,7 @@ from homeassistant.helpers.recorder import get_instance
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from .radar import RadarClient, RadarUnavailable
 from .forecast import ForecastClient, ForecastUnavailable
 from .location import LocationClient, coordinates, fallback, home_location
 from .warnings import WarningsClient, WarningsUnavailable, SOURCE_URL as DWD_SOURCE_URL
@@ -40,7 +41,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.14.0"
+VERSION = "1.15.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -68,7 +69,7 @@ async def async_setup(hass, config):
         StaticPathConfig("/weather-analysis", str(Path(__file__).parent / "frontend"), False)
     ])
     frontend.add_extra_js_url(hass, f"/weather-analysis/weather-analysis-card.js?v={VERSION}")
-    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location, ws_save_network, ws_network, ws_warnings):
+    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location, ws_save_network, ws_network, ws_warnings, ws_radar, ws_radar_image):
         websocket_api.async_register_command(hass, command)
     return True
 
@@ -652,6 +653,31 @@ async def resolve_user_location(hass,connection,msg):
     if on_home_wifi(hass,connection):return home_location()
     point=coordinates(msg.get("latitude"),msg.get("longitude")) if "latitude" in msg or "longitude" in msg else user_position(hass,connection)
     return await resolve_place(hass,*point) if point else fallback()
+
+
+@websocket_api.websocket_command({vol.Required("type"):"weather_analysis/radar",
+    vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float),
+    vol.Optional("zoom",default=1):vol.All(vol.Coerce(int),vol.Range(min=0,max=3))})
+@websocket_api.async_response
+async def ws_radar(hass,connection,msg):
+    try:
+        location=await resolve_user_location(hass,connection,msg)
+        client=hass.data.setdefault(DOMAIN+"_radar",RadarClient(hass))
+        result=await client.get(connection.user.id,location["latitude"],location["longitude"],msg.get("zoom",1))
+        connection.send_result(msg["id"],{"radar":result,"radar_error":None,"location":location,"credits":{"dwd":"https://www.dwd.de/","bkg":"https://www.bkg.bund.de","license":"https://www.govdata.de/dl-de/by-2-0","sources":"https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_topplusopen.html"}})
+    except ValueError as error:connection.send_error(msg["id"],"invalid_location",str(error))
+    except RadarUnavailable as error:connection.send_result(msg["id"],{"radar":None,"radar_error":str(error),"location":location})
+
+
+@websocket_api.websocket_command({vol.Required("type"):"weather_analysis/radar_image",vol.Required("token"):str,
+    vol.Required("kind"):vol.In(("frame","base","legend")),vol.Optional("index",default=0):vol.All(vol.Coerce(int),vol.Range(min=0,max=40))})
+@websocket_api.async_response
+async def ws_radar_image(hass,connection,msg):
+    try:
+        client=hass.data.setdefault(DOMAIN+"_radar",RadarClient(hass))
+        image=await client.image(connection.user.id,msg["token"],msg["kind"],msg.get("index",0))
+        connection.send_result(msg["id"],{"image":image})
+    except (ValueError,RadarUnavailable) as error:connection.send_error(msg["id"],"radar_unavailable",str(error))
 
 
 @websocket_api.websocket_command({vol.Required("type"):"weather_analysis/warnings",

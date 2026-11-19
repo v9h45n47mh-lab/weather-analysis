@@ -184,7 +184,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.doesNotMatch(await card().locator('main').innerText(),/\blx\b|Helligkeit|67459/);
   assert.equal(await page.evaluate(()=>demo.calls.filter(c=>c.type==='weather_analysis/dashboard').some(c=>c.illuminance_entity)),false);
   assert.equal(await card().locator('.fui-account-tile').count(),0);
-  assert.equal(await card().locator('[data-page="dashboard"]').innerText(),'Wetter');
+  assert.equal(await card().locator('[data-page="dashboard"]').getAttribute('aria-label'),'Wetter');
   assert.equal(await card().locator('.wa-title,#wa-active-sensor,.wa-periods,.wa-range').count(),0);
   await page.waitForFunction(()=>demo.card._forecast&&!demo.card._busy);
   await page.evaluate(()=>demo.forecastDelay=0);
@@ -328,11 +328,11 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await page.evaluate(()=>demo.gapEntity=null);await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing&&demo.card._data&&demo.card._comparisonData);
   for(const width of [1100,390,320])for(const dark of [false,true]){
    await page.setViewportSize({width,height:1100});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
-   for(const view of ['temperature','wind','illuminance','dashboard','warnings','settings']){
+   for(const view of ['temperature','wind','illuminance','dashboard','warnings','radar','settings']){
     await card().locator('[data-page="'+view+'"]').click();
-    if(!['settings','dashboard','warnings'].includes(view)){await card().locator('#wa-current').waitFor();await action('period').filter({hasText:'Tag',exact:true}).click();await card().locator('#wa-current').waitFor();assert(await action('next-day').isDisabled());}
+    if(!['settings','dashboard','warnings','radar'].includes(view)){await card().locator('#wa-current').waitFor();await action('period').filter({hasText:'Tag',exact:true}).click();await card().locator('#wa-current').waitFor();assert(await action('next-day').isDisabled());}
     assert.equal(await card().locator('.card-top [data-action="reload"]').count(),1);
-    if(!['settings','dashboard','warnings'].includes(view)){const select=await card().locator('#wa-active-sensor').boundingBox(),title=await card().locator('.wa-title').boundingBox();assert(select.width<=151);assert(Math.abs(select.x-title.x)<2);assert.equal(await card().locator('.wa-series').count(),2);assert.equal(await card().locator('#wa-months-content,#wa-measurements-content').count(),0);}
+    if(!['settings','dashboard','warnings','radar'].includes(view)){const select=await card().locator('#wa-active-sensor').boundingBox(),title=await card().locator('.wa-title').boundingBox();assert(select.width<=151);assert(Math.abs(select.x-title.x)<2);assert.equal(await card().locator('.wa-series').count(),2);assert.equal(await card().locator('#wa-months-content,#wa-measurements-content').count(),0);}
     if(view==='dashboard'){await page.waitForFunction(()=>demo.card._dashboard&&!demo.card._busy);assert.equal(await card().locator('.fui-account-tile').count(),0);
       assert.doesNotMatch(await card().locator('main').innerText(),/\blx\b|Helligkeit|67459/);
       assert.equal(await card().locator('#wa-dashboard-forecast-content,.wa-range').count(),0);
@@ -350,16 +350,18 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
       await page.screenshot({path:path.join(screens,'weather-hours-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
       await hourControl.click();
 
+      assert.doesNotMatch(await card().locator('#wa-weather-actual-content').innerText(),/≈/);
       assert.equal(await card().locator('[data-weather-kind="actual"][data-start]').first().evaluate(el=>getComputedStyle(el).color),'rgb(2, 119, 189)');
       assert.equal(await card().locator('[data-weather-kind="forecast"]').first().evaluate(el=>getComputedStyle(el).color),'rgb(0, 0, 0)');
       assert.equal(await card().locator('[data-weather-kind="forecast"] small').first().evaluate(el=>getComputedStyle(el).color),'rgb(0, 0, 0)');
       assert.equal(await card().locator('.fui-weather-list').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');assert.equal(await card().locator('#wa-forecast-1-content .fui-weather-period').count(),8);}
+    if(view==='radar'){await page.waitForFunction(()=>demo.card._radar?.status==='ok'&&!demo.card._busy&&demo.card._radarBase&&demo.card._radarImage);assert.match(await card().locator('.fui-radar-time').innerText(),/Messung/);assert.equal(await card().locator('.fui-radar-marker').count(),1);}
     if(view==='warnings'){await page.waitForFunction(()=>demo.card._warnings&&!demo.card._busy);assert.match(await card().locator('main').innerText(),/Sturmböen.*Dauerregen/s);}
     await page.mouse.move(0,0);
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
    }
-   assert.match(await card().locator('.version-info').innerText(),/1\.12\.0/);
+   assert.match(await card().locator('.version-info').innerText(),/1\.13\.0/);
   }
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
   assert.match(await card().locator('#wa-current').innerText(),/1.235/);assert.match(await card().locator('#wa-current').innerText(),/lx/);assert.equal(await card().getByText('Temperaturspanne',{exact:true}).count(),0);
@@ -721,6 +723,36 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await detailPage.evaluate(()=>sessionStorage.setItem('test-no-gps','1'));await detailPage.reload();await detailPage.waitForFunction(()=>demo.card._forecast&&!demo.card._busy);
   assert.equal(await detailPage.evaluate(()=>geoProbe.queries+geoProbe.watches),0,'Explicit HA preference survives a restart even when the tracker is temporarily missing');
   await detailPage.close();
+  // Shared radar controls and separate card: image times, playback, focus, failures and location.
+  const radarPage=await browser.newPage({viewport:{width:390,height:900}});radarPage.on('pageerror',error=>errors.push(error.message));await radarPage.addInitScript(freezeDate);await radarPage.goto('http://127.0.0.1:'+server.address().port);
+  const radarCard=radarPage.locator('weather-analysis-card');await radarCard.locator('[data-page="radar"]').click();
+  await radarPage.waitForFunction(()=>demo.card._radarImage&&demo.card._radarBase&&!demo.card._busy);
+  assert.deepEqual(await radarCard.locator('nav [data-page]').evaluateAll(items=>items.map(el=>[el.getAttribute('aria-label'),el.title,el.querySelector('svg').dataset.icon])),[['Wetter','Wetter','weather'],['Warnungen','Warnungen','warning'],['Regenradar','Regenradar','radar'],['Temperatur','Temperatur','temperature'],['Wind','Wind','wind'],['Helligkeit','Helligkeit','illuminance']]);
+  assert.equal(await radarCard.locator('nav').innerText(),'');
+  assert(await radarPage.evaluate(()=>demo.card._radar.frames.at(0).time<=Date.now()/1000-7200&&demo.card._radar.frames.at(-1).time>=Date.now()/1000+3600));
+  assert.equal(await radarCard.locator('.fui-panel-header strong').innerText(),'Böhl-Iggelheim');
+  const slider=radarCard.getByRole('slider',{name:'Radarzeitpunkt'});await slider.focus();await slider.press('End');
+  await radarPage.waitForFunction(()=>!demo.card._radarFrameBusy&&demo.card._radarIndex===demo.card._radar.frames.length-1);
+  assert.match(await radarCard.locator('.fui-radar-time').innerText(),/Vorhersage/);assert(await slider.evaluate(el=>el.getRootNode().activeElement===el));
+  await slider.press('Home');await radarPage.waitForFunction(()=>demo.card._radarIndex===0&&!demo.card._radarFrameBusy);assert.match(await radarCard.locator('.fui-radar-time').innerText(),/Messung/);
+  await radarCard.getByRole('button',{name:'Radar abspielen',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radarIndex>=1);
+  await radarCard.getByRole('button',{name:'Radar anhalten',exact:true}).click();const paused=await radarPage.evaluate(()=>demo.card._radarIndex);await radarPage.waitForTimeout(850);assert.equal(await radarPage.evaluate(()=>demo.card._radarIndex),paused);
+  await radarCard.getByRole('button',{name:'Vergrößern',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radar?.zoom===2&&demo.card._radarImage&&!demo.card._busy);
+  assert(await radarPage.evaluate(()=>demo.calls.some(c=>c.type==='weather_analysis/radar'&&c.zoom===2)));
+  await radarPage.evaluate(()=>{demo.radarFrameFailure=true;demo.card._radarImages.clear();return demo.card._showRadarFrame(0);});
+  assert.match(await radarCard.locator('.fui-radar-message').innerText(),/nicht verfügbar/);assert.equal(await radarCard.locator('.fui-radar-overlay').isVisible(),false);
+  await radarPage.evaluate(()=>{demo.radarFrameFailure=false;return demo.card._showRadarFrame(0);});
+  assert.equal(await radarCard.locator('.fui-radar-overlay').isVisible(),true);
+  await radarPage.evaluate(()=>{demo.radarMode='error';return demo.card._fetchRadar();});assert.match(await radarCard.locator('main').innerText(),/DWD-Radar nicht erreichbar/);assert.equal(await radarCard.locator('.fui-radar').count(),0);
+  await radarPage.evaluate(()=>{demo.radarMode='ok';Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:35.68,longitude:139.69});demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);return demo.card._fetchRadar();});
+  assert.match(await radarCard.locator('main').innerText(),/außerhalb des DWD-Radargebiets/);assert.equal(await radarCard.locator('.fui-panel-header strong').innerText(),'Tokio');
+  await radarPage.evaluate(()=>{Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:49.38,longitude:8.3});demo.card.hass=demo.hass;const standalone=document.createElement('weather-radar-card');standalone.setConfig({type:'custom:weather-radar-card',card_id:'standalone-test'});standalone.hass=demo.hass;document.body.append(standalone);window.standaloneRadar=standalone;});
+  const standalone=radarPage.locator('weather-radar-card');await radarPage.waitForFunction(()=>standaloneRadar._radarImage&&!standaloneRadar._busy);
+  assert.equal(await standalone.locator('nav [data-page]').count(),1);assert.equal(await standalone.locator('[data-page="radar"]').getAttribute('aria-current'),'page');
+  await standalone.locator('[data-page="settings"]').click();assert.equal(await standalone.locator('#wa-card-settings-content').count(),0);assert.equal(await standalone.locator('#wa-location-settings').count(),1);
+  await standalone.getByRole('button',{name:'Zurück',exact:true}).click();await radarPage.waitForFunction(()=>standaloneRadar.page==='radar'&&standaloneRadar._radarImage&&!standaloneRadar._busy);
+  await standalone.screenshot({path:path.join(screens,'radar-standalone-mobile.png')});
+  await radarPage.evaluate(()=>standaloneRadar.remove());assert.equal(await radarPage.evaluate(()=>standaloneRadar._radarTimer),null);assert.equal(await radarPage.evaluate(()=>standaloneRadar._radar),null);await radarPage.close();
   // Touch must preserve the touched time label, including a live-data refresh.
   const foldTouchContext=await browser.newContext({viewport:{width:390,height:750},isMobile:true,hasTouch:true});
   const foldTouch=await foldTouchContext.newPage();foldTouch.on('pageerror',error=>errors.push(error.message));await foldTouch.addInitScript(freezeDate);await foldTouch.goto('http://127.0.0.1:'+server.address().port);
@@ -728,7 +760,11 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   const touchedTime=foldTouch.locator('weather-analysis-card').locator('#wa-forecast-1-content .fui-weather-period-toggle').nth(3);
   await touchedTime.evaluate(el=>el.scrollIntoView({block:'center'}));const touchBefore=await measure(touchedTime);await touchedTime.tap();samePosition(touchBefore,await measure(touchedTime));
   await foldTouch.evaluate(()=>demo.card._fetchDashboard());samePosition(touchBefore,await measure(touchedTime));await touchedTime.tap();samePosition(touchBefore,await measure(touchedTime));
-  await foldTouch.screenshot({path:path.join(screens,'stable-hour-touch.png')});await foldTouchContext.close();
+  await foldTouch.screenshot({path:path.join(screens,'stable-hour-touch.png')});
+  const touchRadar=foldTouch.locator('weather-analysis-card');await touchRadar.locator('[data-page="radar"]').tap();await foldTouch.waitForFunction(()=>demo.card._radarImage&&!demo.card._busy);
+  const touchSlider=touchRadar.getByRole('slider',{name:'Radarzeitpunkt'});await touchSlider.scrollIntoViewIfNeeded();const sliderBox=await touchSlider.boundingBox();
+  await foldTouch.touchscreen.tap(sliderBox.x+sliderBox.width-8,sliderBox.y+sliderBox.height/2);await foldTouch.waitForFunction(()=>demo.card._radarIndex>=demo.card._radar.frames.length-3&&!demo.card._radarFrameBusy);
+  assert.match(await touchRadar.locator('.fui-radar-time').innerText(),/Vorhersage/);await touchRadar.screenshot({path:path.join(screens,'radar-touch.png')});await foldTouchContext.close();
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:fs.readdirSync(screens).filter(name=>name.endsWith(".png")).length,errors},null,2));
   console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards, per-user GPS home/away/unknown/device permission/cleanup/races and 3 widths × 2 themes.');

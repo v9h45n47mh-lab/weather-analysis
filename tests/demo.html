@@ -4,6 +4,7 @@
 <script type="module">
 import '/custom_components/weather_analysis/frontend/weather-analysis-card.js';
 const saved=new Map(),calls=[];
+const radarImages=await (await fetch('/tests/radar-fixtures.json')).json();
 const sensors=[{entity_id:'sensor.garden',name:'Garten · Außentemperatur'},{entity_id:'sensor.north',name:'Nordseite'}];
 const illuminanceSensors=[{entity_id:'sensor.lux',name:'Garten · Illumination'},{entity_id:'sensor.lux2',name:'Dach · Illumination'}];
 const windSensors=[{entity_id:'sensor.wind',name:'Garten · Anemometer'},{entity_id:'sensor.wind2',name:'Dach · Anemometer'}];
@@ -18,7 +19,7 @@ const fixture=msg=>{
  let chart=Array.from({length:count},(_,i)=>({start:start+interval*i,end:Math.min(end,start+interval*(i+1)),resolution:interval,mean:8+offset+4*Math.sin(i/5),min:6+offset+4*Math.sin(i/5),max:10+offset+4*Math.sin(i/5)}));
  if(demo.gapEntity===msg.entity_id)chart=chart.filter((point,index)=>index<5||index>8);
  const days=Array.from({length:Math.min(31,Math.max(1,Math.ceil((end-start)/86400)))},(_,i)=>{const d=new Date(start*1000+i*86400000);return {date:new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin'}).format(d),seconds:86400,mean:8+i/10,min:-2+i/10,max:26+i/10,complete:true};});
- return {version:'1.14.0',kind:wind?'wind':lux?'illuminance':'temperature',unit:wind?'km/h':lux?'lx':'°C',entity_id:msg.entity_id,name:[...sensors,...windSensors,...illuminanceSensors].find(s=>s.entity_id===msg.entity_id)?.name||'Garten',timezone:'Europe/Berlin',current:wind?(secondary?28.8:18):lux?(secondary?3456.7:1234.6):11.4,last_updated:Date.now()/1000,start,end,display_end:requestedEnd,window:msg.window||null,partial:end<requestedEnd,
+ return {version:'1.15.0',kind:wind?'wind':lux?'illuminance':'temperature',unit:wind?'km/h':lux?'lx':'°C',entity_id:msg.entity_id,name:[...sensors,...windSensors,...illuminanceSensors].find(s=>s.entity_id===msg.entity_id)?.name||'Garten',timezone:'Europe/Berlin',current:wind?(secondary?28.8:18):lux?(secondary?3456.7:1234.6):11.4,last_updated:Date.now()/1000,start,end,display_end:requestedEnd,window:msg.window||null,partial:end<requestedEnd,
   summary:{mean:lux?35.4:8.1+offset,min:lux?12.4:-2+offset,max:lux?56.6:26+offset,range:lux?44.2:28,min_at:start+3600,max_at:start+18000,estimated:true,seconds:end-start,exact_seconds:3600,coverage:.97,duration_coverage:.42,frost_hours:2.3,warm_hours:.6,hot_hours:0,frost_days:1,warm_days:1,hot_days:0,heating_degree_days:24.7,heating_days:2,days},chart,chart_daily:interval===86400,chart_interval:interval,chart_fallback:false,
   comparisons:{previous:{mean:7.3,coverage:.97,delta:.8},year:{mean:9.4,coverage:.94,delta:-1.3}},trends:{hour:.8,three_hours:1.6,yesterday:-1.2},records:{min:{value:-12.3,at:null},max:{value:37.2,at:start-86400}},archive_since:start};
 };
@@ -37,7 +38,7 @@ const forecastFixture=(as_of=Date.now()/1000,location=locationFixture())=>{
    return {...record(start,end),wind_speed:12+i,wind_gusts:42,hours};
   }).filter(slot=>slot.end>now)}))};
 };
-const demo=window.demo={calls,saved,sensors,windSensors,illuminanceSensors,admin:true,fail:false,failSave:false,failForecast:false,forecastDelay:0,locationDelay:0,noGps:sessionStorage.getItem('test-no-gps')==='1',warningMode:'alerts',warningDelay:0,network:{home_ssids:sessionStorage.getItem('test-home-ssid-configured')==='1'?['Home WiFi']:[]},networkDelay:Number(sessionStorage.getItem('test-network-delay')||0),failNetworkCheck:sessionStorage.getItem('test-network-error')==='1',forecastStale:false,failEntity:null,gapEntity:null,empty:false,delayNext:0};
+const demo=window.demo={calls,saved,sensors,windSensors,illuminanceSensors,admin:true,fail:false,failSave:false,failForecast:false,forecastDelay:0,locationDelay:0,noGps:sessionStorage.getItem('test-no-gps')==='1',radarToken:0,radarMode:'ok',radarDelay:0,radarFrameFailure:false,warningMode:'alerts',warningDelay:0,network:{home_ssids:sessionStorage.getItem('test-home-ssid-configured')==='1'?['Home WiFi']:[]},networkDelay:Number(sessionStorage.getItem('test-network-delay')||0),failNetworkCheck:sessionStorage.getItem('test-network-error')==='1',forecastStale:false,failEntity:null,gapEntity:null,empty:false,delayNext:0};
 const hass=demo.hass={user:{id:'test-user'},states:{'sensor.phone_ssid':{entity_id:'sensor.phone_ssid',state:sessionStorage.getItem('test-home-wifi')==='1'?'Home WiFi':'Hotel WiFi',attributes:{friendly_name:'Phone SSID'}},'device_tracker.router_phone':{entity_id:'device_tracker.router_phone',state:'not_home',attributes:{source_type:'router'}},'person.test_user':{entity_id:'person.test_user',state:'home',attributes:{user_id:'test-user',device_trackers:['device_tracker.phone','device_tracker.router_phone'],source:'device_tracker.phone'}},'device_tracker.phone':{entity_id:'device_tracker.phone',state:'home',last_updated:new Date().toISOString(),attributes:{source_type:'gps',latitude:49.3806,longitude:8.3039}},'sensor.garden':{entity_id:'sensor.garden',state:'11.4',last_updated:new Date().toISOString(),attributes:{friendly_name:sensors[0].name,unit_of_measurement:'°C'}},'sensor.lux2':{entity_id:'sensor.lux2',state:'3456.7',attributes:{friendly_name:'Dach · Illumination',device_class:'illuminance',unit_of_measurement:'lx'}},'sensor.wind2':{entity_id:'sensor.wind2',state:'8',attributes:{friendly_name:'Dach · Anemometer',device_class:'wind_speed',unit_of_measurement:'m/s'}},'sensor.lux':{entity_id:'sensor.lux',state:'1234',attributes:{friendly_name:illuminanceSensors[0].name,device_class:'illuminance',unit_of_measurement:'lx'}},'sensor.wind':{entity_id:'sensor.wind',state:'5',attributes:{friendly_name:windSensors[0].name,device_class:'wind_speed',unit_of_measurement:'m/s'}},'sensor.north':{entity_id:'sensor.north',state:'9.7',attributes:{friendly_name:'Nordseite',unit_of_measurement:'°C'}}},async callWS(msg){
  calls.push(structuredClone(msg));
  if(demo.fail)throw new Error('Verbindung unterbrochen – bitte erneut versuchen.');
@@ -49,6 +50,17 @@ const hass=demo.hass={user:{id:'test-user'},states:{'sensor.phone_ssid':{entity_
   return {location,location_error:demo.noGps&&!home&&!('latitude' in msg)?'Kein GPS-Standort verfügbar. Angezeigt wird die Vorhersage für Böhl-Iggelheim.':null};
  }
  if(msg.type==='weather_analysis/forecast'){if(demo.forecastDelay)await new Promise(resolve=>setTimeout(resolve,demo.forecastDelay));return demo.failForecast?{forecast:null,forecast_error:'Wetterdienst nicht erreichbar.'}:{forecast:{...forecastFixture(msg.as_of,locationFixture(msg.latitude,msg.longitude)),stale:demo.forecastStale},forecast_error:null};}
+ if(msg.type==='weather_analysis/radar'){
+  const place=await hass.callWS({type:'weather_analysis/location',...('latitude' in msg?{latitude:msg.latitude,longitude:msg.longitude}:{})});
+  const now=Date.now()/1000,anchor=Math.floor(now/300)*300,end=Math.ceil((now+3600)/300)*300,latest=anchor-600;
+  const frames=Array.from({length:(end-anchor+7200)/300+1},(_,i)=>({time:anchor-7200+i*300,reference:Math.min(anchor-7200+i*300,latest),kind:anchor-7200+i*300<=latest?'observation':'prediction'}));
+  return {location:place.location,radar_error:demo.radarMode==='error'?'DWD-Radar nicht erreichbar.':null,radar:demo.radarMode==='error'?null:place.location.country_code!=='de'?{status:'outside'}:{status:'ok',token:'test-radar-'+(++demo.radarToken||1),now,frames,latest,zoom:msg.zoom},credits:{dwd:'https://www.dwd.de/',bkg:'https://www.bkg.bund.de',license:'https://www.govdata.de/dl-de/by-2-0',sources:'https://example.org/sources'}};
+ }
+ if(msg.type==='weather_analysis/radar_image'){
+  if(demo.radarDelay)await new Promise(r=>setTimeout(r,demo.radarDelay));
+  if(demo.radarFrameFailure&&msg.kind==='frame')throw new Error('Radarbild nicht verfügbar.');
+  return {image:radarImages[msg.kind==='frame'?'frame':msg.kind]};
+ }
  if(msg.type==='weather_analysis/warnings'){
   const point='latitude' in msg?msg:hass.states['device_tracker.phone'].attributes,home=networkFixture().home_wifi,location=home?{...locationFixture(),via:'home_wifi',position_available:false}:locationFixture(point.latitude,point.longitude);
   const now=Date.now()/1000,alerts=demo.warningMode==='empty'?[]:[{id:'storm-warning',title:'Amtliche Warnung vor Sturmböen',event:'STURM',level:3,level_label:'Unwetter',start:now-3600,end:now+10800,area:'Gemeinde Testort',description:'Synthetische Warnung für die Prüfung.\nZweite Zeile.',instruction:'Testhinweis: Lose Gegenstände sichern.',upcoming:false},{id:'rain-warning',title:'Amtliche Warnung vor Dauerregen',event:'REGEN',level:2,level_label:'Markantes Wetter',start:now+3600,end:now+86400,area:'Gemeinde Testort',description:'Synthetische Vorhersagewarnung.',instruction:'Testhinweis: Hinweise beachten.',upcoming:true}];
@@ -61,12 +73,12 @@ const hass=demo.hass={user:{id:'test-user'},states:{'sensor.phone_ssid':{entity_
   const midnight=new Date(date+'T00:00:00+01:00').getTime()/1000;
   const intervals=Array.from({length:8},(_,i)=>{
    const start=midnight+i*10800,end=Math.min(as_of,start+10800),point=(kind,at=start,hourly=false)=>values[kind]?.[hourly?'hourly':'chart']?.find(p=>p.start===at)||{};
-   const record=(first,last,hourly)=>({start:first,end:last,partial:last-first<(hourly?3600:10800),temperature:point('temperature',first,hourly).mean,temperature_min:point('temperature',first,hourly).min,temperature_max:point('temperature',first,hourly).max,wind_speed:point('wind',first,hourly).mean,wind_max:point('wind',first,hourly).max,estimated:false});
+   const record=(first,last,hourly)=>({start:first,end:last,partial:last-first<(hourly?3600:10800),temperature:point('temperature',first,hourly).mean,temperature_min:point('temperature',first,hourly).min,temperature_max:point('temperature',first,hourly).max,wind_speed:point('wind',first,hourly).mean,wind_max:point('wind',first,hourly).max,estimated:true});
    return {...record(start,end,false),hours:Array.from({length:3},(_,j)=>record(start+j*3600,Math.min(end,start+(j+1)*3600),true)).filter(h=>h.end>h.start)};
   }).filter(slot=>slot.end>slot.start);
   return {date,timezone:'Europe/Berlin',as_of,sensors:values,errors,intervals};
  }
- if(msg.type==='weather_analysis/sensors')return {sensors:demo.empty?[]:sensors,wind_sensors:demo.empty?[]:windSensors,illuminance_sensors:demo.empty?[]:illuminanceSensors,admin:demo.admin,settings:saved.get(msg.card_id)||{},...networkFixture(),timezone:'Europe/Berlin',version:'1.14.0'};
+ if(msg.type==='weather_analysis/sensors')return {sensors:demo.empty?[]:sensors,wind_sensors:demo.empty?[]:windSensors,illuminance_sensors:demo.empty?[]:illuminanceSensors,admin:demo.admin,settings:saved.get(msg.card_id)||{},...networkFixture(),timezone:'Europe/Berlin',version:'1.15.0'};
  if(msg.type==='weather_analysis/import_history')return {count:Object.entries(saved.get(msg.card_id)||{}).filter(([key])=>['entities','wind_entities','illuminance_entities'].includes(key)).reduce((n,[,entities])=>n+entities.length,0),failed:[]};
  if(msg.type==='weather_analysis/save_network'){if(!demo.admin)throw new Error('Keine Berechtigung');demo.network={home_ssids:[...new Set(msg.home_ssids)]};return structuredClone(demo.network);}
  if(msg.type==='weather_analysis/save_card'){if(!demo.admin)throw new Error('Keine Berechtigung');if(demo.failSave)throw new Error('Speichern fehlgeschlagen.');const settings={...msg};delete settings.type;delete settings.card_id;saved.set(msg.card_id,settings);return settings;}
