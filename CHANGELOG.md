@@ -1,3 +1,14 @@
+## 1.16.0
+
+- Radar startet maximal auf den aktuellen Standort gezoomt. Im Heim-WLAN wird ein plausibler konfigurierter HA-Heimstandort zur Markierung verwendet.
+- Sehr reduzierte, lokal gezeichnete Karte: nur Flüsse, Ländergrenzen und höchstens vier Städtenamen. Keine Straßen, Gebäude, Geländedarstellung und keine externen Hintergrundkartenabrufe.
+- DWD-RV-Rohdaten werden direkt geladen und lokal georeferenziert. Ein gemeinsamer Vorhersagelauf liefert alle Zukunftsbilder; die langsame WMS-Kartenerzeugung pro Bild entfällt.
+- Karte und Standortmarker erscheinen während des Datenladens. Der Ortsname wird unabhängig nachgeladen; HA-Standort- und Heim-WLAN-Regeln benötigen weiterhin keine zusätzliche Browserfreigabe.
+- Öffentliche Radardaten werden beim HA-Start vorbereitet und begrenzt im Speicher sowie auf Festplatte zwischengespeichert. Nutzerstandorte werden dabei nicht gespeichert. Historie wird im Hintergrund vorbereitet.
+- Unverändert zwei Stunden Messhistorie und eine Stunde DWD-Vorhersage, getrennte Kennzeichnung und exakte Bildzeiten. Fehlende Daten bleiben erkennbar; Schraffur zeigt fehlende Abdeckung. Die Auflösung der DWD-Rohdaten beträgt 1 km.
+- Abspielen beginnt am ausgewählten Zeitpunkt. Neues HA UI Kit 1.14.0 mit lokalen Radar-Vektorgrafiken und gemeinsamer Niederschlagsskala.
+- Neue Decoder-Bibliotheken werden über die Home-Assistant-Integration installiert: h5py 3.15.1 und pyproj 3.7.2.
+
 ## 1.15.1
 
 - Im Heim-WLAN lösen GPS-Schwankungen kein erneutes Laden des festen Heimstandorts mehr aus.

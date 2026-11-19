@@ -361,7 +361,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
    }
-   assert.match(await card().locator('.version-info').innerText(),/1\.13\.0/);
+   assert.match(await card().locator('.version-info').innerText(),/1\.14\.0/);
   }
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
   assert.match(await card().locator('#wa-current').innerText(),/1.235/);assert.match(await card().locator('#wa-current').innerText(),/lx/);assert.equal(await card().getByText('Temperaturspanne',{exact:true}).count(),0);
@@ -726,7 +726,14 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await detailPage.close();
   // Shared radar controls and separate card: image times, playback, focus, failures and location.
   const radarPage=await browser.newPage({viewport:{width:390,height:900}});radarPage.on('pageerror',error=>errors.push(error.message));await radarPage.addInitScript(freezeDate);await radarPage.goto('http://127.0.0.1:'+server.address().port);
+  await radarPage.evaluate(()=>demo.radarMode='loading');
   const radarCard=radarPage.locator('weather-analysis-card');await radarCard.locator('[data-page="radar"]').click();
+  await radarCard.locator('.fui-radar-marker').waitFor();
+  assert((await radarCard.locator('.fui-radar-base').getAttribute('src')).startsWith('data:image/svg+xml;base64,'));
+  assert.equal(await radarPage.evaluate(()=>demo.calls.filter(c=>c.type==='weather_analysis/radar_image').length),0,'Cold map does not wait for provider images');
+  assert.match(await radarCard.locator('.fui-radar-time').innerText(),/Radardaten laden/);
+  await radarCard.screenshot({path:path.join(screens,'radar-cold-map.png')});
+  await radarPage.evaluate(()=>{demo.radarMode='ok';return demo.card._fetchRadar();});
   await radarPage.waitForFunction(()=>demo.card._radarImage&&demo.card._radarBase&&!demo.card._busy);
   assert.deepEqual(await radarCard.locator('nav [data-page]').evaluateAll(items=>items.map(el=>[el.getAttribute('aria-label'),el.title,el.querySelector('svg').dataset.icon])),[['Wetter','Wetter','weather'],['Warnungen','Warnungen','warning'],['Regenradar','Regenradar','radar'],['Temperatur','Temperatur','temperature'],['Wind','Wind','wind'],['Helligkeit','Helligkeit','illuminance']]);
   assert.equal(await radarCard.locator('nav').innerText(),'');
@@ -745,17 +752,19 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await slider.press('Home');await radarPage.waitForFunction(()=>demo.card._radarIndex===0&&!demo.card._radarFrameBusy);assert.match(await radarCard.locator('.fui-radar-time').innerText(),/Messung/);
   await radarCard.getByRole('button',{name:'Radar abspielen',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radarIndex>=1);
   await radarCard.getByRole('button',{name:'Radar anhalten',exact:true}).click();const paused=await radarPage.evaluate(()=>demo.card._radarIndex);await radarPage.waitForTimeout(850);assert.equal(await radarPage.evaluate(()=>demo.card._radarIndex),paused);
-  await radarCard.getByRole('button',{name:'Vergrößern',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radar?.zoom===2&&demo.card._radarImage&&!demo.card._busy);
+  assert(await radarCard.getByRole('button',{name:'Vergrößern',exact:true}).isDisabled(),'Start at maximum zoom');
+  await radarCard.getByRole('button',{name:'Verkleinern',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radar?.zoom===2&&demo.card._radarImage&&!demo.card._busy);
   assert(await radarPage.evaluate(()=>demo.calls.some(c=>c.type==='weather_analysis/radar'&&c.zoom===2)));
   await radarPage.evaluate(()=>{demo.radarFrameFailure=true;demo.card._radarImages.clear();demo.card._radarCache.clear();return demo.card._showRadarFrame(0);});
   assert.match(await radarCard.locator('.fui-radar-message').innerText(),/nicht verfügbar/);assert.equal(await radarCard.locator('.fui-radar-overlay').isVisible(),false);
   await radarPage.evaluate(()=>{demo.radarFrameFailure=false;return demo.card._showRadarFrame(0);});
   assert.equal(await radarCard.locator('.fui-radar-overlay').isVisible(),true);
-  await radarPage.evaluate(()=>{demo.radarMode='error';return demo.card._fetchRadar();});assert.match(await radarCard.locator('main').innerText(),/DWD-Radar nicht erreichbar/);assert.equal(await radarCard.locator('.fui-radar').count(),0);
+  await radarPage.evaluate(()=>{demo.radarMode='error';return demo.card._fetchRadar();});assert.match(await radarCard.locator('main').innerText(),/DWD-Radar nicht erreichbar/);assert.equal(await radarCard.locator('.fui-radar').count(),1);assert(await radarCard.locator('.fui-radar-marker').isVisible());
   await radarPage.evaluate(()=>{demo.radarMode='ok';Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:35.68,longitude:139.69});demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);return demo.card._fetchRadar();});
   assert.match(await radarCard.locator('main').innerText(),/außerhalb des DWD-Radargebiets/);assert.equal(await radarCard.locator('.fui-panel-header strong').innerText(),'Tokio');
   await radarPage.evaluate(()=>{Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:49.38,longitude:8.3});demo.card.hass=demo.hass;const standalone=document.createElement('weather-radar-card');standalone.setConfig({type:'custom:weather-radar-card',card_id:'standalone-test'});standalone.hass=demo.hass;document.body.append(standalone);window.standaloneRadar=standalone;});
   const standalone=radarPage.locator('weather-radar-card');await radarPage.waitForFunction(()=>standaloneRadar._radarImage&&!standaloneRadar._busy);
+  assert.equal(await radarPage.evaluate(()=>standaloneRadar._radar.zoom),3);assert(await standalone.getByRole('button',{name:'Vergrößern',exact:true}).isDisabled());
   assert.equal(await standalone.locator('nav [data-page]').count(),1);assert.equal(await standalone.locator('[data-page="radar"]').getAttribute('aria-current'),'page');
   await standalone.locator('[data-page="settings"]').click();assert.equal(await standalone.locator('#wa-card-settings-content').count(),0);assert.equal(await standalone.locator('#wa-location-settings-content').count(),1);
   await standalone.getByRole('button',{name:'Zurück',exact:true}).click();await radarPage.waitForFunction(()=>standaloneRadar.page==='radar'&&standaloneRadar._radarImage&&!standaloneRadar._busy);

@@ -135,6 +135,17 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         await backend.ws_radar_image(self.hass,conn,{"id":3,"token":"opaque","kind":"frame","index":3})
         self.assertEqual(conn.errors[-1][1],"radar_unavailable")
 
+    async def test_radar_does_not_block_on_reverse_geocoding(self):
+        self.add_position("test-user","person.test","device_tracker.phone",53.55,10)
+        provider=SimpleNamespace(get=AsyncMock(return_value={"status":"loading","basemap":{}}))
+        self.hass.data[backend.DOMAIN+"_radar"]=provider
+        conn=Connection()
+        with patch.object(backend,"resolve_place",new_callable=AsyncMock) as resolve:
+            await backend.ws_radar(self.hass,conn,{"id":1})
+            resolve.assert_not_awaited()
+        provider.get.assert_awaited_with("test-user",53.55,10.0,3)
+        self.assertEqual(conn.results[-1][1]["location"]["name"],"Aktueller Standort")
+
     async def test_dwd_warnings_use_current_location_and_handle_outage(self):
         self.add_wifi_registry()
         self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Home WiFi"]}

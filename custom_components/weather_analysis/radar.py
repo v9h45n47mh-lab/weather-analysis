@@ -1,145 +1,113 @@
-"""DWD RV analysis/nowcast images on a BKG map, served through authenticated HA WS."""
+"""Fast, location-aware radar using shared DWD raw fields and local graphics."""
 from __future__ import annotations
 import asyncio
 import base64
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime,timezone
+import json
 import math
+from pathlib import Path
 from uuid import uuid4
-import xml.etree.ElementTree as ET
 from .location import coordinates
+from .radar_data import RadarUnavailable,metadata,sampling_grid,render,project_map
+from .radar_store import RawRadarStore,DATA_URL
 
-API_URL = "https://maps.dwd.de/geoserver/ows"
-CAPABILITIES_URL = "https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/wms"
-BASE_URL = "https://sgx.geodatenzentrum.de/wms_topplus_open"
-LAYER = "dwd:Niederschlagsradar"
-NS = {"w":"http://www.opengis.net/wms"}
-PNG = b"\x89PNG\r\n\x1a\n"
-
-class RadarUnavailable(RuntimeError):
-    pass
+MAX_ZOOM=3
+UI_VERSION='1.14.0'
 
 def instant(value):
-    date=datetime.fromisoformat(value.replace("Z","+00:00"))
-    if date.tzinfo is None:raise ValueError("Missing timezone")
+    date=datetime.fromisoformat(value.replace('Z','+00:00'))
+    if date.tzinfo is None:raise ValueError('Missing timezone')
     return int(date.timestamp())
 
-def iso(value):
-    return datetime.fromtimestamp(value,timezone.utc).isoformat().replace("+00:00","Z")
-
-def capabilities(xml):
-    """Read exact analysis runs and dynamic coverage; EPSG:4326 is lat/lon in WMS 1.3."""
-    root=ET.fromstring(xml)
-    layer=next(l for l in root.findall(".//w:Layer",NS) if l.findtext("w:Name",namespaces=NS) in (LAYER,LAYER.split(":")[-1]))
-    dims={d.get("name"):d for d in layer.findall("w:Dimension",NS)}
-    refs={instant(t.strip()) for t in dims["REFERENCE_TIME"].text.split(",")}
-    latest=instant(dims["REFERENCE_TIME"].get("default"))
-    start,end,step=dims["time"].text.strip().split("/")
-    if step!="PT5M" or latest not in refs:raise ValueError("Unexpected DWD time grid")
-    box=next(b for b in layer.findall("w:BoundingBox",NS) if b.get("CRS")=="EPSG:4326")
-    return {"refs":refs,"latest":latest,"first":instant(start),"last":instant(end),
-        "coverage":tuple(float(box.get(k)) for k in ("minx","miny","maxx","maxy"))}
+def iso(value):return datetime.fromtimestamp(value,timezone.utc).isoformat().replace('+00:00','Z')
 
 def frame_window(meta,now):
-    """Five minute instants covering two hours back and at least one hour ahead."""
-    anchor=int(now//300)*300
-    if now-meta["latest"]>2700 or meta["latest"]>now+300:raise RadarUnavailable("DWD-Radardaten sind derzeit zu alt oder nicht verfügbar.")
-    frames=[]
+    reference=meta['reference'];anchor=int(now//300)*300
+    if not 0<=now-reference<=2700:raise RadarUnavailable('DWD-Radardaten sind derzeit zu alt.')
     end=math.ceil((now+3600)/300)*300
-    for valid in range(anchor-7200,end+1,300):
-        if valid<meta["first"] or valid>meta["last"]:continue
-        measured=valid<=meta["latest"]
-        if measured and valid not in meta["refs"]:continue
-        frames.append({"time":valid,"reference":valid if measured else meta["latest"],"kind":"observation" if measured else "prediction"})
-    if not frames or frames[0]["time"]>now-6900 or frames[-1]["time"]<now+3600:
-        raise RadarUnavailable("Der DWD stellt den vollständigen Radarzeitraum derzeit nicht bereit.")
-    return frames
+    if end>reference+7200:raise RadarUnavailable('Der DWD stellt den vollständigen Vorhersagezeitraum noch nicht bereit.')
+    return [{'time':valid,'reference':valid if valid<=reference else reference,'kind':'observation' if valid<=reference else 'prediction'} for valid in range(anchor-7200,end+1,300)]
 
 def map_box(latitude,longitude,zoom):
     lat,lon=coordinates(latitude,longitude)
     x=6378137*math.radians(lon);y=6378137*math.log(math.tan(math.pi/4+math.radians(lat)/2))
     half=125000/(2**(zoom-1))/math.cos(math.radians(lat))
-    return ",".join(f"{v:.2f}" for v in (x-half,y-half,x+half,y+half))
+    return ','.join(f'{v:.2f}' for v in (x-half,y-half,x+half,y+half))
 
-def image_request(window,kind,index=0):
-    params={"service":"WMS","version":"1.3.0","request":"GetMap","crs":"EPSG:3857",
-        "bbox":window["bbox"],"width":512,"height":512,"format":"image/png","styles":""}
-    if kind=="base":return BASE_URL,{**params,"layers":"web_light_grau","format":"image/png8"}
-    if kind=="legend":return API_URL,{"service":"WMS","version":"1.3.0","request":"GetLegendGraphic","layer":LAYER,"format":"image/png"}
-    frame=window["frames"][index]
-    return API_URL,{**params,"layers":LAYER,"transparent":"true","time":iso(frame["time"]),"dim_REFERENCE_TIME":iso(frame["reference"])}
+def read_assets():
+    root=Path(__file__).parent
+    return json.loads((root/'data/radar-map.json').read_text()),json.loads((root/f'frontend/family-ui/{UI_VERSION}/radar-scale.json').read_text())
 
 class RadarClient:
-    """Bounded image/window caches. Arbitrary remote URLs and times are never accepted."""
     def __init__(self,hass,session=None,clock=None):
-        self.hass,self.session=hass,session
-        self.clock=clock or (lambda:datetime.now(timezone.utc).timestamp())
-        self.meta=None;self.updated=0;self.attempt=None;self.lock=asyncio.Lock()
-        self.windows=OrderedDict();self.images=OrderedDict();self.image_bytes=0
-        self.inflight={};self.foreground=asyncio.Semaphore(2);self.background=asyncio.Semaphore(2)
+        self.hass=hass;self.clock=clock or (lambda:datetime.now(timezone.utc).timestamp())
+        self.store=RawRadarStore(hass,session,clock=self.clock)
+        self.windows=OrderedDict();self.images=OrderedDict();self.image_bytes=0;self.inflight={}
+        self.grids=OrderedDict();self.foreground=asyncio.Semaphore(2);self.background=asyncio.Semaphore(2)
+        self.assets=None;self.asset_lock=asyncio.Lock()
 
-    def _session(self):
-        if self.session is None:
-            from homeassistant.helpers.aiohttp_client import async_get_clientsession
-            self.session=async_get_clientsession(self.hass)
-        return self.session
+    async def warm(self):
+        self.store.ensure()
+        if self.store.refresh:await asyncio.shield(self.store.refresh)
 
-    async def _metadata(self):
-        async with self.lock:
-            now=self.clock()
-            if self.meta and now-self.updated<120:return self.meta
-            if self.attempt is not None and now-self.attempt<30:raise RadarUnavailable("DWD-Regenradar ist derzeit nicht erreichbar.")
-            self.attempt=now
-            try:
-                async with asyncio.timeout(30):
-                    async with self._session().get(CAPABILITIES_URL,params={"service":"WMS","version":"1.3.0","request":"GetCapabilities"}) as response:
-                        response.raise_for_status();xml=await response.read()
-                        if len(xml)>16000000:raise ValueError("Oversize capabilities")
-                meta=capabilities(xml)
-            except Exception as error:raise RadarUnavailable("DWD-Regenradar ist derzeit nicht erreichbar.") from error
-            self.meta,self.updated=meta,now
-            return meta
+    async def _assets(self):
+        async with self.asset_lock:
+            if self.assets is None:self.assets=await self.store.execute(read_assets)
+        return self.assets
 
-    async def get(self,owner,latitude,longitude,zoom=1):
+    async def get(self,owner,latitude,longitude,zoom=MAX_ZOOM):
         lat,lon=coordinates(latitude,longitude)
-        if not isinstance(zoom,int) or not 0<=zoom<=3:raise ValueError("Invalid radar zoom")
-        if abs(lat)>80:return {"status":"outside"}
-        meta=await self._metadata();south,west,north,east=meta["coverage"]
-        if not (south<=lat<=north and west<=lon<=east):return {"status":"outside"}
-        now=self.clock();frames=frame_window(meta,now)
-        token=uuid4().hex;window={"owner":owner,"created":now,"bbox":map_box(lat,lon,zoom),"frames":frames}
-        self.windows[token]=window
+        if not isinstance(zoom,int) or not 0<=zoom<=MAX_ZOOM:raise ValueError('Invalid radar zoom')
+        now=self.clock()
+        if not (44<=lat<=58 and 0<=lon<=22):return {'status':'outside','now':now,'zoom':zoom,'context':f'outside|{lat}|{lon}','basemap':{}}
+        bbox=map_box(lat,lon,zoom);data,_=await self._assets();basemap=await self.store.execute(project_map,bbox,data)
+        base={'context':'raw-rv-v1|'+bbox,'basemap':basemap,'zoom':zoom,'now':now}
+        self.store.ensure();meta=self.store.latest
+        if not meta:
+            return {**base,'status':'error' if self.store.error else 'loading','error':self.store.error,'frames':[],'refreshing':True}
+        if not (meta['south']<=lat<=meta['north'] and meta['west']<=lon<=meta['east']):return {**base,'status':'outside'}
+        try:frames=frame_window(meta,now)
+        except RadarUnavailable as error:return {**base,'status':'error','error':str(error),'frames':[],'refreshing':True}
+        token=uuid4().hex;self.windows[token]={'owner':owner,'created':now,'bbox':bbox,'frames':frames}
         while len(self.windows)>128:self.windows.popitem(last=False)
-        return {"status":"ok","token":token,"frames":frames,"now":now,"latest":meta["latest"],"updated_at":self.updated,"zoom":zoom,"context":"light-grey-v1|"+window["bbox"]}
+        return {**base,'status':'ok','token':token,'frames':frames,'latest':meta['reference'],'refreshing':bool(self.store.refresh and not self.store.refresh.done())}
 
     async def image(self,owner,token,kind,index=0,background=False):
         window=self.windows.get(token)
-        if not window or window["owner"]!=owner or self.clock()-window["created"]>900:raise RadarUnavailable("Radarzeitraum abgelaufen. Bitte aktualisieren.")
-        if kind not in ("base","legend","frame") or not isinstance(index,int) or not 0<=index<len(window["frames"]):raise ValueError("Invalid radar image")
-        url,params=image_request(window,kind,index);key=(url,tuple(sorted(params.items())))
-        if key in self.images:
-            self.images.move_to_end(key);return self.images[key]
+        if not window or window['owner']!=owner or self.clock()-window['created']>900:raise RadarUnavailable('Radarzeitraum abgelaufen. Bitte aktualisieren.')
+        if kind!='frame' or not isinstance(index,int) or not 0<=index<len(window['frames']):raise ValueError('Bitte die Karte vollständig neu laden.')
+        frame=window['frames'][index];key=(window['bbox'],frame['time'],frame['reference'])
+        if key in self.images:self.images.move_to_end(key);return self.images[key]
         if key not in self.inflight:
-            task=asyncio.create_task(self._image(url,params,key,background))
-            self.inflight[key]=task
-            def finished(done):
-                if self.inflight.get(key) is done:self.inflight.pop(key,None)
-                if not done.cancelled():done.exception()
-            task.add_done_callback(finished)
-        task=self.inflight[key]
-        try:return await asyncio.shield(task)
-        finally:
-            if task.done():self.inflight.pop(key,None)
+            task=asyncio.create_task(self._image(window,frame,key,background));self.inflight[key]=task
+            def done(result):
+                if self.inflight.get(key) is result:self.inflight.pop(key,None)
+                if not result.cancelled():result.exception()
+            task.add_done_callback(done)
+        return await asyncio.shield(self.inflight[key])
 
-    async def _image(self,url,params,key,background=False):
-        try:
-            async with (self.background if background else self.foreground),asyncio.timeout(30):
-                async with self._session().get(url,params=params) as response:
-                    response.raise_for_status();raw=await response.read()
-            if not raw.startswith(PNG) or len(raw)>2000000:raise ValueError("Invalid WMS image")
-            image="data:image/png;base64,"+base64.b64encode(raw).decode("ascii")
-        except Exception as error:raise RadarUnavailable("Radarbild konnte nicht geladen werden. Eine leere Karte bedeutet keine Entwarnung.") from error
-        self.images[key]=image;self.image_bytes+=len(image)
-        while self.image_bytes>24000000 or len(self.images)>160:
-            _,old=self.images.popitem(last=False);self.image_bytes-=len(old)
-        return image
+    async def _image(self,window,frame,key,background):
+        async with (self.background if background else self.foreground):
+            reference=frame['reference'];lead=(frame['time']-reference)//60
+            raw=await self.store.get_field(reference,lead)
+            try:
+                meta=await self.store.execute(metadata,raw,(reference,lead))
+                grid_key=(window['bbox'],meta['projection'],meta['width'],meta['height'],meta['xscale'],meta['yscale'],meta['origin_x'],meta['origin_y'])
+                if grid_key not in self.grids:
+                    self.grids[grid_key]=await self.store.execute(sampling_grid,meta,window['bbox'])
+                    while len(self.grids)>16:self.grids.popitem(last=False)
+                _,scale=await self._assets()
+                png=await self.store.execute(render,raw,meta,self.grids[grid_key],scale)
+            except Exception as error:raise RadarUnavailable('Für dieses Bild sind keine verlässlichen Radardaten verfügbar.') from error
+            image='data:image/png;base64,'+base64.b64encode(png).decode('ascii')
+            self.images[key]=image;self.image_bytes+=len(image)
+            while self.image_bytes>24000000 or len(self.images)>160:
+                _,old=self.images.popitem(last=False);self.image_bytes-=len(old)
+            return image
+
+    async def close(self):
+        tasks=list(self.inflight.values())
+        for task in tasks:task.cancel()
+        if tasks:await asyncio.gather(*tasks,return_exceptions=True)
+        await self.store.close()

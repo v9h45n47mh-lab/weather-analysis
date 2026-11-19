@@ -41,7 +41,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.15.1"
+VERSION = "1.16.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -71,6 +71,11 @@ async def async_setup(hass, config):
     frontend.add_extra_js_url(hass, f"/weather-analysis/weather-analysis-card.js?v={VERSION}")
     for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location, ws_save_network, ws_network, ws_warnings, ws_radar, ws_radar_image):
         websocket_api.async_register_command(hass, command)
+    radar=hass.data.setdefault(DOMAIN+"_radar",RadarClient(hass))
+    if hasattr(hass,"async_create_background_task"):
+        hass.async_create_background_task(radar.warm(),"Weather Analysis radar warmup")
+        async def stop_radar(event):await radar.close()
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP,stop_radar)
     return True
 
 
@@ -655,16 +660,33 @@ async def resolve_user_location(hass,connection,msg):
     return await resolve_place(hass,*point) if point else fallback()
 
 
+def radar_user_location(hass,connection,msg):
+    """Resolve authorised coordinates locally; place-name lookup never blocks the map."""
+    if on_home_wifi(hass,connection):
+        home=home_location()
+        try:
+            lat,lon=coordinates(getattr(hass.config,"latitude",None),getattr(hass.config,"longitude",None))
+            if abs(lat-home["latitude"])<.12 and abs(lon-home["longitude"])<.18:
+                home.update(latitude=lat,longitude=lon,position_available=True)
+        except ValueError:pass
+        return home
+    point=coordinates(msg.get("latitude"),msg.get("longitude")) if "latitude" in msg or "longitude" in msg else user_position(hass,connection)
+    if not point:return fallback()
+    lat,lon=point
+    return {**fallback(),"latitude":lat,"longitude":lon,"name":"Aktueller Standort","position_available":True,
+        "resolved":False,"country_code":"","postal_code":"","key":f"{lat:.4f}:{lon:.4f}"}
+
+
 @websocket_api.websocket_command({vol.Required("type"):"weather_analysis/radar",
     vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float),
-    vol.Optional("zoom",default=1):vol.All(vol.Coerce(int),vol.Range(min=0,max=3))})
+    vol.Optional("zoom",default=3):vol.All(vol.Coerce(int),vol.Range(min=0,max=3))})
 @websocket_api.async_response
 async def ws_radar(hass,connection,msg):
     try:
-        location=await resolve_user_location(hass,connection,msg)
+        location=radar_user_location(hass,connection,msg)
         client=hass.data.setdefault(DOMAIN+"_radar",RadarClient(hass))
-        result=await client.get(connection.user.id,location["latitude"],location["longitude"],msg.get("zoom",1))
-        connection.send_result(msg["id"],{"radar":result,"radar_error":None,"location":location,"credits":{"dwd":"https://www.dwd.de/","bkg":"https://www.bkg.bund.de","license":"https://www.govdata.de/dl-de/by-2-0","sources":"https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_topplusopen.html"}})
+        result=await client.get(connection.user.id,location["latitude"],location["longitude"],msg.get("zoom",3))
+        connection.send_result(msg["id"],{"radar":result,"radar_error":None,"location":location,"credits":{"dwd":"https://www.dwd.de/","map_label":"Natural Earth","map_url":"https://www.naturalearthdata.com/","license":"https://www.naturalearthdata.com/about/terms-of-use/"}})
     except ValueError as error:connection.send_error(msg["id"],"invalid_location",str(error))
     except RadarUnavailable as error:connection.send_result(msg["id"],{"radar":None,"radar_error":str(error),"location":location})
 

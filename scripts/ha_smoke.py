@@ -23,6 +23,17 @@ async def main():
             config={"homeassistant":{"latitude":0,"longitude":0,"elevation":0,"time_zone":"UTC","unit_system":"metric"},"http":{"server_port":8123},"recorder":{}}
             assert await bootstrap.async_from_config_dict(config,hass) is hass
             assert await async_setup_component(hass,"weather_analysis",config)
+            def verify_native_radar():
+                import runpy,numpy as np
+                fixture=runpy.run_path(str(Path(__file__).resolve().parents[1]/"tests/test_radar.py"))
+                from custom_components.weather_analysis.radar_data import metadata,render,PNG
+                raw=fixture["hdf"]();reference=fixture["NOW"]-600
+                meta=metadata(raw,(reference,0))
+                grid=(np.array([[0,0]]),np.array([[0,1]]),np.ones((1,2),dtype=bool))
+                image=render(raw,meta,grid,fixture["SCALE"])
+                assert image.startswith(PNG) and len(image)>50
+            await hass.async_add_executor_job(verify_native_radar)
+            print("Native raw DWD decoder and local radar renderer passed")
             await hass.async_start()
             temp={"device_class":"temperature","state_class":"measurement","unit_of_measurement":"°C","friendly_name":"Thermometer"}
             wind={"device_class":"wind_speed","state_class":"measurement","unit_of_measurement":"m/s","friendly_name":"Wind"}
@@ -127,7 +138,7 @@ async def main():
             request={"start_date":today,"end_date":today}
             data=await manager.analyse(request)
             assert data["current"]==12.3,data
-            assert data["version"]=="1.15.1",data
+            assert data["version"]=="1.16.0",data
             assert manager.history_imported,manager.dump()
             assert manager.history.hours,manager.dump()
             assert data["summary"]["frost_hours"]>0,data
