@@ -328,11 +328,11 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await page.evaluate(()=>demo.gapEntity=null);await action('reload').click();await page.waitForFunction(()=>!demo.card._refreshing&&demo.card._data&&demo.card._comparisonData);
   for(const width of [1100,390,320])for(const dark of [false,true]){
    await page.setViewportSize({width,height:1100});await page.evaluate(d=>document.body.classList.toggle('dark',d),dark);
-   for(const view of ['temperature','wind','illuminance','dashboard','settings']){
+   for(const view of ['temperature','wind','illuminance','dashboard','warnings','settings']){
     await card().locator('[data-page="'+view+'"]').click();
-    if(!['settings','dashboard'].includes(view)){await card().locator('#wa-current').waitFor();await action('period').filter({hasText:'Tag',exact:true}).click();await card().locator('#wa-current').waitFor();assert(await action('next-day').isDisabled());}
+    if(!['settings','dashboard','warnings'].includes(view)){await card().locator('#wa-current').waitFor();await action('period').filter({hasText:'Tag',exact:true}).click();await card().locator('#wa-current').waitFor();assert(await action('next-day').isDisabled());}
     assert.equal(await card().locator('.card-top [data-action="reload"]').count(),1);
-    if(!['settings','dashboard'].includes(view)){const select=await card().locator('#wa-active-sensor').boundingBox(),title=await card().locator('.wa-title').boundingBox();assert(select.width<=151);assert(Math.abs(select.x-title.x)<2);assert.equal(await card().locator('.wa-series').count(),2);assert.equal(await card().locator('#wa-months-content,#wa-measurements-content').count(),0);}
+    if(!['settings','dashboard','warnings'].includes(view)){const select=await card().locator('#wa-active-sensor').boundingBox(),title=await card().locator('.wa-title').boundingBox();assert(select.width<=151);assert(Math.abs(select.x-title.x)<2);assert.equal(await card().locator('.wa-series').count(),2);assert.equal(await card().locator('#wa-months-content,#wa-measurements-content').count(),0);}
     if(view==='dashboard'){await page.waitForFunction(()=>demo.card._dashboard&&!demo.card._busy);assert.equal(await card().locator('.fui-account-tile').count(),0);
       assert.doesNotMatch(await card().locator('main').innerText(),/\blx\b|Helligkeit|67459/);
       assert.equal(await card().locator('#wa-dashboard-forecast-content,.wa-range').count(),0);
@@ -354,6 +354,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
       assert.equal(await card().locator('[data-weather-kind="forecast"]').first().evaluate(el=>getComputedStyle(el).color),'rgb(0, 0, 0)');
       assert.equal(await card().locator('[data-weather-kind="forecast"] small').first().evaluate(el=>getComputedStyle(el).color),'rgb(0, 0, 0)');
       assert.equal(await card().locator('.fui-weather-list').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');assert.equal(await card().locator('#wa-forecast-1-content .fui-weather-period').count(),8);}
+    if(view==='warnings'){await page.waitForFunction(()=>demo.card._warnings&&!demo.card._busy);assert.match(await card().locator('main').innerText(),/Sturmböen.*Dauerregen/s);}
     await page.mouse.move(0,0);
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
@@ -580,6 +581,9 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   // Remember only the mode, scoped to this user/card. Reuse only an already granted permission.
   assert.equal(await gpsPage.evaluate(()=>localStorage.getItem(demo.card._locationStorageKey())),'device');
   await gpsPage.evaluate(()=>sessionStorage.setItem('geo-permission','granted'));
+  await gpsPage.reload();await gpsReady('Böhl-Iggelheim');
+  assert.equal(await gpsPage.evaluate(()=>testGeo.queries+testGeo.watches),0,'An available HA-person location suppresses legacy automatic browser GPS');
+  await gpsPage.evaluate(()=>sessionStorage.setItem('test-no-gps','1'));
   await gpsPage.reload();await gpsReady('Tokio');
   assert.equal(await gpsPage.evaluate(()=>testGeo.watches),1);
   assert.equal(await gpsPage.evaluate(()=>localStorage.getItem(demo.card._locationStorageKey())),'device');
@@ -663,6 +667,69 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await gpsPage.reload();await gpsReady('Böhl-Iggelheim');await gpsPage.waitForFunction(()=>!demo.card._gpsBusy&&demo.card._gpsNotice);
   assert.equal(await gpsPage.evaluate(()=>testGeo.queries+testGeo.watches),0);
   await gpsPage.close();
+  const detailPage=await browser.newPage({viewport:{width:1100,height:750}});detailPage.on('pageerror',error=>errors.push(error.message));await detailPage.addInitScript(freezeDate);
+  await detailPage.addInitScript(()=>{window.geoProbe={queries:0,watches:0,cleared:[]};Object.defineProperty(navigator,'permissions',{configurable:true,value:{async query(){geoProbe.queries++;return {state:'granted'};}}});Object.defineProperty(navigator,'geolocation',{configurable:true,value:{watchPosition(success){geoProbe.success=success;setTimeout(()=>success({coords:{latitude:35.68,longitude:139.69}}),0);return ++geoProbe.watches;},clearWatch(id){geoProbe.cleared.push(id);}}});});
+  await detailPage.goto('http://127.0.0.1:'+server.address().port);
+  const detailCard=detailPage.locator('weather-analysis-card').first();
+  await detailPage.waitForFunction(()=>demo.card._forecast&&!demo.card._busy);
+  const laterHour=()=>detailCard.locator('#wa-forecast-1-content .fui-weather-period-toggle').nth(3);
+  const measure=async control=>control.evaluate(el=>({y:el.getBoundingClientRect().top,scroll:window.scrollY,id:el.getAttribute('aria-controls'),focused:el.getRootNode().activeElement===el}));
+  const samePosition=(a,b)=>{assert(Math.abs(a.y-b.y)<2,'Fold stays under the pointer');assert(Math.abs(a.scroll-b.scroll)<2,'Document scroll position stays stable');};
+  for(const width of [1100,390])for(const dark of [false,true]){
+    await detailPage.setViewportSize({width,height:750});await detailPage.evaluate(dark=>document.body.classList.toggle('dark',dark),dark);
+    await laterHour().evaluate(el=>el.scrollIntoView({block:'center'}));await laterHour().evaluate(el=>el.focus({preventScroll:true}));
+    const before=await measure(laterHour());await laterHour().click();samePosition(before,await measure(laterHour()));
+    await detailPage.evaluate(()=>{demo.forecastDelay=180;void demo.card._fetchDashboard();});
+    await detailPage.waitForFunction(()=>demo.card._busy);await laterHour().click();
+    await detailPage.waitForFunction(()=>!demo.card._busy);samePosition(before,await measure(laterHour()));
+    assert((await measure(laterHour())).focused,'Focus survives every partial refresh');
+    await laterHour().press('Space');samePosition(before,await measure(laterHour()));
+    await detailPage.screenshot({path:path.join(screens,'stable-hour-'+width+'-'+(dark?'dark':'light')+'.png')});
+    await laterHour().click();await detailPage.evaluate(()=>demo.forecastDelay=0);
+  }
+  // HA-style nested scrolling, with the card slotted through an open ShadowRoot.
+  await detailPage.evaluate(()=>{const host=document.createElement('ha-test-shell');host.attachShadow({mode:'open'}).innerHTML='<style>:host{display:block;height:680px}#scroll{height:650px;overflow:auto}</style><div id="scroll"><div style="height:400px">Andere Karten</div><slot></slot><div style="height:1200px">Weitere Karten</div></div>';document.body.append(host);host.append(demo.card);window.scrollHost=host;window.scrollTo(0,0);});
+  await detailPage.waitForFunction(()=>demo.card._forecast&&!demo.card._busy);
+  await laterHour().evaluate(el=>el.scrollIntoView({block:'center'}));await laterHour().evaluate(el=>el.focus({preventScroll:true}));
+  const nestedBefore=await measure(laterHour()),nestedTop=await detailPage.evaluate(()=>scrollHost.shadowRoot.getElementById('scroll').scrollTop);
+  await laterHour().click();samePosition(nestedBefore,await measure(laterHour()));
+  await detailPage.evaluate(()=>demo.card._fetchDashboard());samePosition(nestedBefore,await measure(laterHour()));
+  assert((await measure(laterHour())).focused);assert(Math.abs(await detailPage.evaluate(()=>scrollHost.shadowRoot.getElementById('scroll').scrollTop)-nestedTop)<2);
+  await laterHour().click();await detailPage.screenshot({path:path.join(screens,'stable-hour-nested-shadow.png')});
+  // DWD alerts, validity, empty success, provider failure and changing countries.
+  await detailCard.locator('[data-page="warnings"]').click();await detailPage.waitForFunction(()=>demo.card._warnings&&!demo.card._busy);
+  assert.match(await detailCard.locator('main').innerText(),/Unwetter.*Gültig.*Gemeinde Testort.*Hinweise des DWD/s);
+  assert.match(await detailCard.locator('main').innerText(),/Gültig ab/);
+  assert.equal(await detailCard.locator('.wa-forecast-source a').getAttribute('href'),'https://www.dwd.de/warnungen');
+  const warningFold=detailCard.locator('[aria-controls="wa-warning-storm-warning-content"]');await warningFold.click();
+  await detailPage.evaluate(()=>demo.card._fetchWarnings());assert.equal(await warningFold.getAttribute('aria-expanded'),'false');
+  await detailPage.evaluate(()=>{demo.warningMode='error';return demo.card._fetchWarnings();});assert.match(await detailCard.locator('main').innerText(),/DWD nicht erreichbar/);assert.doesNotMatch(await detailCard.locator('main').innerText(),/Keine aktiven/);
+  await detailPage.evaluate(()=>{demo.warningMode='empty';return demo.card._fetchWarnings();});assert.match(await detailCard.locator('main').innerText(),/Keine aktiven oder angekündigten/);
+  await detailPage.evaluate(()=>{demo.warningMode='alerts';demo.warningDelay=200;void demo.card._fetchWarnings();});
+  await detailPage.evaluate(()=>{demo.warningDelay=0;Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:35.68,longitude:139.69});demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);return demo.card._fetchWarnings();});
+  await detailPage.waitForTimeout(250);assert.equal(await detailCard.locator('.fui-panel-header strong').innerText(),'Tokio');assert.match(await detailCard.locator('main').innerText(),/Standorte in Deutschland/);
+  // HA-person mode cancels browser GPS on another card for the same user/device.
+  await detailPage.evaluate(()=>{Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:49.38,longitude:8.3});demo.card.hass=demo.hass;const other=document.createElement('weather-analysis-card');other.setConfig({...demo.config,card_id:'legacy-device'});localStorage.setItem('weather-analysis:location:'+JSON.stringify(['test-user','legacy-device']),'device');other.hass=demo.hass;document.body.append(other);window.legacyWeather=other;});
+  await detailPage.waitForFunction(()=>legacyWeather._ready&&!legacyWeather._busy&&!legacyWeather._gpsBusy);
+  assert.equal(await detailPage.evaluate(()=>geoProbe.queries+geoProbe.watches),0,'A usable HA-person location wins over an old device preference');
+  await detailPage.evaluate(()=>legacyWeather._startGPS());await detailPage.waitForFunction(()=>legacyWeather._browserCoordinates);
+  const watch=await detailPage.evaluate(()=>legacyWeather._gpsWatch);
+  await detailCard.locator('[data-page="settings"]').click();await detailCard.locator('[data-action="location-auto"]').click();
+  await detailPage.waitForFunction(()=>legacyWeather._gpsMode==='ha'&&!legacyWeather._gpsBusy);
+  assert(await detailPage.evaluate(id=>geoProbe.cleared.includes(id),watch));assert.equal(await detailPage.evaluate(()=>legacyWeather._browserCoordinates),null);
+  await detailPage.evaluate(()=>geoProbe.success({coords:{latitude:53.55,longitude:10}}));assert.equal(await detailPage.evaluate(()=>legacyWeather._browserCoordinates),null);
+  await detailPage.evaluate(()=>sessionStorage.setItem('test-no-gps','1'));await detailPage.reload();await detailPage.waitForFunction(()=>demo.card._forecast&&!demo.card._busy);
+  assert.equal(await detailPage.evaluate(()=>geoProbe.queries+geoProbe.watches),0,'Explicit HA preference survives a restart even when the tracker is temporarily missing');
+  await detailPage.close();
+  // Touch must preserve the touched time label, including a live-data refresh.
+  const foldTouchContext=await browser.newContext({viewport:{width:390,height:750},isMobile:true,hasTouch:true});
+  const foldTouch=await foldTouchContext.newPage();foldTouch.on('pageerror',error=>errors.push(error.message));await foldTouch.addInitScript(freezeDate);await foldTouch.goto('http://127.0.0.1:'+server.address().port);
+  await foldTouch.waitForFunction(()=>demo.card._forecast&&!demo.card._busy);
+  const touchedTime=foldTouch.locator('weather-analysis-card').locator('#wa-forecast-1-content .fui-weather-period-toggle').nth(3);
+  await touchedTime.evaluate(el=>el.scrollIntoView({block:'center'}));const touchBefore=await measure(touchedTime);await touchedTime.tap();samePosition(touchBefore,await measure(touchedTime));
+  await foldTouch.evaluate(()=>demo.card._fetchDashboard());samePosition(touchBefore,await measure(touchedTime));await touchedTime.tap();samePosition(touchBefore,await measure(touchedTime));
+  await foldTouch.screenshot({path:path.join(screens,'stable-hour-touch.png')});await foldTouchContext.close();
+  assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:fs.readdirSync(screens).filter(name=>name.endsWith(".png")).length,errors},null,2));
   console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards, per-user GPS home/away/unknown/device permission/cleanup/races and 3 widths × 2 themes.');
  }finally{await browser.close();server.close();}

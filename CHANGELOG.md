@@ -1,3 +1,11 @@
+## 1.14.0
+
+- Neuer Reiter Warnungen: amtliche DWD-Wetterwarnungen anhand des ermittelten Standorts mit Warnstufe, Gültigkeit, Warngebiet und Hinweisen. Räumliche Filterung über den offiziellen DWD-Gemeindewarnungsdienst, Quelle und Abrufstand in der Karte.
+- Aktuelle, angekündigte und vorläufige Warnungen werden unterschieden. Für Standorte außerhalb Deutschlands erscheint ein Hinweis. Abruffehler werden ausdrücklich angezeigt und nicht als Entwarnung behandelt.
+- Aufklappen der Zeitabschnitte hält den gewählten Faltpfeil, Scrollposition und Fokus stabil. Auch automatische und teilweise Datenaktualisierungen erhalten diese Position; HA-Scrollcontainer und Shadow DOM werden berücksichtigt.
+- Ein vorhandener HA-Personenstandort verhindert automatische Browser-GPS-Abfragen, auch bei einer alten gespeicherten Gerätewahl. HA-Person verwenden beendet Geräte-GPS in allen geöffneten Wetterkarten desselben Benutzers auf diesem Gerät und verhindert weitere automatische Starts. Andere Benutzer bleiben unabhängig.
+- Bestehende lokale Komponenten aus HA UI Kit 1.12.0 für Navigation, Warnhinweise, Statuskennzeichen und aufklappbare Warnmeldungen verwendet.
+
 ## 1.13.1
 
 - Heim-WLAN wird vor der Browser-Standortfreigabe geprüft, auch beim Neustart, Wiederöffnen und bei einer gespeicherten Geräte-Standortwahl.

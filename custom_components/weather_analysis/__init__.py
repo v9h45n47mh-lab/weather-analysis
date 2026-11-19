@@ -34,12 +34,13 @@ from homeassistant.util import dt as dt_util
 
 from .forecast import ForecastClient, ForecastUnavailable
 from .location import LocationClient, coordinates, fallback, home_location
+from .warnings import WarningsClient, WarningsUnavailable, SOURCE_URL as DWD_SOURCE_URL
 
 from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.13.1"
+VERSION = "1.14.0"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -67,7 +68,7 @@ async def async_setup(hass, config):
         StaticPathConfig("/weather-analysis", str(Path(__file__).parent / "frontend"), False)
     ])
     frontend.add_extra_js_url(hass, f"/weather-analysis/weather-analysis-card.js?v={VERSION}")
-    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location, ws_save_network, ws_network):
+    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location, ws_save_network, ws_network, ws_warnings):
         websocket_api.async_register_command(hass, command)
     return True
 
@@ -635,18 +636,38 @@ async def resolve_place(hass, latitude, longitude):
     vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float)})
 @websocket_api.async_response
 async def ws_location(hass, connection, msg):
-    if on_home_wifi(hass,connection):
-        connection.send_result(msg["id"],{"location":home_location(),"location_error":None});return
     try:
-        point = coordinates(msg.get("latitude"),msg.get("longitude")) if "latitude" in msg or "longitude" in msg else user_position(hass,connection)
+        location=await resolve_user_location(hass,connection,msg)
     except ValueError as error:
         connection.send_error(msg["id"],"invalid_location",str(error));return
-    if point is None:
-        connection.send_result(msg["id"],{"location":fallback(),"location_error":"Kein GPS-Standort verfügbar. Angezeigt wird die Vorhersage für Böhl-Iggelheim."})
-        return
-    location = await resolve_place(hass,*point)
-    error = None if location["resolved"] else "Der Ortsname ist derzeit nicht verfügbar. Die Vorhersage nutzt weiterhin deinen GPS-Standort."
+    error = None
+    if not location["position_available"] and location.get("via")!="home_wifi":
+        error="Kein GPS-Standort verfügbar. Angezeigt wird die Vorhersage für Böhl-Iggelheim."
+    elif not location["resolved"]:
+        error="Der Ortsname ist derzeit nicht verfügbar. Die Vorhersage nutzt weiterhin deinen GPS-Standort."
     connection.send_result(msg["id"],{"location":location,"location_error":error})
+
+
+async def resolve_user_location(hass,connection,msg):
+    if on_home_wifi(hass,connection):return home_location()
+    point=coordinates(msg.get("latitude"),msg.get("longitude")) if "latitude" in msg or "longitude" in msg else user_position(hass,connection)
+    return await resolve_place(hass,*point) if point else fallback()
+
+
+@websocket_api.websocket_command({vol.Required("type"):"weather_analysis/warnings",
+    vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float)})
+@websocket_api.async_response
+async def ws_warnings(hass,connection,msg):
+    try:
+        location=await resolve_user_location(hass,connection,msg)
+    except ValueError as error:
+        connection.send_error(msg["id"],"invalid_location",str(error));return
+    client=hass.data.setdefault(DOMAIN+"_warnings",WarningsClient(hass))
+    try:
+        result=await client.get(location["latitude"],location["longitude"],location.get("country_code",""))
+        connection.send_result(msg["id"],{"warnings":result,"warnings_error":None,"location":location,"source_url":DWD_SOURCE_URL})
+    except WarningsUnavailable as error:
+        connection.send_result(msg["id"],{"warnings":None,"warnings_error":str(error),"location":location,"source_url":DWD_SOURCE_URL})
 
 
 @websocket_api.websocket_command({vol.Required("type"): "weather_analysis/forecast",vol.Optional("as_of"):vol.Coerce(float),

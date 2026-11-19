@@ -120,6 +120,23 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         for entity,uid in [(tracker,"tracker-id"),(ssid_entity,unique)]:
             self.hass.registry.entities[entity]=SimpleNamespace(entity_id=entity,device_id=device,unique_id=uid,platform="mobile_app")
 
+    async def test_dwd_warnings_use_current_location_and_handle_outage(self):
+        self.add_wifi_registry()
+        self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Home WiFi"]}
+        provider=SimpleNamespace(get=AsyncMock(return_value={"status":"ok","alerts":[]}))
+        self.hass.data[backend.DOMAIN+"_warnings"]=provider
+        conn=Connection()
+        with patch.object(backend,"resolve_place",new_callable=AsyncMock) as resolve:
+            await backend.ws_warnings(self.hass,conn,{"id":1,"latitude":53.55,"longitude":10})
+            self.assertEqual(conn.results[-1][1]["location"]["via"],"home_wifi")
+            provider.get.assert_awaited_with(49.3806,8.3039,"de")
+            resolve.assert_not_awaited()
+        provider.get.side_effect=backend.WarningsUnavailable("DWD offline")
+        await backend.ws_warnings(self.hass,conn,{"id":2})
+        self.assertIsNone(conn.results[-1][1]["warnings"])
+        self.assertEqual(conn.results[-1][1]["warnings_error"],"DWD offline")
+        self.assertIn("dwd.de",conn.results[-1][1]["source_url"])
+
     async def test_home_wifi_check_never_reads_gps_or_geocodes(self):
         self.add_wifi_registry()
         self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Home WiFi"]}
@@ -263,7 +280,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_location_passes_owned_gps_and_explicit_device_coordinates(self):
         self.add_position()
-        lookup={"name":"Hamburg","resolved":True,"is_home":False}
+        lookup={"name":"Hamburg","resolved":True,"is_home":False,"position_available":True}
         with patch.object(backend,"resolve_place",new_callable=AsyncMock,return_value=lookup) as resolve:
             conn=Connection()
             await backend.ws_location(self.hass,conn,{"id":1})

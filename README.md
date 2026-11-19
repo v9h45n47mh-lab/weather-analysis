@@ -1,6 +1,6 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.13.1**, HA UI Kit **1.12.0** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.14.0**, HA UI Kit **1.12.0** lokal eingebunden.
 
 ## Funktionen
 
@@ -50,7 +50,7 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Sensoren und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.13.1-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.14.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
 
 ## Wetter und 3-Stunden-Sicht
 
@@ -71,6 +71,18 @@ Die Vorhersage kommt von [Open-Meteo](https://open-meteo.com/) ohne API-Schlüss
 Der Forecast umfasst heute nur den verbleibenden Resttag und morgen den vollen Tag in der örtlichen Zeitzone des Aufenthaltsorts. Jeder 3-Stunden-Abschnitt lässt sich in seine echten Stundenwerte aufklappen. Die örtlichen Zeitfenster beginnen bei 00, 03, 06, 09, 12, 15, 18 und 21 Uhr. Der erste noch laufende Abschnitt beginnt jetzt. Die Temperatur bezieht sich auf den Beginn des Abschnitts; Wetterzustand und Wind berücksichtigen die im Abschnitt enthaltenen Stunden. Regenrisiko zeigt das höchste stündliche Risiko; Niederschlag die aufsummierte Menge. Angebrochene Stunden werden für Niederschlag anteilig geschätzt. Fehlende Werte werden als fehlend angezeigt.
 
 Quelle und Abrufzeit stehen direkt an der Vorhersage. Bei einer Störung kann ein bis zu sechs Stunden alter Stand mit deutlicher Kennzeichnung weiter angezeigt werden; danach erscheint eine Fehlermeldung. Dafür benötigt HA Internetzugang. Die Wetterdaten sind Vorhersagen; Ist und Aktuell stammen ausschließlich von den eigenen Sensoren.
+
+## DWD-Wetterwarnungen
+
+Der Reiter **Warnungen** zeigt die amtlichen Wetterwarnungen des **Deutschen Wetterdienstes** für denselben ermittelten Standort wie Wetter. Grundlage ist der [offizielle DWD-Geodienst](https://maps.dwd.de/geoserver/dwd/ows), Layer `dwd:Warnungen_Gemeinden`, mit räumlichem `INTERSECTS`-Filter für die Standortkoordinaten. Es ist kein API-Schlüssel nötig. Der Server sendet ausschließlich Koordinaten und benötigte WFS-Parameter an den DWD; keine HA-Namen oder Sensordaten.
+
+Warnungen sind nach Warnstufe sortiert und zeigen Überschrift, Gültigkeit, betroffene Gemeinde, Originalbeschreibung und DWD-Hinweise. Auch angekündigte Warnungen und Vorabinformationen werden gekennzeichnet. Testmeldungen, aufgehobene und abgelaufene Warnungen werden nicht angezeigt. Gemeinsame, begrenzte Standort-Caches gelten zwei Minuten. Ein Ausfall wird niemals als „Keine Warnungen“ dargestellt; die Karte verweist dann auf [DWD-Warnungen](https://www.dwd.de/warnungen). Außerhalb Deutschlands beziehungsweise bei unbekanntem Land erscheint ein Hinweis zur Verfügbarkeit.
+
+## Position und Fokus
+
+Aufklappbare Zeitabschnitte halten den betätigten Faltpfeil an der bisherigen Bildschirmposition. Scrollcontainer außerhalb der Karte, auch durch Slots und Shadow DOM, werden mit berücksichtigt. Automatische Datenaktualisierungen derselben Ansicht erhalten Scrollposition, Fokus und Klappzustände. Bei kürzerem Inhalt bleibt die natürliche maximale Scrollposition maßgeblich.
+
+**HA-Person verwenden** beendet die zusätzliche Geräte-Standortabfrage für alle Wetterkarten desselben Benutzers auf diesem Gerät. Alte kartenspezifische Geräteauswahlen können dies nach einem Neustart nicht übergehen. Andere Benutzer bleiben unabhängig. Ein bereits verfügbarer Standort der eigenen HA-Person wird auch vor dem automatischen Start einer früher gespeicherten Gerätewahl genutzt. Nur eine ausdrücklich neu angeforderte Gerätewahl hebt diese Sperre auf. Diese Einstellung gilt innerhalb derselben HA-Webadresse/Browserumgebung; sie setzt keine Betriebssystemberechtigungen.
 
 ## Historie und Genauigkeit
 
