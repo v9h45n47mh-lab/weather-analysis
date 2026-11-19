@@ -1,3 +1,12 @@
+## 1.10.1
+
+- Heute zeigt die Reihenfolge Ist → Aktuell → Vorhersage; aktuelle Messwerte stehen zwischen den gemessenen Zeiträumen und der Vorhersage.
+- Ist ist anfangs zugeklappt und Aktuell geöffnet. Beide Bereiche behalten ihre gewählten Faltzustände beim Aktualisieren und Reiterwechsel.
+- Helligkeit/lx entfällt in der Wetterübersicht und wird dort nicht mehr abgefragt.
+- Windwerte stehen bei Ist, Aktuell und Vorhersage in derselben Spalte, auch auf Mobilgeräten.
+- Zusätzliche Tages- und Ortsüberschriften entfernt; Messpunkte sowie Heute und Morgen bleiben sichtbar.
+- Gemeinsame Wetterliste aus HA UI Kit 1.11.0 verwendet.
+
 ## 1.10.0
 
 - Wetter ist der Startreiter der Karte.

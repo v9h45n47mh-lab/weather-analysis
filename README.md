@@ -1,10 +1,10 @@
 # Weather Analysis
 
-Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.10.0**, HA UI Kit **1.11.0** lokal eingebunden.
+Home-Assistant-Integration mit Dashboard-Karte für vorhandene **mehrere Temperatur-, Wind- und Helligkeitssensoren**. Version **1.10.1**, HA UI Kit **1.11.0** lokal eingebunden.
 
 ## Funktionen
 
-- **Wetter** mit anschaulichen 3-Stunden-Wetterzeilen untereinander: große lokale Wettersymbole, Temperaturen, Min/Max und kompakte Symbolzeilen. Gemessene Sensorwerte erscheinen blau, Vorhersagen schwarz auf weißer Lesefläche. Regenrisiko/-menge, Windrichtung, Wind/Böen, gefühlte Temperatur, Luftfeuchte und Luftdruck ergänzen die Vorhersage. Aktuelle Sensorwerte und Min/Max heute stehen als erste Zeile im aufklappbaren Bereich **Ist**. Der Faltzustand bleibt beim Nachladen und bei Reiterwechseln erhalten. **Wetter ist der Startreiter**; die Liste scrollt gemeinsam mit der Seite. Daneben **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigener Sensorauswahl aus den Karteneinstellungen.
+- **Wetter** mit anschaulichen 3-Stunden-Wetterzeilen untereinander: große lokale Wettersymbole, Temperaturen, Min/Max und kompakte Symbolzeilen. Gemessene Sensorwerte erscheinen blau, Vorhersagen schwarz auf weißer Lesefläche. Regenrisiko/-menge, Windrichtung, Wind/Böen, gefühlte Temperatur, Luftfeuchte und Luftdruck ergänzen die Vorhersage. **Heute** zeigt die Reihenfolge **Ist → Aktuell → Vorhersage**. Ist ist initial zugeklappt; Aktuell ist geöffnet und zeigt Temperatur, Wind und Temperatur-Min/Max heute. Wind steht bei Messwerten, Aktuell und Vorhersage in derselben Spalte. Helligkeit entfällt in der Wetterübersicht. Beide Faltzustände bleiben beim Nachladen und bei Reiterwechseln erhalten. Oben stehen die Messpunkte; zusätzliche Tages- und Ortsüberschriften entfallen. **Wetter ist der Startreiter**; die Liste scrollt gemeinsam mit der Seite. Daneben **Temperatur**, **Wind** und **Helligkeit**, mit jeweils eigener Sensorauswahl aus den Karteneinstellungen.
 - Relevante Sensoren aller drei Messarten im einklappbaren Bereich „Sensorauswahl“ vorauswählen, je Karte eigene Namen vergeben und per Ziehen sortieren. Die Reihenfolge gilt auch für die Dropdowns. Die ursprünglichen HA-Entitätsnamen bleiben erhalten.
 - Schmale, links ausgerichtete Sensordropdowns und ein Aktualisieren-Symbol in der Kopfleiste aller Reiter. Kein Kartentitel und kein Feld Anzeigename.
 - Zwei Kacheln über dem Chart: Aktuell mit Veränderung in 1 Std. sowie Minimum/Maximum.
@@ -50,7 +50,7 @@ grid_options:
 
 Die Kartenressource wird automatisch eingebunden. Bei kopierten Karten eine andere `card_id` verwenden, wenn die Einstellungen unabhängig sein sollen. Gleiche IDs teilen sich Einstellungen. Gespeicherte Einstellungen haben Vorrang vor YAML-Startwerten. Gespeicherte Sensoren werden serverseitig aufgezeichnet. Der Wechsel zwischen konfigurierten Sensoren und die Vergleichsauswahl verändern nur die aktuell betrachtete Karte. Die Klappzustände bleiben während der Verwendung der Karte erhalten. Weitere Kennzahlen unterhalb des Sensorvergleichs beziehen sich auf den ersten gewählten Sensor.
 
-Manuell: `weather-analysis-1.10.0-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
+Manuell: `weather-analysis-1.10.1-manual.zip` herunterladen, den enthaltenen Ordner `custom_components/weather_analysis` nach `/config/custom_components/weather_analysis` kopieren und HA neu starten. `weather-analysis.zip` enthält den Integrationsinhalt für HACS.
 
 ## Wetter und 3-Stunden-Sicht
 
