@@ -59,11 +59,15 @@ async def async_setup(hass, config):
     settings_store = Store(hass, 1, DOMAIN + ".cards")
     hass.data[DOMAIN + "_settings"] = await settings_store.async_load() or {}
     hass.data[DOMAIN + "_store"] = settings_store
+    network_store=Store(hass,1,DOMAIN+".network")
+    hass.data[DOMAIN+"_network"] = await network_store.async_load() or {"home_ssids":[]}
+    hass.data[DOMAIN+"_network_store"] = network_store
+    hass.data[DOMAIN+"_network_lock"] = asyncio.Lock()
     await hass.http.async_register_static_paths([
         StaticPathConfig("/weather-analysis", str(Path(__file__).parent / "frontend"), False)
     ])
     frontend.add_extra_js_url(hass, f"/weather-analysis/weather-analysis-card.js?v={VERSION}")
-    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location):
+    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location, ws_save_network):
         websocket_api.async_register_command(hass, command)
     return True
 
@@ -337,7 +341,7 @@ async def ws_sensors(hass, connection, msg):
         if "sensor_names" in settings:
             settings["sensor_names"] = {entity: name for entity, name in settings["sensor_names"].items() if entity in allowed}
     connection.send_result(msg["id"], {"sensors": groups["temperature"], "wind_sensors": groups["wind"], "illuminance_sensors": groups["illuminance"], "version": VERSION,
-        "timezone": hass.config.time_zone, "admin": connection.user.is_admin, "settings": settings, "wifi_sensors": wifi_sensors(hass,connection)})
+        "timezone": hass.config.time_zone, "admin": connection.user.is_admin, "settings": settings, "wifi_sensors": wifi_sensors(hass,connection), "home_ssids":hass.data.get(DOMAIN+"_network",{}).get("home_ssids",[])})
 
 
 @websocket_api.websocket_command({
@@ -345,7 +349,6 @@ async def ws_sensors(hass, connection, msg):
     vol.Required("card_id"): vol.All(str, vol.Length(min=1, max=100)),
     vol.Optional("entity", default=""): str,
     vol.Optional("entities"): [str],
-    vol.Optional("home_ssids", default=[]): [vol.All(str,vol.Length(min=1,max=64))],
     vol.Optional("sensor_names", default={}): {str: vol.All(str, vol.Length(max=100))},
     vol.Optional("wind_entities"): [str],
     vol.Optional("wind_entity", default=""): str,
@@ -362,9 +365,6 @@ async def ws_save_card(hass, connection, msg):
     if any(len(entities) > 100 for entities in chosen.values()):
         connection.send_error(msg["id"], "invalid_sensor", "Bitte höchstens 100 Sensoren je Messart auswählen.")
         return
-    home_ssids = list(dict.fromkeys(value for value in msg.get("home_ssids",[]) if value.strip()))
-    if len(home_ssids)>20:
-        connection.send_error(msg["id"],"invalid_wifi","Bitte höchstens 20 Heim-WLANs auswählen.");return
     selected = [(entity, kind) for kind, entities in chosen.items() for entity in entities]
     for entity, kind in selected:
         state = hass.states.get(entity)
@@ -374,7 +374,7 @@ async def ws_save_card(hass, connection, msg):
     all_entities = {entity for entity, kind in selected}
     sensor_names = {entity: name.strip() for entity, name in msg.get("sensor_names", {}).items()
                     if entity in all_entities and name.strip()}
-    settings = {"title": msg["title"], "sensor_names": sensor_names, "home_ssids":home_ssids}
+    settings = {"title": msg["title"], "sensor_names": sensor_names}
     for kind, (plural, single) in SENSOR_FIELDS.items():
         entities = chosen[kind]
         settings[plural] = entities
@@ -384,6 +384,22 @@ async def ws_save_card(hass, connection, msg):
     hass.data[DOMAIN + "_settings"][msg["card_id"]] = settings
     await hass.data[DOMAIN + "_store"].async_save(hass.data[DOMAIN + "_settings"])
     connection.send_result(msg["id"], settings)
+
+
+@websocket_api.websocket_command({vol.Required("type"):"weather_analysis/save_network",
+    vol.Required("home_ssids"):[vol.All(str,vol.Length(min=1,max=64))]})
+@websocket_api.async_response
+async def ws_save_network(hass, connection, msg):
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"],"unauthorized","Nur HA-Administratoren dürfen das gemeinsame Heim-WLAN ändern.");return
+    ssids=list(dict.fromkeys(value for value in msg["home_ssids"] if value.strip()))
+    if len(ssids)>20:
+        connection.send_error(msg["id"],"invalid_wifi","Bitte höchstens 20 Heim-WLANs auswählen.");return
+    data={"home_ssids":ssids}
+    async with hass.data[DOMAIN+"_network_lock"]:
+        await hass.data[DOMAIN+"_network_store"].async_save(data)
+        hass.data[DOMAIN+"_network"]=data
+    connection.send_result(msg["id"],data)
 
 
 @websocket_api.websocket_command({
@@ -557,13 +573,13 @@ def wifi_sensors(hass, connection):
     return sorted(result,key=lambda item:item["entity_id"])
 
 
-def on_home_wifi(hass, connection, card_id="default"):
+def on_home_wifi(hass, connection):
     # A router tracker only reports home for its configured home network.
     for entity in user_tracker_ids(hass,connection):
         state=hass.states.get(entity)
         if state and state.state=="home" and state.attributes.get("source_type")=="router":
             return True
-    ssids=hass.data.get(DOMAIN+"_settings",{}).get(card_id,{}).get("home_ssids",[])
+    ssids=hass.data.get(DOMAIN+"_network",{}).get("home_ssids",[])
     return bool(ssids) and any(sensor["ssid"] in ssids for sensor in wifi_sensors(hass,connection))
 
 
@@ -607,15 +623,14 @@ async def resolve_place(hass, latitude, longitude):
 
 
 @websocket_api.websocket_command({vol.Required("type"):"weather_analysis/location",
-    vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float),
-    vol.Optional("card_id",default="default"):str})
+    vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float)})
 @websocket_api.async_response
 async def ws_location(hass, connection, msg):
     try:
         point = coordinates(msg.get("latitude"),msg.get("longitude")) if "latitude" in msg or "longitude" in msg else user_position(hass,connection)
     except ValueError as error:
         connection.send_error(msg["id"],"invalid_location",str(error));return
-    if on_home_wifi(hass,connection,msg.get("card_id","default")):
+    if on_home_wifi(hass,connection):
         connection.send_result(msg["id"],{"location":home_location(),"location_error":None});return
     if point is None:
         connection.send_result(msg["id"],{"location":fallback(),"location_error":"Kein GPS-Standort verfügbar. Angezeigt wird die Vorhersage für Böhl-Iggelheim."})

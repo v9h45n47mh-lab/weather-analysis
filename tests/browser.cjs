@@ -538,12 +538,24 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await gpsPage.evaluate(()=>demo.hass.states['sensor.phone_ssid'].state='Home WiFi');
   await gpsCard.locator('[data-page="settings"]').click();await gpsCard.locator('[data-action="reload"]').click();
   await gpsPage.waitForFunction(()=>!demo.card._refreshing);
+  await gpsCard.locator('#wa-home-ssid-new').fill('Home 5 GHz');await gpsCard.locator('[data-action="add-home-ssid"]').click();
+  assert(await gpsCard.locator('#wa-home-ssids input[value="Home 5 GHz"]').isChecked());
+  await gpsCard.locator('#wa-home-ssids input[value="Home 5 GHz"]').uncheck();
   await gpsCard.locator('#wa-home-ssids input[value="Home WiFi"]').check();
   for(const dark of [false,true]){await gpsPage.evaluate(dark=>document.body.classList.toggle('dark',dark),dark);await gpsPage.screenshot({path:path.join(screens,'wifi-settings-390-'+(dark?'dark':'light')+'.png'),fullPage:true});}
+  await gpsCard.locator('[data-action="save-home-wifi"]').click();
+  await gpsPage.waitForFunction(()=>!demo.card._networkSaving&&demo.network.home_ssids.includes('Home WiFi'));
+  assert.match(await gpsCard.locator('#wa-home-wifi-content').innerText(),/für alle Anwender und Karten gespeichert/);
   await gpsCard.locator('[data-action="save-settings"]').click();await gpsCard.locator('#wa-current').waitFor();
-  assert.deepEqual(await gpsPage.evaluate(()=>demo.saved.get('test-garden').home_ssids),['Home WiFi']);
+  assert.deepEqual(await gpsPage.evaluate(()=>demo.network.home_ssids),['Home WiFi']);
+  assert.equal(await gpsPage.evaluate(()=>Object.hasOwn(demo.calls.filter(c=>c.type==='weather_analysis/save_card').at(-1),'home_ssids')),false);
   await gpsCard.locator('[data-page="dashboard"]').click();await gpsReady('Böhl-Iggelheim');
   assert.equal(await gpsPage.evaluate(()=>demo.card._location.via),'home_wifi');await gpsCard.locator('#wa-weather-current').waitFor();
+  // A second card sees the central network without configuring it again.
+  await gpsPage.evaluate(()=>{const other=document.createElement('weather-analysis-card');other.setConfig({...demo.config,card_id:'second-wifi-card'});other.hass=demo.hass;document.body.append(other);window.wifiSecond=other;});
+  await gpsPage.waitForFunction(()=>wifiSecond._location?.via==='home_wifi'&&!wifiSecond._busy);
+  assert.deepEqual(await gpsPage.evaluate(()=>wifiSecond._homeSsids),['Home WiFi']);
+  await gpsPage.evaluate(()=>wifiSecond.remove());
   const watchCount=await gpsPage.evaluate(()=>testGeo.watches);
   await gpsPage.evaluate(()=>{demo.hass.states['sensor.phone_ssid'].state='Hotel WiFi';demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
   await gpsReady('Hamburg');assert.equal(await gpsCard.locator('#wa-weather-current').count(),0);
@@ -586,6 +598,20 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await gpsPage.reload();await gpsReady('Böhl-Iggelheim');
   assert.equal(await gpsPage.evaluate(()=>testGeo.watches),0);
   assert.equal(await gpsPage.evaluate(()=>testGeo.queries),0,'HA mode does not query browser permission');
+  // A remembered device choice belongs to its HA user, not the next signed-in account.
+  await gpsCard.locator('[data-page="settings"]').click();await gpsCard.locator('[data-action="device-location"]').click();
+  await gpsPage.waitForFunction(()=>demo.card._browserCoordinates);
+  const oldKey=await gpsPage.evaluate(()=>demo.card._locationStorageKey());
+  const activeWatch=await gpsPage.evaluate(()=>demo.card._gpsWatch);
+  const watchesBeforeSwitch=await gpsPage.evaluate(()=>testGeo.watches);
+  await gpsPage.evaluate(()=>{demo.hass.user={id:'different-user'};demo.card.hass=demo.hass;});
+  await gpsPage.waitForFunction(()=>demo.card._ready&&!demo.card._initializing);
+  assert.equal(await gpsPage.evaluate(()=>demo.card._gpsMode),'ha');
+  assert.equal(await gpsPage.evaluate(()=>demo.card._browserCoordinates),null);
+  assert.equal(await gpsPage.evaluate(()=>testGeo.watches),watchesBeforeSwitch);
+  assert(await gpsPage.evaluate(id=>testGeo.cleared.includes(id),activeWatch));
+  assert.equal(await gpsPage.evaluate(key=>localStorage.getItem(key),oldKey),'device');
+  assert.equal(await gpsPage.evaluate(()=>localStorage.getItem(demo.card._locationStorageKey())),null);
   await gpsPage.close();
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:fs.readdirSync(screens).filter(name=>name.endsWith(".png")).length,errors},null,2));
   console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards, per-user GPS home/away/unknown/device permission/cleanup/races and 3 widths × 2 themes.');

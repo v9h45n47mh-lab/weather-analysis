@@ -45,7 +45,7 @@ async def main():
             assert result["type"]=="create_entry",result
             assert result["title"]=="Weather Analysis",result
             await hass.async_block_till_done()
-            from custom_components.weather_analysis import ensure_manager, user_position, ws_location, on_home_wifi
+            from custom_components.weather_analysis import ensure_manager, user_position, ws_location, on_home_wifi, ws_save_network
             # Native HA states and permission objects; no network or actual user coordinates.
             hass.states.async_set("device_tracker.gps_test","not_home",{"source_type":"gps","latitude":53.55,"longitude":10})
             hass.states.async_set("person.gps_test","not_home",{"user_id":"gps-test","device_trackers":["device_tracker.gps_test"],"source":"device_tracker.gps_test"})
@@ -67,15 +67,19 @@ async def main():
             hass.states.async_set(tracker.entity_id,"not_home",{"source_type":"gps","latitude":53.55,"longitude":10})
             hass.states.async_set(ssid.entity_id,"Home test")
             hass.states.async_set("person.gps_test","not_home",{"user_id":"gps-test","device_trackers":[tracker.entity_id],"source":tracker.entity_id})
-            hass.data["weather_analysis_settings"]["wifi-smoke"]={"home_ssids":["Home test"]}
+            conn.user.is_admin=True
+            ws_save_network(hass,conn,{"id":3,"home_ssids":["Home test"]})
+            await hass.async_block_till_done()
+            conn.user.is_admin=False
+            assert (await hass.data["weather_analysis_network_store"].async_load())["home_ssids"]==["Home test"]
             conn.user.id="gps-test"
-            assert on_home_wifi(hass,conn,"wifi-smoke")
+            assert on_home_wifi(hass,conn)
             ws_location(hass,conn,{"id":2,"card_id":"wifi-smoke"})
             await hass.async_block_till_done()
             assert responses[-1]["location"]["is_home"]
             assert responses[-1]["location"]["via"]=="home_wifi"
             hass.states.async_set(ssid.entity_id,"Hotel test")
-            assert not on_home_wifi(hass,conn,"wifi-smoke")
+            assert not on_home_wifi(hass,conn)
             manager=await ensure_manager(hass,"sensor.outdoor_test","temperature")
             today=datetime.now(timezone.utc).date().isoformat()
             request={"start_date":today,"end_date":today}

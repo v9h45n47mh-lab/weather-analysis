@@ -48,7 +48,7 @@ const CSS = `
 `;
 
 class WeatherAnalysisCard extends HTMLElement {
-  constructor(){super();this.attachShadow({mode:'open'});this.page='dashboard';this._sensors=[];this._wifiSensors=[];this._windSensors=[];this._illuminanceSensors=[];this._active={};this._settings={};this._request=0;this._busy=false;this._sectionStates=new Map();this._comparisons={};}
+  constructor(){super();this.attachShadow({mode:'open'});this.page='dashboard';this._sensors=[];this._wifiSensors=[];this._homeSsids=[];this._networkDraft=null;this._networkMessage=null;this._windSensors=[];this._illuminanceSensors=[];this._active={};this._settings={};this._request=0;this._busy=false;this._sectionStates=new Map();this._comparisons={};}
   static getConfigElement(){return document.createElement('weather-analysis-card-editor');}
   static getStubConfig(){return {card_id:crypto.randomUUID(),title:'Weather Analysis',period:'day'};}
   setConfig(config){
@@ -69,7 +69,7 @@ class WeatherAnalysisCard extends HTMLElement {
     this._sessionUser=hass.user?.id;
     this._hass=hass;
     if(!this.config)return;
-    if(oldUser&&oldUser!==hass.user?.id){this._stopGPS();this._browserCoordinates=null;this._location=null;this._dashboard=null;this._forecast=null;this._data=null;this._comparisonData=null;this._ready=false;this._admin=false;this._settingsDraft=null;this._draftNames=null;this._draftOrder=null;this._settings={};this._active={};this._sensors=[];this._wifiSensors=[];this._windSensors=[];this._illuminanceSensors=[];this._locationError=null;this._forecastError=null;this._gpsError=null;this._gpsBusy=false;this._error=null;this._sectionStates.clear();this._renderedScope=null;this._request++;this.render();}
+    if(oldUser&&oldUser!==hass.user?.id){this._stopGPS();this._browserCoordinates=null;this._location=null;this._dashboard=null;this._forecast=null;this._data=null;this._comparisonData=null;this._ready=false;this._admin=false;this._settingsDraft=null;this._draftNames=null;this._draftOrder=null;this._settings={};this._active={};this._sensors=[];this._wifiSensors=[];this._homeSsids=[];this._networkDraft=null;this._networkMessage=null;this._windSensors=[];this._illuminanceSensors=[];this._locationError=null;this._forecastError=null;this._gpsError=null;this._gpsBusy=false;this._error=null;this._sectionStates.clear();this._renderedScope=null;this._request++;this.render();}
     this._restoreLocationPreference();
     if(!this._ready){this._initialize();return;}
     const position=this._positionSignature();
@@ -132,7 +132,7 @@ class WeatherAnalysisCard extends HTMLElement {
     const trackers=people.flatMap(p=>[...(Array.isArray(p.attributes.device_trackers)?p.attributes.device_trackers:[]),p.attributes.source].filter(Boolean)).map(id=>states[id]).filter(s=>s?.attributes?.source_type==='gps'&&!['unknown','unavailable'].includes(s.state)&&Number.isFinite(s.attributes.latitude)&&Number.isFinite(s.attributes.longitude)).sort((a,b)=>Date.parse(b.last_updated||0)-Date.parse(a.last_updated||0));
     const point=trackers[0]||people.find(p=>!['unknown','unavailable'].includes(p.state)&&Number.isFinite(p.attributes.latitude)&&Number.isFinite(p.attributes.longitude));
     const networks=[...people.flatMap(p=>[...(Array.isArray(p.attributes.device_trackers)?p.attributes.device_trackers:[]),p.attributes.source]),...this._wifiSensors.map(s=>s.entity_id)].filter(Boolean).map(id=>[id,states[id]?.state,states[id]?.attributes?.source_type]);
-    return JSON.stringify([user,this._browserCoordinates||[point?.attributes.latitude,point?.attributes.longitude],networks,this.settings.home_ssids||[]]);
+    return JSON.stringify([user,this._browserCoordinates||[point?.attributes.latitude,point?.attributes.longitude],networks,this._homeSsids||[]]);
   }
   _invalidateLocation(){if(this.page==='dashboard'){this._request++;this._busy=false;}this._location=null;this._locationError=null;this._dashboard=null;this._forecast=null;this._forecastError=null;}
   _locationStorageKey(){return this._sessionUser&&this.config?'weather-analysis:location:'+JSON.stringify([this._sessionUser,this.config.card_id]):null;}
@@ -188,7 +188,7 @@ class WeatherAnalysisCard extends HTMLElement {
     try {
       const result=await this._hass.callWS({type:'weather_analysis/sensors',card_id:this.config.card_id});
       if(!current())return;
-      this._sensors=result.sensors;this._wifiSensors=result.wifi_sensors||[];this._windSensors=result.wind_sensors||[];this._illuminanceSensors=result.illuminance_sensors||[];this._settings=result.settings||{};this._admin=result.admin;this.timezone=result.timezone;
+      this._sensors=result.sensors;this._wifiSensors=result.wifi_sensors||[];this._homeSsids=result.home_ssids||[];this._windSensors=result.wind_sensors||[];this._illuminanceSensors=result.illuminance_sensors||[];this._settings=result.settings||{};this._admin=result.admin;this.timezone=result.timezone;
       this._ready=true;this._error=null;this.render();await this._fetch();
     }catch(error){if(!current())return;this._error='Weather Analysis ist noch nicht eingerichtet oder konnte nicht geladen werden. Bitte die Integration einmal unter Geräte & Dienste hinzufügen. '+(error.message||'');this.render();}
     finally{this._initializing=false;if(!this._ready&&!current())this._initialize();}
@@ -226,7 +226,7 @@ class WeatherAnalysisCard extends HTMLElement {
     const request=++this._request;this._busy=true;this._error=null;this.render();
     const current=()=>request===this._request&&this.page==='dashboard';
     try{
-      const result=await this._hass.callWS({type:'weather_analysis/location',card_id:this.config.card_id,...(this._browserCoordinates||{})});
+      const result=await this._hass.callWS({type:'weather_analysis/location',...(this._browserCoordinates||{})});
       if(!current())return;
       if(this._location?.key!==result.location.key){this._dashboard=null;this._forecast=null;this._forecastError=null;}
       this._location=result.location;this._locationError=result.location_error;this._gpsSignature=this._positionSignature();
@@ -240,6 +240,21 @@ class WeatherAnalysisCard extends HTMLElement {
     if(current()){this._busy=false;this.render();}
   }
   async _action({action,data,value}){
+    if(action==='choose-home-ssids'&&this._admin){this._networkDraft=value;return;}
+    if(['add-home-ssid','save-home-wifi'].includes(action)&&this._admin&&!this._networkSaving){
+      this._rememberAliasDraft();this._settingsDraft={...this.settings,...this._readSettingsForm()};
+      if(action==='add-home-ssid'){
+        const ssid=this.shadowRoot.getElementById('wa-home-ssid-new')?.value;
+        if(ssid?.trim())this._networkDraft=[...new Set([...(this._networkDraft??this._homeSsids),ssid])];
+        this.render();return;
+      }
+      this._networkSaving=true;this._networkMessage=null;this.render();
+      try{
+        const result=await this._hass.callWS({type:'weather_analysis/save_network',home_ssids:this._networkDraft??this._homeSsids});
+        this._homeSsids=result.home_ssids;this._networkDraft=null;this._networkMessage='Heim-WLAN für alle Anwender und Karten gespeichert.';this._networkError=false;this._invalidateLocation();
+      }catch(error){this._networkMessage=error.message||String(error);this._networkError=true;}
+      finally{this._networkSaving=false;this.render();}return;
+    }
     if(action==='device-location'||action==='location-auto'){
       if(this.page==='settings'){this._rememberAliasDraft();this._settingsDraft={...this.settings,...this._readSettingsForm()};}
       if(action==='device-location'){this._startGPS();return;}
@@ -257,7 +272,7 @@ class WeatherAnalysisCard extends HTMLElement {
     if(action==='compare-add'){if(this.selectedEntities.length<2)return;this.comparison.enabled=true;this.comparison.entity=this.selectedEntities.find(e=>e!==this.activeEntity);this._comparisonData=null;this._data=null;this.render();await this._fetch();return;}
     if(action==='compare-remove'){this.comparison.enabled=false;this.comparison.entity='';this._comparisonData=null;this._comparisonError=null;this._request++;this._busy=false;this.render();await this._fetch();return;}
     if(action==='navigate'){
-      const oldView=this.view;if(data.page==='settings'&&this.page!=='settings'){this._draftNames={...this.settings.sensor_names};this._draftOrder=Object.fromEntries(Object.entries(SENSOR_TYPES).map(([kind,config])=>[kind,[...this.settings[config.list]]]));this._settingsDraft=null;}this.page=data.page;this._error=null;
+      const oldView=this.view;if(data.page==='settings'&&this.page!=='settings'){this._draftNames={...this.settings.sensor_names};this._draftOrder=Object.fromEntries(Object.entries(SENSOR_TYPES).map(([kind,config])=>[kind,[...this.settings[config.list]]]));this._settingsDraft=null;this._networkDraft=null;this._networkMessage=null;}this.page=data.page;this._error=null;
       if(this.view!==oldView||!['settings','help'].includes(this.page)){this._request++;this._data=null;this._busy=false;}
       this.render();if(!['settings','help'].includes(this.page))await this._fetch();return;
     }
@@ -292,7 +307,7 @@ class WeatherAnalysisCard extends HTMLElement {
       if(!start||!end||start>end){this._error='Bitte einen gültigen Zeitraum auswählen.';this.render();return;}
       this._custom=[start,end];this._data=null;this._fetch();return;
     }
-    if(action==='cancel-settings'){this._settingsDraft=null;this._draftOrder=null;this.page='temperature';this._request++;this._busy=false;this._data=null;this._error=null;this.render();await this._fetch();return;}
+    if(action==='cancel-settings'){this._networkDraft=null;this._networkMessage=null;this._settingsDraft=null;this._draftOrder=null;this.page='temperature';this._request++;this._busy=false;this._data=null;this._error=null;this.render();await this._fetch();return;}
     if(action==='save-settings'&&this._admin){
       const settings=this._readSettingsForm();
       try {
@@ -323,7 +338,6 @@ class WeatherAnalysisCard extends HTMLElement {
       entities.forEach(entity=>selected.add(entity));settings[config.list]=entities;
       const primary=this._active[kind]??this.settings[config.single];settings[config.single]=entities.includes(primary)?primary:entities[0]||'';
     }
-    settings.home_ssids=[...this.shadowRoot.querySelectorAll('#wa-home-ssids input[type="checkbox"]:checked')].map(input=>input.value);
     settings.sensor_names=Object.fromEntries([...this.shadowRoot.querySelectorAll('[data-alias-entity]')].map(el=>[el.dataset.aliasEntity,el.querySelector('input').value.trim()]).filter(([entity,name])=>selected.has(entity)&&name));
     return settings;
   }
@@ -556,16 +570,24 @@ class WeatherAnalysisCard extends HTMLElement {
       (home&&!Object.keys(s).length&&this._admin?button({label:'Sensoren auswählen',action:'navigate',data:{page:'settings'}}):'')+
       section({id:'wa-forecast-0',title:'Heute',content:(home?actual+now:'')+prediction})+future+credit;
   }
+  _homeWifiSettings(){
+    const selected=this._networkDraft??this._homeSsids,ssids=[...new Set([...this._homeSsids,...selected,...this._wifiSensors.map(sensor=>sensor.ssid).filter(Boolean)])];
+    return section({id:'wa-home-wifi',title:'Heim-WLAN · für alle Anwender',content:
+      notice('Einmal zentral hinterlegen: Diese WLAN-Namen gelten für alle Anwender und Karten. Jede Person wird über die WLAN-Sensoren ihrer eigenen verknüpften Mobilgeräte erkannt. Ein als zuhause gemeldeter Router-Tracker gilt ebenfalls als Böhl-Iggelheim.')+
+      (ssids.length?multiSelect({id:'wa-home-ssids',label:'Heim-WLANs',action:'choose-home-ssids',values:selected,items:ssids.map(ssid=>({value:ssid,label:ssid})),disabled:!this._admin||this._networkSaving}):'')+
+      (this._admin?field({id:'wa-home-ssid-new',label:'WLAN-Name (SSID) hinzufügen',maxLength:64,disabled:this._networkSaving})+button({label:'WLAN hinzufügen',action:'add-home-ssid',disabled:this._networkSaving})+button({label:'Heim-WLAN speichern',action:'save-home-wifi',disabled:this._networkSaving}):'')+
+      (!this._wifiSensors.length?notice('Für die SSID-Erkennung den Sensor SSID beziehungsweise Wi-Fi-Verbindung in der Companion-App aktivieren und den Mobilgeräte-Tracker mit der eigenen HA-Person verknüpfen.'): '')+
+      (this._networkMessage?notice(this._networkMessage,{error:this._networkError}):'' )});
+  }
   _settingsView(){
-    const s=this._settingsDraft||this.settings,ssids=[...new Set([...(s.home_ssids||[]),...this._wifiSensors.map(sensor=>sensor.ssid).filter(Boolean)])];
+    const s=this._settingsDraft||this.settings;
     return `${section({id:'wa-card-settings',title:'Karte einrichten',content:
       `<div id="wa-settings-error">${this._error?notice(this._error,{error:true}):''}</div>`+
       Object.keys(SENSOR_TYPES).map(kind=>this._sensorSettings(kind,s)).join('')})}
       ${section({id:'wa-location-settings',title:'Standort',content:notice(this._browserCoordinates?'Wetter verwendet den Standort dieses Geräts.':'Wetter verwendet den GPS-Standort der mit deinem HA-Benutzer verknüpften Person.')+
         (this._gpsNotice?notice(this._gpsNotice):'')+(this._gpsError?notice(this._gpsError,{error:true}):'')+button({label:'Standort dieses Geräts verwenden',action:'device-location',disabled:this._gpsBusy})+button({label:'HA-Person verwenden',action:'location-auto',disabled:this._gpsMode!=='device'&&!this._browserCoordinates})+
         notice('Eine erkannte Heim-WLAN-Verbindung hat Vorrang vor GPS. Die Geräte-Standortwahl wird je Benutzer und Karte auf diesem Gerät gemerkt. Eine bestehende Freigabe wird wiederverwendet; eine neue Freigabe wird nur auf Knopfdruck angefordert.')+
-        section({id:'wa-home-wifi',title:'Heim-WLAN',content:notice('Ein als zuhause gemeldeter Router-Tracker deiner HA-Person gilt automatisch als Böhl-Iggelheim. Alternativ hier die SSID deines Heim-WLANs auswählen und speichern. Fremde WLANs gelten nicht als zuhause.')+
-          (ssids.length?multiSelect({id:'wa-home-ssids',label:'Heim-WLANs',action:'choose-home-ssids',values:s.home_ssids||[],items:ssids.map(ssid=>({value:ssid,label:ssid})),disabled:!this._admin}):notice('Aktiviere in der Companion-App den Sensor SSID beziehungsweise Wi-Fi-Verbindung. Das Mobilgerät muss über seinen Tracker mit deiner HA-Person verknüpft sein. Verbinde es mit dem Heim-WLAN und aktualisiere die Karte.'))})})}
+        this._homeWifiSettings()})}
       ${section({id:'wa-history-settings',title:'Historie',content:'<p class="hint">Vorhandene Historie wird automatisch übernommen. Nach erneutem Import bleiben bereits gesicherte Werte erhalten. Geänderte Sensoren zuerst speichern.</p>'+(this._admin?button({label:'Historie übernehmen',action:'import-history',disabled:!Object.values(SENSOR_TYPES).some(config=>this.settings[config.list].length)}):'')})}
       <div class="toolbar wa-setting-actions">${this._admin?button({label:'Speichern',action:'save-settings',variant:'primary'}):''}${button({label:'Zurück',action:'cancel-settings'})}</div>
       ${versionInfo({frontend:VERSION,backend:this._data?.version||VERSION,ui:UI_VERSION,label:'Weather Analysis'})}`;
@@ -573,7 +595,7 @@ class WeatherAnalysisCard extends HTMLElement {
   _help(){return section({id:'wa-help',title:'So funktioniert Weather Analysis',content:
     '<p>Temperatur, Wind und Helligkeit stammen direkt von deinen gewählten HA-Sensoren. Bereits bei der ersten Auswahl werden vorhandene Detailhistorie und Langzeitstatistik ausgewertet. Anschließend werden 15-Minuten-Werte, Stundenwerte und Extremwerte auch bei geschlossener Karte gespeichert.</p>'+
     row({title:'Sensoren auswählen und vergleichen',description:'Die Integration wird einmal eingerichtet. Sensoren aller drei Messarten wählst du ausschließlich in den Einstellungen der Karte. Ausgewählte Sensoren kannst du im jeweiligen Bereich für diese Karte umbenennen. Das Dropdown oben wechselt den Sensor; + fügt einen zweiten Sensor zum Vergleich hinzu. Mehrere Karten erhalten eigene Einstellungen über ihre Karten-ID.'})+
-    row({title:'Wetter',description:'Ohne Kacheln zeigt die Übersicht die aktuell gewählten Sensoren und ihre gemessenen 3-Stunden-Mittelwerte in Blau. Der laufende Abschnitt endet mit dem gemeinsamen Abfragezeitpunkt; Forecast beginnt genau dort und erscheint schwarz auf hellem Grund. Aktuell steht zwischen Ist und Vorhersage und zeigt aktuelle Temperatur, Wind sowie Temperatur-Minimum und -Maximum von heute. Wetter folgt automatisch dem GPS-Tracker der mit deinem HA-Benutzer verknüpften Person. Im deutschen Postleitzahlgebiet 67459 werden Ist, Aktuell und Vorhersage gezeigt; andernorts nur die örtliche Vorhersage. Der Ortsname steht im Kopfbereich. Ohne GPS erscheint zunächst nur die Vorhersage für Böhl-Iggelheim mit einem Hinweis. In Einstellungen → Standort kannst du alternativ den Standort dieses Geräts freigeben oder zur HA-Person zurückkehren. Ein als zuhause gemeldeter Router-Tracker hat Vorrang vor GPS. Alternativ kannst du in Einstellungen → Standort → Heim-WLAN die gemeldete SSID auswählen und speichern. Es werden nur WLAN-Sensoren der eigenen verknüpften Mobilgeräte verwendet. Die Geräte-Standortwahl wird je Benutzer und Karte auf diesem Gerät gespeichert. Beim erneuten Öffnen startet sie nur bei bereits gültiger Freigabe automatisch; andernfalls wird der HA-Standort ohne automatischen Freigabedialog verwendet. Die Dauer der Freigabe bestimmt das Gerät. Vorhersagen kommen von Open-Meteo und werden je Standort 30 Minuten zwischengespeichert. Ortsname und Postleitzahl kommen von Photon mit OpenStreetMap-Daten. Heute und Morgen folgen der Zeitzone am Aufenthaltsort. Wetter ist der Startreiter. Die 3-Stunden-Zeiträume stehen untereinander. Ist ist anfangs zugeklappt, Aktuell geöffnet; beide Bereiche merken ihren Zustand. Wind steht bei allen Quellen in derselben Spalte. Jeder 3-Stunden-Zeitraum lässt sich am Faltpfeil in seine Stundenwerte aufklappen. Angebrochene Stunden enden beziehungsweise beginnen am Abfragezeitpunkt; fehlende Messwerte bleiben leer. Große Symbole veranschaulichen die Vorhersage. Temperatur und gefühlte Temperatur beziehen sich auf den Beginn des Abschnitts; Min/Max auf seinen gesamten Verlauf. Regenrisiko, Wind und Böen zeigen die stündlichen Höchstwerte, Niederschlag die Menge im Abschnitt. Luftfeuchte und Luftdruck ergänzen die Vorhersage.'})+
+    row({title:'Wetter',description:'Ohne Kacheln zeigt die Übersicht die aktuell gewählten Sensoren und ihre gemessenen 3-Stunden-Mittelwerte in Blau. Der laufende Abschnitt endet mit dem gemeinsamen Abfragezeitpunkt; Forecast beginnt genau dort und erscheint schwarz auf hellem Grund. Aktuell steht zwischen Ist und Vorhersage und zeigt aktuelle Temperatur, Wind sowie Temperatur-Minimum und -Maximum von heute. Wetter folgt automatisch dem GPS-Tracker der mit deinem HA-Benutzer verknüpften Person. Im deutschen Postleitzahlgebiet 67459 werden Ist, Aktuell und Vorhersage gezeigt; andernorts nur die örtliche Vorhersage. Der Ortsname steht im Kopfbereich. Ohne GPS erscheint zunächst nur die Vorhersage für Böhl-Iggelheim mit einem Hinweis. In Einstellungen → Standort kannst du alternativ den Standort dieses Geräts freigeben oder zur HA-Person zurückkehren. Ein als zuhause gemeldeter Router-Tracker hat Vorrang vor GPS. Alternativ kannst du in Einstellungen → Standort → Heim-WLAN die Heim-SSID einmal zentral für alle Anwender und Karten hinterlegen und mit Heim-WLAN speichern übernehmen. Es werden nur WLAN-Sensoren der eigenen verknüpften Mobilgeräte verwendet. Die Geräte-Standortwahl wird je Benutzer und Karte auf diesem Gerät gespeichert. Beim erneuten Öffnen startet sie nur bei bereits gültiger Freigabe automatisch; andernfalls wird der HA-Standort ohne automatischen Freigabedialog verwendet. Die Dauer der Freigabe bestimmt das Gerät. Vorhersagen kommen von Open-Meteo und werden je Standort 30 Minuten zwischengespeichert. Ortsname und Postleitzahl kommen von Photon mit OpenStreetMap-Daten. Heute und Morgen folgen der Zeitzone am Aufenthaltsort. Wetter ist der Startreiter. Die 3-Stunden-Zeiträume stehen untereinander. Ist ist anfangs zugeklappt, Aktuell geöffnet; beide Bereiche merken ihren Zustand. Wind steht bei allen Quellen in derselben Spalte. Jeder 3-Stunden-Zeitraum lässt sich am Faltpfeil in seine Stundenwerte aufklappen. Angebrochene Stunden enden beziehungsweise beginnen am Abfragezeitpunkt; fehlende Messwerte bleiben leer. Große Symbole veranschaulichen die Vorhersage. Temperatur und gefühlte Temperatur beziehen sich auf den Beginn des Abschnitts; Min/Max auf seinen gesamten Verlauf. Regenrisiko, Wind und Böen zeigen die stündlichen Höchstwerte, Niederschlag die Menge im Abschnitt. Luftfeuchte und Luftdruck ergänzen die Vorhersage.'})+
     row({title:'Datenqualität',description:'≈ kennzeichnet Mittelwerte aus verdichteten HA-Statistiken. Grenzwertdauern und genaue Extremzeiten stammen aus vorhandener Detailhistorie und eigener Aufzeichnung. Fehlende Detaildaten werden nicht erfunden.'})+
     row({title:'Messlücken',description:'Unavailable/unknown und bekannte HA-Ausfallzeiten bleiben Lücken. Vergleiche sind nur bei ähnlicher Datenabdeckung aussagekräftig.'})+
     row({title:'Wind',description:'Windgeschwindigkeit wird einheitlich in km/h angezeigt. Unterstützt werden auch m/s, mph, Knoten und ft/s. Der höchste Sensorwert ist keine separat gemessene Windböe.'})+

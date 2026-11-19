@@ -98,6 +98,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             recorder=SimpleNamespace(keep_days=10, async_add_executor_job=executor),
             data={backend.DOMAIN:{}, backend.DOMAIN+"_settings":{},
                   backend.DOMAIN+"_store":Store(), backend.DOMAIN+"_lock":asyncio.Lock(),
+                  backend.DOMAIN+"_network":{"home_ssids":[]},backend.DOMAIN+"_network_store":Store(),backend.DOMAIN+"_network_lock":asyncio.Lock(),
                   backend.DOMAIN+"_entries":set()})
         self.hass.registry.async_get=self.hass.registry.entities.get
         self.history_patch = patch.object(backend.Manager, "read_history", return_value=backend.Archive())
@@ -139,29 +140,29 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
     async def test_ssid_is_matched_to_owned_device_and_explicit_home_network(self):
         self.add_wifi_registry()
         self.add_wifi_registry("other","person.other","device_tracker.other","sensor.other_ssid","other-phone",ssid="Home WiFi")
-        self.hass.data[backend.DOMAIN+"_settings"]["card"]={"home_ssids":["Home WiFi"]}
+        self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Home WiFi"]}
         self.assertEqual([x["entity_id"] for x in backend.wifi_sensors(self.hass,Connection())],["sensor.phone_ssid"])
-        self.assertTrue(backend.on_home_wifi(self.hass,Connection(),"card"))
-        self.assertFalse(backend.on_home_wifi(self.hass,Connection(),"different-card"))
-        self.assertFalse(backend.on_home_wifi(self.hass,Connection(denied={"sensor.phone_ssid"}),"card"))
-        self.assertFalse(backend.on_home_wifi(self.hass,Connection(denied={"device_tracker.phone"}),"card"))
+        self.assertTrue(backend.on_home_wifi(self.hass,Connection()))
+        self.assertTrue(backend.on_home_wifi(self.hass,Connection(user_id="other")))
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection(denied={"sensor.phone_ssid"})))
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection(denied={"device_tracker.phone"})))
         self.states["sensor.phone_ssid"].state="Hotel WiFi"
-        self.assertFalse(backend.on_home_wifi(self.hass,Connection(),"card"))
+        self.assertFalse(backend.on_home_wifi(self.hass,Connection()))
         for value in ("unknown","unavailable","Not Connected","<unknown ssid>"):
             self.states["sensor.phone_ssid"].state=value
             self.assertIsNone(backend.wifi_sensors(self.hass,Connection())[0]["ssid"])
         self.states["sensor.phone_ssid"].state="Home WiFi"
         entry=self.hass.registry.entities["sensor.phone_ssid"]
         entry.unique_id="webhook_wifi_connection"
-        self.assertTrue(backend.on_home_wifi(self.hass,Connection(),"card"))
+        self.assertTrue(backend.on_home_wifi(self.hass,Connection()))
         entry.platform="unrelated_integration"
         self.assertFalse(backend.wifi_sensors(self.hass,Connection()))
 
     async def test_wifi_sensors_discovered_even_when_gps_is_unavailable(self):
         self.add_wifi_registry()
         self.states["device_tracker.phone"].state="unavailable"
-        self.hass.data[backend.DOMAIN+"_settings"]["card"]={"home_ssids":["Home WiFi"]}
-        self.assertTrue(backend.on_home_wifi(self.hass,Connection(),"card"))
+        self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Home WiFi"]}
+        self.assertTrue(backend.on_home_wifi(self.hass,Connection()))
         conn=Connection()
         await backend.ws_sensors(self.hass,conn,{"id":1,"card_id":"card"})
         self.assertEqual(conn.results[-1][1]["wifi_sensors"][0]["ssid"],"Home WiFi")
@@ -170,18 +171,34 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(conn.results[-1][1]["location"]["is_home"])
             resolve.assert_not_awaited()
 
-    async def test_home_ssids_are_saved_per_card_by_admin_and_bounded(self):
-        msg={"id":1,"card_id":"card","title":"Weather Analysis","home_ssids":["Home WiFi","Home WiFi","Home 5G"]}
+    async def test_home_ssids_are_global_admin_only_persistent_and_bounded(self):
+        msg={"id":1,"home_ssids":["Home WiFi","Home WiFi","Home 5G"]}
         conn=Connection()
-        await backend.ws_save_card(self.hass,conn,msg)
+        await backend.ws_save_network(self.hass,conn,msg)
         self.assertEqual(conn.errors[-1][1],"unauthorized")
-        await backend.ws_save_card(self.hass,Connection(admin=True),msg)
-        self.assertEqual(self.hass.data[backend.DOMAIN+"_settings"]["card"]["home_ssids"],["Home WiFi","Home 5G"])
-        await backend.ws_save_card(self.hass,Connection(admin=True),{**msg,"card_id":"other","home_ssids":[]})
-        self.assertEqual(self.hass.data[backend.DOMAIN+"_settings"]["other"]["home_ssids"],[])
+        await backend.ws_save_network(self.hass,Connection(admin=True),msg)
+        expected=["Home WiFi","Home 5G"]
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_network_store"].value,{"home_ssids":expected})
+        for card_id in ("card-a","card-b"):
+            conn=Connection(user_id="other-user")
+            await backend.ws_sensors(self.hass,conn,{"id":1,"card_id":card_id})
+            self.assertEqual(conn.results[-1][1]["home_ssids"],expected)
+        await backend.ws_save_card(self.hass,Connection(admin=True),{"id":2,"card_id":"other","title":"Test"})
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_network"]["home_ssids"],expected)
+        self.assertNotIn("home_ssids",self.hass.data[backend.DOMAIN+"_settings"]["other"])
         conn=Connection(admin=True)
-        await backend.ws_save_card(self.hass,conn,{**msg,"home_ssids":[str(i) for i in range(21)]})
+        await backend.ws_save_network(self.hass,conn,{"id":3,"home_ssids":[str(i) for i in range(21)]})
         self.assertEqual(conn.errors[-1][1],"invalid_wifi")
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_network"]["home_ssids"],expected)
+        await backend.ws_save_network(self.hass,conn,{"id":4,"home_ssids":[]})
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_network"]["home_ssids"],[])
+
+    async def test_failed_global_network_save_keeps_active_setting(self):
+        self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Existing"]}
+        self.hass.data[backend.DOMAIN+"_network_store"].async_save=AsyncMock(side_effect=OSError("storage unavailable"))
+        with self.assertRaises(OSError):
+            await backend.ws_save_network(self.hass,Connection(admin=True),{"id":1,"home_ssids":["New"]})
+        self.assertEqual(self.hass.data[backend.DOMAIN+"_network"]["home_ssids"],["Existing"])
 
     async def test_location_only_uses_current_users_permitted_gps(self):
         self.add_position()

@@ -1,7 +1,7 @@
 ## 1.13.0
 
 - Heim-WLAN hat Vorrang vor GPS: Ein lesbarer Router-Tracker der eigenen HA-Person mit Zustand zuhause aktiviert Böhl-Iggelheim inklusive Ist und Aktuell, auch ohne GPS.
-- Alternativ unter Einstellungen → Standort → Heim-WLAN die SSID auswählen und speichern. Angeboten werden SSID-/Wi-Fi-Verbindungssensoren der mit der eigenen HA-Person verknüpften Mobilgeräte; fremde WLANs und andere Benutzer werden nicht als zuhause ausgewertet.
+- Heim-WLAN unter Einstellungen → Standort → Heim-WLAN einmal zentral für alle Anwender und Karten hinterlegen. HA-Administratoren können eine gemeldete SSID auswählen oder den WLAN-Namen eintragen und mit Heim-WLAN speichern übernehmen. Erkannt werden die eigenen verknüpften Mobilgeräte; fremde WLANs gelten nicht als zuhause. Reguläres Speichern einer Karte verändert die zentrale WLAN-Einstellung nicht.
 - Die Auswahl „Standort dieses Geräts verwenden“ wird je HA-Benutzer und Karte auf dem verwendeten Gerät gespeichert. GPS-Koordinaten werden dabei nicht dauerhaft gespeichert.
 - Beim erneuten Öffnen wird eine bereits gültige Standortfreigabe wiederverwendet. Bei abgelaufener, fehlender oder abgelehnter Freigabe nutzt die Karte den HA-Standort und öffnet keinen automatischen Freigabedialog. Neue Freigaben werden nur auf Knopfdruck angefordert.
 - „HA-Person verwenden“ entfernt die gespeicherte Geräteauswahl. Watcher und verspätete Standortantworten werden beim Verlassen und Benutzerwechsel sauber beendet.
