@@ -43,9 +43,9 @@ test('zoom and identity/location invalidation discard cached imagery',async()=>{
   card._clearRadar();assert.equal(card._radarCache.size,0);assert.equal(card._radarBase,'');assert.equal(card._radarLegend,'');assert.equal(card._radar,null);
 });
 
-test('new cards request maximum zoom and locally generated graphics',async()=>{
+test('new cards request one zoom level below maximum and locally generated graphics',async()=>{
   const {card,calls}=fixture();await card._fetchRadar();await settle();
-  assert.equal(calls.find(c=>c.type==='weather_analysis/radar').zoom,3);
+  assert.equal(calls.find(c=>c.type==='weather_analysis/radar').zoom,2);
   assert(card._radarBase.startsWith('data:image/svg+xml;base64,'));assert(card._radarLegend.startsWith('data:image/svg+xml;base64,'));
   assert(!calls.some(c=>['base','legend'].includes(c.kind)));
 });

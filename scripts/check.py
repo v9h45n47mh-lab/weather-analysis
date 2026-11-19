@@ -19,10 +19,10 @@ for path in root.rglob("*.json"):
 frontend = component / "frontend"
 code = (frontend / "weather-analysis-card.js").read_text()
 assert f"const VERSION = '{version}'" in code
-ui = frontend / "family-ui" / "1.14.0"
+ui = frontend / "family-ui" / "1.15.0"
 for filename, sha in json.loads((ui / "manifest.json").read_text())["files"].items():
     assert hashlib.sha256((ui / filename).read_bytes()).hexdigest() == sha
-assert "./family-ui/1.14.0/family-ui.js" in code
+assert "./family-ui/1.15.0/family-ui.js" in code
 assert not re.search(r"https?://", code), "No remote runtime dependency"
 assert not re.search(r"https?://", (frontend / "radar-controller.js").read_text()), "No remote radar runtime dependency"
 assert (component / "translations" / "de.json").exists()

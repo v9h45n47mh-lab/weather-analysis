@@ -13,7 +13,8 @@ from .radar_data import RadarUnavailable,metadata,sampling_grid,render,project_m
 from .radar_store import RawRadarStore,DATA_URL
 
 MAX_ZOOM=3
-UI_VERSION='1.14.0'
+DEFAULT_ZOOM=2
+UI_VERSION='1.15.0'
 
 def instant(value):
     date=datetime.fromisoformat(value.replace('Z','+00:00'))
@@ -56,7 +57,7 @@ class RadarClient:
             if self.assets is None:self.assets=await self.store.execute(read_assets)
         return self.assets
 
-    async def get(self,owner,latitude,longitude,zoom=MAX_ZOOM):
+    async def get(self,owner,latitude,longitude,zoom=DEFAULT_ZOOM):
         lat,lon=coordinates(latitude,longitude)
         if not isinstance(zoom,int) or not 0<=zoom<=MAX_ZOOM:raise ValueError('Invalid radar zoom')
         now=self.clock()

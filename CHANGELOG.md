@@ -1,3 +1,9 @@
+## 1.16.1
+
+- Regenradar startet eine Zoomstufe weiter heraus und bleibt auf den aktuellen Standort zentriert. Weiteres Vergrößern und Verkleinern ist möglich.
+- Weiße Karte, auch im dunklen Theme. Regen ausschließlich in Blautönen: je stärker der Niederschlag, desto dunkler das Blau.
+- HA UI Kit 1.15.0 mit identischer Niederschlagsskala für Legende und lokal erzeugte Radar-Bilder.
+
 ## 1.16.0
 
 - Radar startet maximal auf den aktuellen Standort gezoomt. Im Heim-WLAN wird ein plausibler konfigurierter HA-Heimstandort zur Markierung verwendet.

@@ -143,7 +143,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(backend,"resolve_place",new_callable=AsyncMock) as resolve:
             await backend.ws_radar(self.hass,conn,{"id":1})
             resolve.assert_not_awaited()
-        provider.get.assert_awaited_with("test-user",53.55,10.0,3)
+        provider.get.assert_awaited_with("test-user",53.55,10.0,2)
         self.assertEqual(conn.results[-1][1]["location"]["name"],"Aktueller Standort")
 
     async def test_dwd_warnings_use_current_location_and_handle_outage(self):

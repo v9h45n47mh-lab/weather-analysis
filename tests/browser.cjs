@@ -752,7 +752,10 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   await slider.press('Home');await radarPage.waitForFunction(()=>demo.card._radarIndex===0&&!demo.card._radarFrameBusy);assert.match(await radarCard.locator('.fui-radar-time').innerText(),/Messung/);
   await radarCard.getByRole('button',{name:'Radar abspielen',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radarIndex>=1);
   await radarCard.getByRole('button',{name:'Radar anhalten',exact:true}).click();const paused=await radarPage.evaluate(()=>demo.card._radarIndex);await radarPage.waitForTimeout(850);assert.equal(await radarPage.evaluate(()=>demo.card._radarIndex),paused);
-  assert(await radarCard.getByRole('button',{name:'Vergrößern',exact:true}).isDisabled(),'Start at maximum zoom');
+  assert.equal(await radarPage.evaluate(()=>demo.card._radar.zoom),2);
+  assert(await radarCard.getByRole('button',{name:'Vergrößern',exact:true}).isEnabled(),'Start one level below maximum');
+  await radarCard.getByRole('button',{name:'Vergrößern',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radar?.zoom===3&&demo.card._radarImage&&!demo.card._busy);
+  assert(await radarCard.getByRole('button',{name:'Vergrößern',exact:true}).isDisabled());
   await radarCard.getByRole('button',{name:'Verkleinern',exact:true}).click();await radarPage.waitForFunction(()=>demo.card._radar?.zoom===2&&demo.card._radarImage&&!demo.card._busy);
   assert(await radarPage.evaluate(()=>demo.calls.some(c=>c.type==='weather_analysis/radar'&&c.zoom===2)));
   await radarPage.evaluate(()=>{demo.radarFrameFailure=true;demo.card._radarImages.clear();demo.card._radarCache.clear();return demo.card._showRadarFrame(0);});
@@ -764,7 +767,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert.match(await radarCard.locator('main').innerText(),/außerhalb des DWD-Radargebiets/);assert.equal(await radarCard.locator('.fui-panel-header strong').innerText(),'Tokio');
   await radarPage.evaluate(()=>{Object.assign(demo.hass.states['device_tracker.phone'].attributes,{latitude:49.38,longitude:8.3});demo.card.hass=demo.hass;const standalone=document.createElement('weather-radar-card');standalone.setConfig({type:'custom:weather-radar-card',card_id:'standalone-test'});standalone.hass=demo.hass;document.body.append(standalone);window.standaloneRadar=standalone;});
   const standalone=radarPage.locator('weather-radar-card');await radarPage.waitForFunction(()=>standaloneRadar._radarImage&&!standaloneRadar._busy);
-  assert.equal(await radarPage.evaluate(()=>standaloneRadar._radar.zoom),3);assert(await standalone.getByRole('button',{name:'Vergrößern',exact:true}).isDisabled());
+  assert.equal(await radarPage.evaluate(()=>standaloneRadar._radar.zoom),2);assert(await standalone.getByRole('button',{name:'Vergrößern',exact:true}).isEnabled());
   assert.equal(await standalone.locator('nav [data-page]').count(),1);assert.equal(await standalone.locator('[data-page="radar"]').getAttribute('aria-current'),'page');
   await standalone.locator('[data-page="settings"]').click();assert.equal(await standalone.locator('#wa-card-settings-content').count(),0);assert.equal(await standalone.locator('#wa-location-settings-content').count(),1);
   await standalone.getByRole('button',{name:'Zurück',exact:true}).click();await radarPage.waitForFunction(()=>standaloneRadar.page==='radar'&&standaloneRadar._radarImage&&!standaloneRadar._busy);
