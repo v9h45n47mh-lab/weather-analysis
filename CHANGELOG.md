@@ -1,3 +1,12 @@
+## 1.13.1
+
+- Heim-WLAN wird vor der Browser-Standortfreigabe geprüft, auch beim Neustart, Wiederöffnen und bei einer gespeicherten Geräte-Standortwahl.
+- Im erkannten Heim-WLAN wird weder die Browser-Berechtigung abgefragt noch ein GPS-Watcher gestartet. Böhl-Iggelheim inklusive Ist bleibt ohne Geräte-Standortfreigabe verfügbar.
+- Beim Verbinden mit dem Heim-WLAN wird eine laufende Geräte-Standortabfrage beendet. Verspätete Netzwerk-, Berechtigungs- und GPS-Antworten können sie nicht wieder starten.
+- Der Geräte-Standortbutton ist zuhause deaktiviert; Freigabehinweise entfallen dort. Nach Verlassen gilt wieder die gespeicherte Standortwahl mit Prüfung einer bereits gültigen Freigabe.
+- Die WLAN-Prüfung ist unabhängig von GPS und Ortsauflösung und verwendet die zentrale Konfiguration für alle Anwender und Karten.
+- HA UI Kit 1.12.0 unverändert lokal eingebunden.
+
 ## 1.13.0
 
 - Heim-WLAN hat Vorrang vor GPS: Ein lesbarer Router-Tracker der eigenen HA-Person mit Zustand zuhause aktiviert Böhl-Iggelheim inklusive Ist und Aktuell, auch ohne GPS.

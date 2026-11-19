@@ -466,8 +466,8 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   gpsPage.on('pageerror',error=>errors.push(error.message));
   await gpsPage.addInitScript(freezeDate);
   await gpsPage.addInitScript(()=>{
-    window.testGeo={watches:0,queries:0,cleared:[],success:null,error:null,permission:sessionStorage.getItem('geo-permission')||'prompt'};
-    Object.defineProperty(navigator,'permissions',{configurable:true,value:{async query(){testGeo.queries++;return {state:testGeo.permission};}}});
+    window.testGeo={watches:0,queries:0,cleared:[],success:null,error:null,permission:sessionStorage.getItem('geo-permission')||'prompt',delayPermission:sessionStorage.getItem('test-delay-permission')==='1'};
+    Object.defineProperty(navigator,'permissions',{configurable:true,value:{async query(){testGeo.queries++;if(testGeo.delayPermission)await new Promise(resolve=>testGeo.resolvePermission=resolve);return {state:testGeo.permission};}}});
     Object.defineProperty(navigator,'geolocation',{configurable:true,value:{
       watchPosition(success,error){testGeo.success=success;testGeo.error=error;if(testGeo.permission==='granted')setTimeout(()=>success({coords:{latitude:35.6812,longitude:139.7671}}),0);return ++testGeo.watches;},
       clearWatch(id){testGeo.cleared.push(id);}
@@ -612,6 +612,56 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
   assert(await gpsPage.evaluate(id=>testGeo.cleared.includes(id),activeWatch));
   assert.equal(await gpsPage.evaluate(key=>localStorage.getItem(key),oldKey),'device');
   assert.equal(await gpsPage.evaluate(()=>localStorage.getItem(demo.card._locationStorageKey())),null);
+  // Cold starts in the configured home Wi-Fi must never touch either browser API.
+  await gpsPage.evaluate(()=>{sessionStorage.setItem('test-home-ssid-configured','1');sessionStorage.setItem('test-home-wifi','1');});
+  for(const permission of ['granted','prompt','denied']){
+    await gpsPage.evaluate(value=>sessionStorage.setItem('geo-permission',value),permission);
+    await gpsPage.reload();await gpsReady('Böhl-Iggelheim');
+    await gpsPage.waitForFunction(()=>!demo.card._gpsBusy&&!demo.card._initializing);
+    assert.equal(await gpsPage.evaluate(()=>demo.card._location.via),'home_wifi');
+    assert.equal(await gpsPage.evaluate(()=>testGeo.queries),0,'Home Wi-Fi precedes even a passive permission query: '+permission);
+    assert.equal(await gpsPage.evaluate(()=>testGeo.watches),0,'Home Wi-Fi never starts browser GPS: '+permission);
+    assert.doesNotMatch(await gpsCard.locator('main').innerText(),/Standortfreigabe muss am Gerät erneuert/);
+  }
+  await gpsCard.locator('[data-page="settings"]').click();
+  assert(await gpsCard.locator('[data-action="device-location"]').isDisabled());
+  assert.match(await gpsCard.locator('#wa-location-settings-content').innerText(),/Geräte-Standortfreigabe wird hier nicht abgefragt/);
+  // The handler itself remains guarded, independently of the disabled button.
+  await gpsPage.evaluate(()=>demo.card._startGPS());
+  assert.equal(await gpsPage.evaluate(()=>testGeo.queries+testGeo.watches),0);
+  await gpsCard.locator('[data-page="dashboard"]').click();await gpsReady('Böhl-Iggelheim');
+  for(const dark of [false,true]){await gpsPage.evaluate(dark=>document.body.classList.toggle('dark',dark),dark);await gpsPage.screenshot({path:path.join(screens,'wifi-without-gps-390-'+(dark?'dark':'light')+'.png'),fullPage:true});}
+  await gpsPage.evaluate(()=>{demo.card.remove();document.body.append(demo.card);});
+  await gpsReady('Böhl-Iggelheim');await gpsPage.waitForFunction(()=>!demo.card._gpsBusy);
+  assert.equal(await gpsPage.evaluate(()=>testGeo.queries+testGeo.watches),0,'Reattaching a card in home Wi-Fi also stays GPS-free');
+  // Joining home Wi-Fi stops an existing watcher, including late callbacks.
+  await gpsPage.evaluate(()=>{sessionStorage.setItem('test-home-wifi','0');sessionStorage.setItem('geo-permission','granted');});
+  await gpsPage.reload();await gpsReady('Tokio');
+  const leavingWatch=await gpsPage.evaluate(()=>demo.card._gpsWatch),beforeHome=await gpsPage.evaluate(()=>({watches:testGeo.watches,queries:testGeo.queries}));
+  await gpsPage.evaluate(()=>{demo.hass.states['sensor.phone_ssid'].state='Home WiFi';demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
+  await gpsReady('Böhl-Iggelheim');
+  assert(await gpsPage.evaluate(id=>testGeo.cleared.includes(id),leavingWatch));
+  await gpsPage.evaluate(()=>testGeo.success({coords:{latitude:53.55,longitude:10}}));
+  assert.equal(await gpsPage.evaluate(()=>demo.card._browserCoordinates),null);
+  assert.deepEqual(await gpsPage.evaluate(()=>({watches:testGeo.watches,queries:testGeo.queries})),beforeHome);
+  await gpsPage.evaluate(()=>{demo.hass.states['sensor.phone_ssid'].state='Hotel WiFi';demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
+  await gpsReady('Tokio');
+  assert.equal(await gpsPage.evaluate(()=>testGeo.watches),beforeHome.watches+1,'Leaving home Wi-Fi resumes a remembered, granted device choice');
+  // Joining Wi-Fi while a permission-state check is pending cancels GPS startup.
+  await gpsPage.evaluate(()=>sessionStorage.setItem('test-delay-permission','1'));
+  await gpsPage.reload();await gpsPage.waitForFunction(()=>testGeo.resolvePermission);
+  await gpsPage.evaluate(()=>{demo.hass.states['sensor.phone_ssid'].state='Home WiFi';demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();testGeo.resolvePermission();});
+  await gpsReady('Böhl-Iggelheim');assert.equal(await gpsPage.evaluate(()=>testGeo.watches),0);
+  // An old away-network response cannot trigger a query after Wi-Fi is home.
+  await gpsPage.evaluate(()=>{sessionStorage.removeItem('test-delay-permission');sessionStorage.setItem('test-network-delay','250');});
+  await gpsPage.reload();await gpsPage.waitForFunction(()=>demo.card._networkKnown&&demo.calls.some(c=>c.type==='weather_analysis/network'));
+  await gpsPage.evaluate(()=>{demo.hass.states['sensor.phone_ssid'].state='Home WiFi';demo.card.hass=demo.hass;clearTimeout(demo.card._debounce);demo.card._fetchDashboard();});
+  await gpsReady('Böhl-Iggelheim');await gpsPage.waitForTimeout(300);
+  assert.equal(await gpsPage.evaluate(()=>testGeo.queries+testGeo.watches),0);
+  // Failed Wi-Fi verification also must not fall through to a permission request.
+  await gpsPage.evaluate(()=>{sessionStorage.removeItem('test-network-delay');sessionStorage.setItem('test-network-error','1');});
+  await gpsPage.reload();await gpsReady('Böhl-Iggelheim');await gpsPage.waitForFunction(()=>!demo.card._gpsBusy&&demo.card._gpsNotice);
+  assert.equal(await gpsPage.evaluate(()=>testGeo.queries+testGeo.watches),0);
   await gpsPage.close();
   fs.writeFileSync(path.join(screens,'browser-summary.json'),JSON.stringify({passed:true,viewports:[1100,390,320],themes:['light','dark'],screenshots:fs.readdirSync(screens).filter(name=>name.endsWith(".png")).length,errors},null,2));
   console.log('Browser checks passed: three views, compact sensor dropdown, global refresh icon, paired readings, integer lux, chart averages, two-colour comparison, remembered folds, day arrows, settings selection, multiple thermometers, multiple wind/light sensors, mouse/touch cursor, gap handling, legacy settings, expandable statistics, permissions, stale responses, independent cards, per-user GPS home/away/unknown/device permission/cleanup/races and 3 widths × 2 themes.');

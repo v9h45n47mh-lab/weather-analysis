@@ -39,7 +39,7 @@ from .analytics import (Archive, sensor_kind, sensor_value, combine_hours,
                         history_archive, merge_hours, summarize, resolution_chart)
 
 DOMAIN = "weather_analysis"
-VERSION = "1.13.0"
+VERSION = "1.13.1"
 _LOGGER = logging.getLogger(__name__)
 SENSOR_FIELDS = {"temperature": ("entities", "entity"), "wind": ("wind_entities", "wind_entity"),
                  "illuminance": ("illuminance_entities", "illuminance_entity")}
@@ -67,7 +67,7 @@ async def async_setup(hass, config):
         StaticPathConfig("/weather-analysis", str(Path(__file__).parent / "frontend"), False)
     ])
     frontend.add_extra_js_url(hass, f"/weather-analysis/weather-analysis-card.js?v={VERSION}")
-    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location, ws_save_network):
+    for command in (ws_sensors, ws_analyse, ws_save_card, ws_import_history, ws_dashboard, ws_forecast, ws_location, ws_save_network, ws_network):
         websocket_api.async_register_command(hass, command)
     return True
 
@@ -341,7 +341,7 @@ async def ws_sensors(hass, connection, msg):
         if "sensor_names" in settings:
             settings["sensor_names"] = {entity: name for entity, name in settings["sensor_names"].items() if entity in allowed}
     connection.send_result(msg["id"], {"sensors": groups["temperature"], "wind_sensors": groups["wind"], "illuminance_sensors": groups["illuminance"], "version": VERSION,
-        "timezone": hass.config.time_zone, "admin": connection.user.is_admin, "settings": settings, "wifi_sensors": wifi_sensors(hass,connection), "home_ssids":hass.data.get(DOMAIN+"_network",{}).get("home_ssids",[])})
+        "timezone": hass.config.time_zone, "admin": connection.user.is_admin, "settings": settings, "wifi_sensors": wifi_sensors(hass,connection), "home_ssids":hass.data.get(DOMAIN+"_network",{}).get("home_ssids",[]),"home_wifi":on_home_wifi(hass,connection)})
 
 
 @websocket_api.websocket_command({
@@ -583,6 +583,15 @@ def on_home_wifi(hass, connection):
     return bool(ssids) and any(sensor["ssid"] in ssids for sensor in wifi_sensors(hass,connection))
 
 
+@websocket_api.websocket_command({vol.Required("type"):"weather_analysis/network"})
+@websocket_api.async_response
+async def ws_network(hass, connection, msg):
+    """Check home Wi-Fi without reading GPS or contacting a location provider."""
+    connection.send_result(msg["id"],{"home_wifi":on_home_wifi(hass,connection),
+        "home_ssids":hass.data.get(DOMAIN+"_network",{}).get("home_ssids",[]),
+        "wifi_sensors":wifi_sensors(hass,connection)})
+
+
 def user_position(hass, connection):
     """Read only the logged-in user's linked person and permitted GPS trackers."""
     people = user_people(hass,connection)
@@ -626,12 +635,12 @@ async def resolve_place(hass, latitude, longitude):
     vol.Optional("latitude"):vol.Coerce(float),vol.Optional("longitude"):vol.Coerce(float)})
 @websocket_api.async_response
 async def ws_location(hass, connection, msg):
+    if on_home_wifi(hass,connection):
+        connection.send_result(msg["id"],{"location":home_location(),"location_error":None});return
     try:
         point = coordinates(msg.get("latitude"),msg.get("longitude")) if "latitude" in msg or "longitude" in msg else user_position(hass,connection)
     except ValueError as error:
         connection.send_error(msg["id"],"invalid_location",str(error));return
-    if on_home_wifi(hass,connection):
-        connection.send_result(msg["id"],{"location":home_location(),"location_error":None});return
     if point is None:
         connection.send_result(msg["id"],{"location":fallback(),"location_error":"Kein GPS-Standort verfügbar. Angezeigt wird die Vorhersage für Böhl-Iggelheim."})
         return

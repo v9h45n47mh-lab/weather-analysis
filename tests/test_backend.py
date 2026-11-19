@@ -120,6 +120,31 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         for entity,uid in [(tracker,"tracker-id"),(ssid_entity,unique)]:
             self.hass.registry.entities[entity]=SimpleNamespace(entity_id=entity,device_id=device,unique_id=uid,platform="mobile_app")
 
+    async def test_home_wifi_check_never_reads_gps_or_geocodes(self):
+        self.add_wifi_registry()
+        self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Home WiFi"]}
+        with patch.object(backend,"user_position",side_effect=AssertionError("GPS must not be read")),patch.object(backend,"resolve_place",new_callable=AsyncMock) as geocode:
+            conn=Connection()
+            await backend.ws_network(self.hass,conn,{"id":1})
+            self.assertTrue(conn.results[-1][1]["home_wifi"])
+            await backend.ws_location(self.hass,conn,{"id":2})
+            self.assertEqual(conn.results[-1][1]["location"]["via"],"home_wifi")
+            geocode.assert_not_awaited()
+        await backend.ws_sensors(self.hass,conn,{"id":3,"card_id":"any-card"})
+        self.assertTrue(conn.results[-1][1]["home_wifi"])
+
+    async def test_network_check_is_user_scoped_and_foreign_wifi_is_not_home(self):
+        self.add_wifi_registry()
+        self.hass.data[backend.DOMAIN+"_network"]={"home_ssids":["Home WiFi"]}
+        conn=Connection(user_id="other")
+        await backend.ws_network(self.hass,conn,{"id":1})
+        self.assertFalse(conn.results[-1][1]["home_wifi"])
+        self.assertEqual(conn.results[-1][1]["wifi_sensors"],[])
+        self.states["sensor.phone_ssid"].state="Hotel WiFi"
+        conn=Connection()
+        await backend.ws_network(self.hass,conn,{"id":2})
+        self.assertFalse(conn.results[-1][1]["home_wifi"])
+
     async def test_home_router_presence_overrides_away_gps_and_needs_no_geocoder(self):
         self.add_position(latitude=53.55,longitude=10.0)
         self.states["person.test"].attributes["device_trackers"].append("device_tracker.router_phone")
