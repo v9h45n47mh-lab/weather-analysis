@@ -55,7 +55,8 @@ async def main():
             assert user_position(hass,conn) is None
             responses=[]
             conn.send_result=lambda request,data:responses.append(data)
-            await ws_location(hass,conn,{"id":1})
+            ws_location(hass,conn,{"id":1})
+            await hass.async_block_till_done()
             assert not responses[-1]["location"]["is_home"]
             assert not responses[-1]["location"]["position_available"]
             manager=await ensure_manager(hass,"sensor.outdoor_test","temperature")
