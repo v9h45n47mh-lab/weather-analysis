@@ -361,7 +361,7 @@ const server=http.createServer((req,res)=>{const requested=decodeURIComponent(re
     await page.screenshot({path:path.join(screens,view+'-'+width+'-'+(dark?'dark':'light')+'.png'),fullPage:true});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overflow at '+view+' '+width);
    }
-   assert.match(await card().locator('.version-info').innerText(),/1\.14\.0/);
+   assert.match(await card().locator('.version-info').innerText(),/1\.15\.0/);
   }
   await card().locator('[data-page="illuminance"]').click();await card().locator('#wa-current').waitFor();
   assert.match(await card().locator('#wa-current').innerText(),/1.235/);assert.match(await card().locator('#wa-current').innerText(),/lx/);assert.equal(await card().getByText('Temperaturspanne',{exact:true}).count(),0);
